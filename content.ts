@@ -57,6 +57,11 @@ document.addEventListener('mouseup', (event) => {
       document.body.appendChild(saveButton);
 
       saveButton.addEventListener('click', async () => {
+        // Play click sound
+        if ((window as any).playClickSound) {
+          (window as any).playClickSound();
+        }
+        
         const selectedText = window.getSelection()?.toString();
         if (selectedText) {
           const result = await browser.storage.local.get({ 
