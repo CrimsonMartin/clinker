@@ -1,0 +1,41 @@
+{
+  "manifest_version": 2,
+  "name": "Research Linker",
+  "version": "1.0",
+  "description": "Follow research paper citations seamlessly.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "contextMenus",
+    "tabs"
+  ],
+  "background": {
+    "scripts": ["dist/background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["dist/content.js"]
+    }
+  ],
+  "browser_action": {
+    "default_popup": "sidebar.html",
+    "default_title": "Research Linker",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "browser_style": true
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "linker@example.com"
+    }
+   }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "research-linker",
+  "version": "1.0.0",
+  "description": "Follow research paper citations seamlessly.",
+  "scripts": {
+    "build": "tsc",
+    "start": "npm run build && DISPLAY=:0 web-ext run --source-dir ./ --keep-profile-changes --start-url https://www.ajmc.com/view/advances-and-limitations-in-cd20-targeted-car-t-cell-therapy"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/firefox-webext-browser": "^120.0.4",
+    "typescript": "^5.8.3",
+    "web-ext": "^8.7.1"
+  }
+}
