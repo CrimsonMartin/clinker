@@ -170,6 +170,13 @@ function createTreeNodeElement(node, isCurrentNode) {
     }
   });
   
+  // Add right-click context menu
+  nodeElement.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    showContextMenu(e, node);
+  });
+  
   return nodeElement;
 }
 
@@ -180,11 +187,16 @@ function renderTree(nodes, currentNodeId, parentId = null) {
   const childNodes = nodes.filter(node => node.parentId === parentId);
   
   childNodes.forEach(node => {
+    // Ensure node has children array
+    if (!node.children) {
+      node.children = [];
+    }
+    
     const isCurrentNode = node.id === currentNodeId;
     const nodeElement = createTreeNodeElement(node, isCurrentNode);
     
     // Recursively render children
-    if (node.children.length > 0) {
+    if (node.children && node.children.length > 0) {
       const childrenContainer = document.createElement('div');
       childrenContainer.className = 'tree-children';
       const childrenElements = renderTree(nodes, currentNodeId, node.id);
@@ -199,6 +211,9 @@ function renderTree(nodes, currentNodeId, parentId = null) {
 }
 
 
+// Track if background drop is already setup
+let backgroundDropSetup = false;
+
 async function loadAndDisplayTree() {
   const treeRoot = document.getElementById('tree-root');
   if (!treeRoot) return;
@@ -206,6 +221,8 @@ async function loadAndDisplayTree() {
   try {
     const result = await browser.storage.local.get({ citationTree: { nodes: [], currentNodeId: null } });
     const tree = result.citationTree;
+    
+    console.log('Loading tree with nodes:', tree.nodes);
     
     // Clear existing content
     treeRoot.innerHTML = '';
@@ -220,8 +237,11 @@ async function loadAndDisplayTree() {
     const treeElements = renderTree(tree.nodes, tree.currentNodeId);
     treeRoot.appendChild(treeElements);
     
-    // Setup drop functionality for the background to make nodes root-level
-    setupBackgroundDrop();
+    // Setup drop functionality for the background to make nodes root-level (only once)
+    if (!backgroundDropSetup) {
+      setupBackgroundDrop();
+      backgroundDropSetup = true;
+    }
     
   } catch (error) {
     console.error('Error loading tree:', error);
@@ -293,6 +313,9 @@ async function moveNodeToRoot(nodeId) {
     // Set as root node
     node.parentId = null;
     
+    console.log(`Moved node ${nodeId} to root level`);
+    console.log('Updated tree:', tree);
+    
     await browser.storage.local.set({ citationTree: tree });
   } catch (error) {
     console.error('Error moving node to root:', error);
@@ -341,7 +364,10 @@ async function moveNode(draggedNodeId, targetNodeId) {
     const draggedNode = tree.nodes.find((n) => n.id === draggedNodeId);
     const targetNode = tree.nodes.find((n) => n.id === targetNodeId);
     
-    if (!draggedNode || !targetNode) return;
+    if (!draggedNode || !targetNode) {
+      console.error('Could not find dragged or target node');
+      return;
+    }
     
     // Prevent moving a node to one of its descendants
     function isDescendant(nodeId, potentialAncestorId) {
@@ -364,13 +390,113 @@ async function moveNode(draggedNodeId, targetNodeId) {
       }
     }
     
-    // Add to new parent's children
-    targetNode.children.push(draggedNodeId);
+    // Ensure target node has children array
+    if (!targetNode.children) {
+      targetNode.children = [];
+    }
+    
+    // Add to new parent's children if not already there
+    if (!targetNode.children.includes(draggedNodeId)) {
+      targetNode.children.push(draggedNodeId);
+    }
+    
+    // Update the dragged node's parentId
     draggedNode.parentId = targetNodeId;
+    
+    console.log(`Moved node ${draggedNodeId} to parent ${targetNodeId}`);
+    console.log('Updated tree:', tree);
     
     await browser.storage.local.set({ citationTree: tree });
   } catch (error) {
     console.error('Error moving node:', error);
+  }
+}
+
+// Context menu functionality
+function showContextMenu(event, node) {
+  // Remove any existing context menu
+  const existingMenu = document.querySelector('.context-menu');
+  if (existingMenu) {
+    existingMenu.remove();
+  }
+  
+  const contextMenu = document.createElement('div');
+  contextMenu.className = 'context-menu';
+  contextMenu.style.position = 'fixed';
+  contextMenu.style.left = event.clientX + 'px';
+  contextMenu.style.top = event.clientY + 'px';
+  contextMenu.style.zIndex = '10000';
+  
+  // Only show "Shift up to parent" if the node has a parent
+  if (node.parentId !== null) {
+    const shiftUpOption = document.createElement('div');
+    shiftUpOption.className = 'context-menu-item';
+    shiftUpOption.textContent = 'Shift up';
+    shiftUpOption.addEventListener('click', async () => {
+      await shiftNodeToParent(node.id);
+      contextMenu.remove();
+    });
+    contextMenu.appendChild(shiftUpOption);
+  }
+  
+  document.body.appendChild(contextMenu);
+  
+  // Close context menu when clicking outside
+  const closeContextMenu = (e) => {
+    if (!contextMenu.contains(e.target)) {
+      contextMenu.remove();
+      document.removeEventListener('click', closeContextMenu);
+    }
+  };
+  
+  setTimeout(() => {
+    document.addEventListener('click', closeContextMenu);
+  }, 0);
+}
+
+async function shiftNodeToParent(nodeId) {
+  try {
+    const result = await browser.storage.local.get({ citationTree: { nodes: [], currentNodeId: null } });
+    const tree = result.citationTree;
+    
+    const node = tree.nodes.find((n) => n.id === nodeId);
+    if (!node || node.parentId === null) {
+      console.log('Node has no parent to shift up to');
+      return;
+    }
+    
+    const currentParent = tree.nodes.find((n) => n.id === node.parentId);
+    if (!currentParent) {
+      console.error('Current parent not found');
+      return;
+    }
+    
+    // Remove from current parent's children
+    currentParent.children = currentParent.children.filter((childId) => childId !== nodeId);
+    
+    // Set the node's parent to be its grandparent
+    const grandparentId = currentParent.parentId;
+    node.parentId = grandparentId;
+    
+    // If there's a grandparent, add this node to its children
+    if (grandparentId !== null) {
+      const grandparent = tree.nodes.find((n) => n.id === grandparentId);
+      if (grandparent) {
+        if (!grandparent.children) {
+          grandparent.children = [];
+        }
+        if (!grandparent.children.includes(nodeId)) {
+          grandparent.children.push(nodeId);
+        }
+      }
+    }
+    
+    console.log(`Shifted node ${nodeId} up to parent level`);
+    console.log('Updated tree:', tree);
+    
+    await browser.storage.local.set({ citationTree: tree });
+  } catch (error) {
+    console.error('Error shifting node to parent:', error);
   }
 }
 
