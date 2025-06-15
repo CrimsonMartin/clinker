@@ -20,25 +20,54 @@ function createTreeNodeElement(node, isCurrentNode) {
   nodeElement.className = `tree-node ${isCurrentNode ? 'current' : ''}`;
   nodeElement.dataset.nodeId = node.id.toString();
   
+  // Store dragged node ID globally to avoid dataTransfer issues
+  let currentDraggedNodeId = null;
+  
   // Make all nodes draggable
   nodeElement.draggable = true;
   nodeElement.addEventListener('dragstart', (e) => {
+    currentDraggedNodeId = node.id;
     e.dataTransfer.setData('text/plain', node.id.toString());
+    e.dataTransfer.effectAllowed = 'move';
     nodeElement.classList.add('dragging');
+    
+    // Store the dragged node ID on the window for cross-element access
+    window.currentDraggedNodeId = node.id;
   });
   
   nodeElement.addEventListener('dragend', () => {
     nodeElement.classList.remove('dragging');
+    window.currentDraggedNodeId = null;
+    
+    // Clean up any remaining drag-over classes
+    document.querySelectorAll('.drag-over').forEach(el => {
+      el.classList.remove('drag-over');
+    });
+    
+    // Clean up background drag-over class
+    const treeContainer = document.querySelector('.tree-container');
+    if (treeContainer) {
+      treeContainer.classList.remove('drag-over-background');
+    }
   });
   
   // Make all nodes drop targets
   nodeElement.addEventListener('dragover', (e) => {
     e.preventDefault();
-    nodeElement.classList.add('drag-over');
+    e.stopPropagation();
+    
+    // Only add drag-over class if we're dragging a different node
+    if (window.currentDraggedNodeId && window.currentDraggedNodeId !== node.id) {
+      nodeElement.classList.add('drag-over');
+    }
   });
   
-  nodeElement.addEventListener('dragleave', () => {
-    nodeElement.classList.remove('drag-over');
+  nodeElement.addEventListener('dragleave', (e) => {
+    // Only remove drag-over if we're actually leaving the element
+    // (not just moving to a child element)
+    if (!nodeElement.contains(e.relatedTarget)) {
+      nodeElement.classList.remove('drag-over');
+    }
   });
   
   nodeElement.addEventListener('drop', async (e) => {
@@ -46,10 +75,11 @@ function createTreeNodeElement(node, isCurrentNode) {
     e.stopPropagation();
     nodeElement.classList.remove('drag-over');
     
-    const draggedNodeId = parseInt(e.dataTransfer.getData('text/plain'));
+    const draggedNodeId = parseInt(e.dataTransfer.getData('text/plain')) || window.currentDraggedNodeId;
     const targetNodeId = node.id;
     
-    if (draggedNodeId !== targetNodeId) {
+    if (draggedNodeId && draggedNodeId !== targetNodeId) {
+      console.log(`Moving node ${draggedNodeId} to become child of node ${targetNodeId}`);
       await moveNode(draggedNodeId, targetNodeId);
     }
   });
@@ -190,9 +220,82 @@ async function loadAndDisplayTree() {
     const treeElements = renderTree(tree.nodes, tree.currentNodeId);
     treeRoot.appendChild(treeElements);
     
+    // Setup drop functionality for the background to make nodes root-level
+    setupBackgroundDrop();
+    
   } catch (error) {
     console.error('Error loading tree:', error);
     treeRoot.innerHTML = '<div class="empty-state">Error loading research tree.</div>';
+  }
+}
+
+function setupBackgroundDrop() {
+  const treeContainer = document.querySelector('.tree-container');
+  if (!treeContainer) return;
+  
+  // Allow dropping on the tree container background
+  treeContainer.addEventListener('dragover', (e) => {
+    // Check if we're dropping on background (not on a tree node)
+    const isOnNode = e.target.closest('.tree-node');
+    
+    if (!isOnNode) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      if (window.currentDraggedNodeId) {
+        treeContainer.classList.add('drag-over-background');
+      }
+    }
+  });
+  
+  treeContainer.addEventListener('dragleave', (e) => {
+    // Remove background drag-over if leaving the container
+    if (!treeContainer.contains(e.relatedTarget)) {
+      treeContainer.classList.remove('drag-over-background');
+    }
+  });
+  
+  treeContainer.addEventListener('drop', async (e) => {
+    // Check if we're dropping on background (not on a tree node)
+    const isOnNode = e.target.closest('.tree-node');
+    
+    if (!isOnNode) {
+      e.preventDefault();
+      e.stopPropagation();
+      treeContainer.classList.remove('drag-over-background');
+      
+      const draggedNodeId = parseInt(e.dataTransfer.getData('text/plain')) || window.currentDraggedNodeId;
+      
+      if (draggedNodeId) {
+        console.log(`Moving node ${draggedNodeId} to root level`);
+        await moveNodeToRoot(draggedNodeId);
+      }
+    }
+  });
+}
+
+async function moveNodeToRoot(nodeId) {
+  try {
+    const result = await browser.storage.local.get({ citationTree: { nodes: [], currentNodeId: null } });
+    const tree = result.citationTree;
+    
+    const node = tree.nodes.find((n) => n.id === nodeId);
+    if (!node) return;
+    
+    // Remove from old parent's children
+    if (node.parentId !== null) {
+      const oldParent = tree.nodes.find((n) => n.id === node.parentId);
+      if (oldParent) {
+        oldParent.children = oldParent.children.filter((childId) => childId !== nodeId);
+      }
+    }
+    
+    // Set as root node
+    node.parentId = null;
+    
+    await browser.storage.local.set({ citationTree: tree });
+  } catch (error) {
+    console.error('Error moving node to root:', error);
   }
 }
 
