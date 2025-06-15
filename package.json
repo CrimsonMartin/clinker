@@ -4,12 +4,19 @@
   "description": "Follow research paper citations seamlessly.",
   "scripts": {
     "build": "tsc",
-    "start": "npm run build && DISPLAY=:0 web-ext run --source-dir ./ --keep-profile-changes --start-url https://www.ajmc.com/view/advances-and-limitations-in-cd20-targeted-car-t-cell-therapy"
+    "start": "npm run build && DISPLAY=:0 web-ext run --source-dir ./ --keep-profile-changes --start-url https://www.ajmc.com/view/advances-and-limitations-in-cd20-targeted-car-t-cell-therapy",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
     "@types/firefox-webext-browser": "^120.0.4",
+    "@types/jest": "^29.5.14",
+    "jest": "^30.0.0",
+    "jest-environment-jsdom": "^30.0.0",
+    "ts-jest": "^29.4.0",
     "typescript": "^5.8.3",
     "web-ext": "^8.7.1"
   }
