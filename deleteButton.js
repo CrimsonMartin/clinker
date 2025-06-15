@@ -2,12 +2,6 @@
 
 async function deleteNode(nodeId) {
   try {
-    // Don't allow deleting the base node
-    if (nodeId === 0) {
-      alert('Cannot delete the base node');
-      return;
-    }
-    
     const result = await browser.storage.local.get({ citationTree: { nodes: [], currentNodeId: null } });
     const tree = result.citationTree;
     
@@ -54,9 +48,7 @@ function createDeleteButton(node) {
   deleteButton.textContent = 'X';
   deleteButton.addEventListener('click', async (e) => {
     e.stopPropagation();
-    if (confirm('Are you sure you want to delete this node and all its children?')) {
-      await deleteNode(node.id);
-    }
+    await deleteNode(node.id);
   });
   
   return deleteButton;

@@ -20,18 +20,16 @@ function createTreeNodeElement(node, isCurrentNode) {
   nodeElement.className = `tree-node ${isCurrentNode ? 'current' : ''}`;
   nodeElement.dataset.nodeId = node.id.toString();
   
-  // Make nodes draggable (except the base node)
-  if (node.id !== 0) {
-    nodeElement.draggable = true;
-    nodeElement.addEventListener('dragstart', (e) => {
-      e.dataTransfer.setData('text/plain', node.id.toString());
-      nodeElement.classList.add('dragging');
-    });
-    
-    nodeElement.addEventListener('dragend', () => {
-      nodeElement.classList.remove('dragging');
-    });
-  }
+  // Make all nodes draggable
+  nodeElement.draggable = true;
+  nodeElement.addEventListener('dragstart', (e) => {
+    e.dataTransfer.setData('text/plain', node.id.toString());
+    nodeElement.classList.add('dragging');
+  });
+  
+  nodeElement.addEventListener('dragend', () => {
+    nodeElement.classList.remove('dragging');
+  });
   
   // Make all nodes drop targets
   nodeElement.addEventListener('dragover', (e) => {
@@ -170,47 +168,23 @@ function renderTree(nodes, currentNodeId, parentId = null) {
   return container;
 }
 
-async function ensureBaseNode() {
-  try {
-    const result = await browser.storage.local.get({ citationTree: { nodes: [], currentNodeId: null } });
-    const tree = result.citationTree;
-    
-    // Check if base node exists
-    const baseNode = tree.nodes.find((n) => n.id === 0);
-    if (!baseNode) {
-      // Create base node
-      const newBaseNode = {
-        id: 0,
-        text: "Research Base",
-        url: "about:blank",
-        title: "Research Base",
-        timestamp: new Date().toISOString(),
-        parentId: null,
-        children: [],
-        annotations: []
-      };
-      
-      tree.nodes.push(newBaseNode);
-      await browser.storage.local.set({ citationTree: tree });
-    }
-  } catch (error) {
-    console.error('Error ensuring base node:', error);
-  }
-}
 
 async function loadAndDisplayTree() {
   const treeRoot = document.getElementById('tree-root');
   if (!treeRoot) return;
   
   try {
-    // Ensure base node exists
-    await ensureBaseNode();
-    
     const result = await browser.storage.local.get({ citationTree: { nodes: [], currentNodeId: null } });
     const tree = result.citationTree;
     
     // Clear existing content
     treeRoot.innerHTML = '';
+    
+    // Check if tree is empty and show empty state
+    if (!tree.nodes || tree.nodes.length === 0) {
+      treeRoot.innerHTML = '<div class="empty-state">No citations saved yet. Highlight text on any webpage to start building your research tree.</div>';
+      return;
+    }
     
     // Render the tree starting from root nodes (parentId === null)
     const treeElements = renderTree(tree.nodes, tree.currentNodeId);
