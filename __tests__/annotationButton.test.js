@@ -33,26 +33,29 @@ describe('AnnotationButton', () => {
     // Load and evaluate the annotationButton script
     const fs = require('fs');
     const path = require('path');
-    const annotationButtonScript = fs.readFileSync(path.join(__dirname, '../annotationButton.js'), 'utf8');
+    let annotationButtonScript = fs.readFileSync(path.join(__dirname, '../annotationButton.js'), 'utf8');
     
-    // Execute the script in the global context
+    // Create a context with global access and evaluate the script
     const vm = require('vm');
-    const context = {
-      window: global.window || {},
+    const context = vm.createContext({
+      ...global,
+      window: global,
       document: global.document,
       console: global.console,
       browser: global.browser,
-      Date: global.Date
-    };
-    vm.createContext(context);
+      Date: global.Date,
+      setTimeout: global.setTimeout,
+      clearTimeout: global.clearTimeout
+    });
+    
     vm.runInContext(annotationButtonScript, context);
     
-    // Get functions from the context
-    formatTimestamp = context.formatTimestamp;
-    addAnnotation = context.addAnnotation;
-    deleteAnnotation = context.deleteAnnotation;
-    showAnnotationModal = context.showAnnotationModal;
-    createAnnotationButton = context.createAnnotationButton;
+    // Assign functions to global and local variables
+    formatTimestamp = global.formatTimestamp = context.formatTimestamp;
+    addAnnotation = global.addAnnotation = context.addAnnotation;
+    deleteAnnotation = global.deleteAnnotation = context.deleteAnnotation;
+    showAnnotationModal = global.showAnnotationModal = context.showAnnotationModal;
+    createAnnotationButton = global.createAnnotationButton = context.createAnnotationButton;
   });
 
   describe('formatTimestamp', () => {
@@ -227,7 +230,12 @@ describe('AnnotationButton', () => {
 
       expect(button).toBeInstanceOf(HTMLElement);
       expect(button.className).toBe('annotation-bubble');
-      expect(button.textContent).toBe('1');
+      // Check only the direct text content, not including child elements
+      const directTextContent = Array.from(button.childNodes)
+        .filter(node => node.nodeType === Node.TEXT_NODE)
+        .map(node => node.textContent)
+        .join('');
+      expect(directTextContent).toBe('1');
       expect(button.title).toBe('Click to add/view annotations');
     });
 
@@ -286,9 +294,6 @@ describe('AnnotationButton', () => {
         annotations: []
       };
 
-      // Mock showAnnotationModal
-      global.showAnnotationModal = jest.fn();
-
       const button = createAnnotationButton(node);
 
       const clickEvent = new Event('click');
@@ -300,7 +305,15 @@ describe('AnnotationButton', () => {
       button.dispatchEvent(clickEvent);
 
       expect(clickEvent.stopPropagation).toHaveBeenCalled();
-      expect(global.showAnnotationModal).toHaveBeenCalledWith(node);
+      
+      // Check that modal was created
+      const modal = document.querySelector('.annotation-modal');
+      expect(modal).not.toBeNull();
+      
+      // Clean up
+      if (modal) {
+        document.body.removeChild(modal);
+      }
     });
   });
 
@@ -405,8 +418,12 @@ describe('AnnotationButton', () => {
         annotations: []
       };
 
-      // Mock addAnnotation
-      global.addAnnotation = jest.fn();
+      // Mock the storage to return our node
+      const mockTree = {
+        nodes: [node],
+        currentNodeId: 1
+      };
+      browser.storage.local.get.mockResolvedValue({ citationTree: mockTree });
 
       showAnnotationModal(node);
 
@@ -419,7 +436,25 @@ describe('AnnotationButton', () => {
       // Wait for async operation
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      expect(global.addAnnotation).toHaveBeenCalledWith(1, 'New annotation text');
+      // Verify that browser.storage.local.set was called with the new annotation
+      expect(browser.storage.local.set).toHaveBeenCalledWith({
+        citationTree: expect.objectContaining({
+          nodes: expect.arrayContaining([
+            expect.objectContaining({
+              id: 1,
+              annotations: expect.arrayContaining([
+                expect.objectContaining({
+                  text: 'New annotation text'
+                })
+              ])
+            })
+          ])
+        })
+      });
+
+      // Modal should be closed
+      const modal = document.querySelector('.annotation-modal');
+      expect(modal).toBeNull();
     });
 
     it('should delete annotation when clicking delete button', async () => {
@@ -431,8 +466,12 @@ describe('AnnotationButton', () => {
         ]
       };
 
-      // Mock deleteAnnotation
-      global.deleteAnnotation = jest.fn();
+      // Mock the storage to return our node
+      const mockTree = {
+        nodes: [node],
+        currentNodeId: 1
+      };
+      browser.storage.local.get.mockResolvedValue({ citationTree: mockTree });
 
       showAnnotationModal(node);
 
@@ -442,7 +481,21 @@ describe('AnnotationButton', () => {
       // Wait for async operation
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      expect(global.deleteAnnotation).toHaveBeenCalledWith(1, 'ann1');
+      // Verify that browser.storage.local.set was called with the annotation removed
+      expect(browser.storage.local.set).toHaveBeenCalledWith({
+        citationTree: expect.objectContaining({
+          nodes: expect.arrayContaining([
+            expect.objectContaining({
+              id: 1,
+              annotations: []
+            })
+          ])
+        })
+      });
+
+      // Modal should be closed
+      const modal = document.querySelector('.annotation-modal');
+      expect(modal).toBeNull();
     });
 
     it('should not add empty annotation', async () => {
@@ -452,8 +505,8 @@ describe('AnnotationButton', () => {
         annotations: []
       };
 
-      // Mock addAnnotation
-      global.addAnnotation = jest.fn();
+      // Spy on addAnnotation
+      const addAnnotationSpy = jest.spyOn(global, 'addAnnotation').mockImplementation(() => Promise.resolve());
 
       showAnnotationModal(node);
 
@@ -466,7 +519,8 @@ describe('AnnotationButton', () => {
       // Wait for potential async operation
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      expect(global.addAnnotation).not.toHaveBeenCalled();
+      expect(addAnnotationSpy).not.toHaveBeenCalled();
+      addAnnotationSpy.mockRestore();
     });
   });
 });

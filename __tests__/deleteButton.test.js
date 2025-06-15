@@ -241,8 +241,15 @@ describe('DeleteButton', () => {
     it('should call deleteNode when clicked', async () => {
       const node = { id: 1, text: 'Test node' };
       
-      // Mock deleteNode function
-      global.deleteNode = jest.fn();
+      // Set up mock tree for the delete operation
+      const mockTree = {
+        nodes: [
+          { id: 1, parentId: null, children: [] }
+        ],
+        currentNodeId: 1
+      };
+      
+      browser.storage.local.get.mockResolvedValue({ citationTree: mockTree });
 
       const button = createDeleteButton(node);
 
@@ -258,7 +265,14 @@ describe('DeleteButton', () => {
       await new Promise(resolve => setTimeout(resolve, 10));
 
       expect(clickEvent.stopPropagation).toHaveBeenCalled();
-      expect(global.deleteNode).toHaveBeenCalledWith(1);
+      // Verify deleteNode was called by checking storage operations
+      expect(browser.storage.local.get).toHaveBeenCalledWith({ citationTree: { nodes: [], currentNodeId: null } });
+      expect(browser.storage.local.set).toHaveBeenCalledWith({
+        citationTree: {
+          nodes: [],
+          currentNodeId: null
+        }
+      });
     });
 
     it('should work with different node types', () => {

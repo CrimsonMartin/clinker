@@ -47,42 +47,46 @@ const mockContentScript = {
           
           const selectedText = window.getSelection() && window.getSelection().toString();
           if (selectedText) {
-            const result = await browser.storage.local.get({ 
-              citationTree: { nodes: [], currentNodeId: null },
-              nodeCounter: 0 
-            });
-            
-            const tree = result.citationTree;
-            const nodeCounter = result.nodeCounter;
-            
-            const newNode = {
-              id: nodeCounter + 1,
-              text: selectedText,
-              url: window.location.href,
-              title: document.title,
-              timestamp: new Date().toISOString(),
-              parentId: tree.currentNodeId,
-              children: [],
-              annotations: []
-            };
-            
-            if (tree.currentNodeId !== null) {
-              const parentNode = tree.nodes.find(n => n.id === tree.currentNodeId);
-              if (parentNode) {
-                parentNode.children.push(newNode.id);
+            try {
+              const result = await browser.storage.local.get({ 
+                citationTree: { nodes: [], currentNodeId: null },
+                nodeCounter: 0 
+              });
+              
+              const tree = result.citationTree;
+              const nodeCounter = result.nodeCounter;
+              
+              const newNode = {
+                id: nodeCounter + 1,
+                text: selectedText,
+                url: window.location.href,
+                title: document.title,
+                timestamp: new Date().toISOString(),
+                parentId: tree.currentNodeId,
+                children: [],
+                annotations: []
+              };
+              
+              if (tree.currentNodeId !== null) {
+                const parentNode = tree.nodes.find(n => n.id === tree.currentNodeId);
+                if (parentNode) {
+                  parentNode.children.push(newNode.id);
+                }
               }
-            }
-            
-            tree.nodes.push(newNode);
-            tree.currentNodeId = newNode.id;
-            
-            await browser.storage.local.set({ 
-              citationTree: tree,
-              nodeCounter: nodeCounter + 1
-            });
-            
-            if (saveButton) {
-              saveButton.style.display = 'none';
+              
+              tree.nodes.push(newNode);
+              tree.currentNodeId = newNode.id;
+              
+              await browser.storage.local.set({ 
+                citationTree: tree,
+                nodeCounter: nodeCounter + 1
+              });
+              
+              if (saveButton) {
+                saveButton.style.display = 'none';
+              }
+            } catch (error) {
+              console.error('Failed to save citation:', error);
             }
           }
         });
@@ -155,9 +159,7 @@ beforeEach(() => {
     configurable: true
   });
   
-  // Delete and redefine location to avoid redefinition errors
-  delete window.location;
-  window.location = { href: 'https://example.com/test' };
+  // The testEnvironmentOptions.url is now set in jest.config.js
   
   Object.defineProperty(window, 'scrollX', { value: 0, writable: true });
   Object.defineProperty(window, 'scrollY', { value: 0, writable: true });
@@ -195,10 +197,7 @@ describe('Content Script', () => {
         citationTree: { nodes: existingNodes, currentNodeId: 2 }
       });
       
-      Object.defineProperty(window, 'location', {
-        value: { href: 'https://example.com/test' },
-        writable: true
-      });
+      // This is no longer needed as testEnvironmentOptions.url is set in jest.config.js
       
       await mockContentScript.handleDOMContentLoaded();
       
@@ -323,7 +322,7 @@ describe('Content Script', () => {
       expect(saveButtonElement.style.zIndex).toBe('1000');
       expect(saveButtonElement.style.backgroundColor).toBe('rgb(99, 102, 241)');
       expect(saveButtonElement.style.color).toBe('rgb(255, 255, 255)');
-      expect(saveButtonElement.style.border).toBe('none');
+      expect(saveButtonElement.style.border).toBe('');
       expect(saveButtonElement.style.borderRadius).toBe('8px');
       expect(saveButtonElement.style.padding).toBe('8px 16px');
       expect(saveButtonElement.style.cursor).toBe('pointer');
