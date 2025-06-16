@@ -30,6 +30,22 @@ describe('AnnotationButton', () => {
     // Clear document body
     document.body.innerHTML = '';
 
+    // Mock SpeechRecognitionManager
+    global.SpeechRecognitionManager = jest.fn().mockImplementation(() => ({
+      getIsSupported: jest.fn().mockReturnValue(true),
+      getIsListening: jest.fn().mockReturnValue(false),
+      start: jest.fn().mockReturnValue(true),
+      stop: jest.fn().mockReturnValue(true),
+      abort: jest.fn().mockReturnValue(true),
+      setOnStart: jest.fn(),
+      setOnEnd: jest.fn(),
+      setOnError: jest.fn(),
+      setOnResult: jest.fn(),
+      clearTranscripts: jest.fn(),
+      getFinalTranscript: jest.fn().mockReturnValue(''),
+      getInterimTranscript: jest.fn().mockReturnValue('')
+    }));
+
     // Load and evaluate the annotationButton script
     const fs = require('fs');
     const path = require('path');
@@ -45,7 +61,8 @@ describe('AnnotationButton', () => {
       browser: global.browser,
       Date: global.Date,
       setTimeout: global.setTimeout,
-      clearTimeout: global.clearTimeout
+      clearTimeout: global.clearTimeout,
+      SpeechRecognitionManager: global.SpeechRecognitionManager
     });
     
     vm.runInContext(annotationButtonScript, context);
@@ -372,7 +389,7 @@ describe('AnnotationButton', () => {
       
       const textarea = addForm.querySelector('.annotation-input');
       expect(textarea).not.toBeNull();
-      expect(textarea.placeholder).toBe('Add a new annotation...');
+      expect(textarea.placeholder).toBe('Add a new annotation or click the microphone to dictate...');
       
       const addButton = addForm.querySelector('.add-annotation-button');
       expect(addButton).not.toBeNull();

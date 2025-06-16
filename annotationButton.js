@@ -67,6 +67,10 @@ function showAnnotationModal(node) {
   closeButton.className = 'modal-close';
   closeButton.innerHTML = '×';
   closeButton.addEventListener('click', () => {
+    // Stop speech recognition if active
+    if (window.speechRecognitionInstance) {
+      window.speechRecognitionInstance.abort();
+    }
     document.body.removeChild(modal);
   });
   
@@ -110,9 +114,106 @@ function showAnnotationModal(node) {
   const addForm = document.createElement('div');
   addForm.className = 'add-annotation-form';
   
+  // Create input container with textarea and microphone button
+  const inputContainer = document.createElement('div');
+  inputContainer.className = 'annotation-input-container';
+  
   const textarea = document.createElement('textarea');
   textarea.className = 'annotation-input';
-  textarea.placeholder = 'Add a new annotation...';
+  textarea.placeholder = 'Add a new annotation or click the microphone to dictate...';
+  
+  // Create microphone button
+  const micButton = document.createElement('button');
+  micButton.className = 'microphone-button';
+  micButton.type = 'button';
+  micButton.innerHTML = '🎤';
+  micButton.title = 'Click to start dictation';
+  
+  // Create status indicator
+  const statusIndicator = document.createElement('div');
+  statusIndicator.className = 'speech-status';
+  statusIndicator.style.display = 'none';
+  
+  // Initialize speech recognition
+  const speechRecognition = new SpeechRecognitionManager();
+  window.speechRecognitionInstance = speechRecognition;
+  
+  // Set up speech recognition event handlers
+  speechRecognition.setOnStart(() => {
+    micButton.classList.add('recording');
+    micButton.innerHTML = '⏹️';
+    micButton.title = 'Click to stop dictation';
+    statusIndicator.textContent = 'Listening...';
+    statusIndicator.style.display = 'block';
+    statusIndicator.className = 'speech-status listening';
+  });
+  
+  speechRecognition.setOnResult((result) => {
+    // Update textarea with final + interim transcript
+    const displayText = result.finalTranscript + result.interimTranscript;
+    textarea.value = displayText;
+    
+    // Update status
+    if (result.interimTranscript) {
+      statusIndicator.textContent = `Processing: "${result.interimTranscript}"`;
+      statusIndicator.className = 'speech-status processing';
+    } else {
+      statusIndicator.textContent = 'Listening...';
+      statusIndicator.className = 'speech-status listening';
+    }
+  });
+  
+  speechRecognition.setOnEnd(() => {
+    micButton.classList.remove('recording');
+    micButton.innerHTML = '🎤';
+    micButton.title = 'Click to start dictation';
+    statusIndicator.style.display = 'none';
+    
+    // Keep any final transcript in the textarea
+    const finalText = speechRecognition.getFinalTranscript();
+    if (finalText) {
+      textarea.value = finalText;
+    }
+  });
+  
+  speechRecognition.setOnError((error) => {
+    micButton.classList.remove('recording');
+    micButton.innerHTML = '🎤';
+    micButton.title = 'Click to start dictation';
+    statusIndicator.textContent = error;
+    statusIndicator.className = 'speech-status error';
+    
+    // Hide error after 3 seconds
+    setTimeout(() => {
+      statusIndicator.style.display = 'none';
+    }, 3000);
+  });
+  
+  // Microphone button click handler
+  micButton.addEventListener('click', () => {
+    if (speechRecognition.getIsListening()) {
+      speechRecognition.stop();
+    } else {
+      if (!speechRecognition.getIsSupported()) {
+        statusIndicator.textContent = 'Speech recognition not supported in this browser';
+        statusIndicator.className = 'speech-status error';
+        statusIndicator.style.display = 'block';
+        setTimeout(() => {
+          statusIndicator.style.display = 'none';
+        }, 3000);
+        return;
+      }
+      
+      // Clear previous content and start fresh
+      speechRecognition.clearTranscripts();
+      textarea.value = '';
+      speechRecognition.start();
+    }
+  });
+  
+  // Add elements to input container
+  inputContainer.appendChild(textarea);
+  inputContainer.appendChild(micButton);
   
   const addButton = document.createElement('button');
   addButton.className = 'add-annotation-button';
@@ -120,12 +221,17 @@ function showAnnotationModal(node) {
   addButton.addEventListener('click', async () => {
     const text = textarea.value.trim();
     if (text) {
+      // Stop speech recognition if active
+      if (speechRecognition.getIsListening()) {
+        speechRecognition.stop();
+      }
       await addAnnotation(node.id, text);
       document.body.removeChild(modal);
     }
   });
   
-  addForm.appendChild(textarea);
+  addForm.appendChild(inputContainer);
+  addForm.appendChild(statusIndicator);
   addForm.appendChild(addButton);
   
   modalContent.appendChild(header);
@@ -135,6 +241,10 @@ function showAnnotationModal(node) {
   
   modal.addEventListener('click', (e) => {
     if (e.target === modal) {
+      // Stop speech recognition if active
+      if (speechRecognition.getIsListening()) {
+        speechRecognition.abort();
+      }
       document.body.removeChild(modal);
     }
   });

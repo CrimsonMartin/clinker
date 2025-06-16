@@ -10,7 +10,8 @@
     "tabs",
     "identity",
     "https://*.firebaseapp.com/*",
-    "https://*.firebaseio.com/*"
+    "https://*.firebaseio.com/*",
+    "microphone"
   ],
   "background": {
     "scripts": ["dist/background.js"]
