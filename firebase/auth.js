@@ -8,10 +8,26 @@ class AuthManager {
 
   // Initialize auth and set up listeners
   async initialize() {
-    // Check if Firebase is loaded
+    // Check if Firebase is loaded and initialize if needed
     if (typeof firebase === 'undefined') {
-      console.error('Firebase not loaded');
-      return;
+      console.error('Firebase SDK not loaded');
+      return false;
+    }
+
+    // Initialize Firebase if not already initialized
+    if (!firebase.apps || firebase.apps.length === 0) {
+      try {
+        if (typeof firebaseConfig !== 'undefined') {
+          firebase.initializeApp(firebaseConfig);
+          console.log('Firebase initialized successfully in auth.js');
+        } else {
+          console.error('Firebase config not found');
+          return false;
+        }
+      } catch (error) {
+        console.error('Failed to initialize Firebase:', error);
+        return false;
+      }
     }
 
     // Set up auth state listener

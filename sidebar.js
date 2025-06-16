@@ -7,23 +7,37 @@ let syncInitialized = false;
 
 async function initializeAuthAndSync() {
   if (!authInitialized) {
-    await authManager.initialize();
-    authInitialized = true;
-    
-    // Set up auth state listener
-    authManager.onAuthStateChanged((user) => {
-      updateAuthUI(user);
+    try {
+      const initialized = await authManager.initialize();
       
-      if (user && !syncInitialized) {
-        // Initialize sync when user logs in
-        initializeSync();
-      } else if (!user && syncInitialized) {
-        // Stop sync when user logs out
-        syncManager.stopAutoSync();
-        syncInitialized = false;
-        updateSyncUI({ status: 'offline' });
+      if (initialized === false) {
+        // Firebase not available, show login prompt
+        console.log('Firebase not available, showing login prompt');
+        updateAuthUI(null);
+        return;
       }
-    });
+      
+      authInitialized = true;
+      
+      // Set up auth state listener
+      authManager.onAuthStateChanged((user) => {
+        updateAuthUI(user);
+        
+        if (user && !syncInitialized) {
+          // Initialize sync when user logs in
+          initializeSync();
+        } else if (!user && syncInitialized) {
+          // Stop sync when user logs out
+          syncManager.stopAutoSync();
+          syncInitialized = false;
+          updateSyncUI({ status: 'offline' });
+        }
+      });
+    } catch (error) {
+      console.error('Error initializing auth:', error);
+      // Show login prompt on error
+      updateAuthUI(null);
+    }
   }
 }
 

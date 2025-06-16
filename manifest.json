@@ -13,8 +13,12 @@
   ],
   "host_permissions": [
     "https://*.firebaseapp.com/*",
-    "https://*.firebaseio.com/*"
+    "https://*.firebaseio.com/*",
+    "https://*.gstatic.com/*"
   ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' https://www.gstatic.com; object-src 'self'"
+  },
   "background": {
     "service_worker": "dist/background.js",
     "scripts": ["dist/background.js"],

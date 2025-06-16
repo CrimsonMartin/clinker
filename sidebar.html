@@ -947,18 +947,20 @@
       <div class="empty-state">No citations saved yet. Highlight text on any webpage to start building your research tree.</div>
     </div>
   </div>
-  <!-- Firebase SDK -->
-  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
+  <!-- Firebase SDK (Local) -->
+  <script src="vendor/firebase-app.js"></script>
+  <script src="vendor/firebase-auth.js"></script>
+  <script src="vendor/firebase-firestore.js"></script>
+  
+  <!-- Firebase Configuration (must load immediately after SDK) -->
+  <script src="firebase/firebase-config.js"></script>
   
   <!-- Extension scripts -->
-  <script src="firebase/firebase-config.js"></script>
-  <script src="firebase/auth.js"></script>
-  <script src="firebase/sync.js"></script>
-  <script src="deleteButton.js"></script>
-  <script src="speechRecognition.js"></script>
-  <script src="annotationButton.js"></script>
-  <script src="sidebar.js"></script>
+  <script defer src="firebase/auth.js"></script>
+  <script defer src="firebase/sync.js"></script>
+  <script defer src="deleteButton.js"></script>
+  <script defer src="speechRecognition.js"></script>
+  <script defer src="annotationButton.js"></script>
+  <script defer src="sidebar.js"></script>
 </body>
 </html>

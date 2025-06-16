@@ -306,7 +306,7 @@
       
       <div class="form-group">
         <label class="form-label" for="signin-password">Password</label>
-        <input type="password" id="signin-password" class="form-input" placeholder="••••••••" required>
+        <input type="password" id="signin-password" class="form-input" placeholder="**********" required>
         <div class="error-message" id="signin-password-error"></div>
       </div>
       
@@ -343,13 +343,13 @@
       
       <div class="form-group">
         <label class="form-label" for="signup-password">Password</label>
-        <input type="password" id="signup-password" class="form-input" placeholder="••••••••" required>
+        <input type="password" id="signup-password" class="form-input" placeholder="**********" required>
         <div class="error-message" id="signup-password-error"></div>
       </div>
       
       <div class="form-group">
         <label class="form-label" for="signup-confirm-password">Confirm Password</label>
-        <input type="password" id="signup-confirm-password" class="form-input" placeholder="••••••••" required>
+        <input type="password" id="signup-confirm-password" class="form-input" placeholder="**********" required>
         <div class="error-message" id="signup-confirm-password-error"></div>
       </div>
       
@@ -377,14 +377,16 @@
     </div>
   </div>
   
-  <!-- Firebase SDK -->
-  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
+  <!-- Firebase SDK (Local) -->
+  <script src="vendor/firebase-app.js"></script>
+  <script src="vendor/firebase-auth.js"></script>
+  <script src="vendor/firebase-firestore.js"></script>
+  
+  <!-- Firebase Configuration (must load immediately after SDK) -->
+  <script src="firebase/firebase-config.js"></script>
   
   <!-- Extension scripts -->
-  <script src="firebase/firebase-config.js"></script>
-  <script src="firebase/auth.js"></script>
-  <script src="login.js"></script>
+  <script defer src="firebase/auth.js"></script>
+  <script defer src="login.js"></script>
 </body>
 </html>
