@@ -1,4 +1,4 @@
 node_modules/*
 dist/*
 .env
-firebase/firebase-config.js
+*/firebase-config.js
