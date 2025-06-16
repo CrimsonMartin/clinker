@@ -7,6 +7,7 @@
     "build": "npm run build:config && tsc",
     "start": "npm run build && DISPLAY=:0 web-ext run --source-dir ./ --keep-profile-changes --start-url https://www.ajmc.com/view/advances-and-limitations-in-cd20-targeted-car-t-cell-therapy",
     "startverbose": "npm run build && DISPLAY=:0 web-ext run --source-dir ./ --keep-profile-changes --verbose --start-url https://www.ajmc.com/view/advances-and-limitations-in-cd20-targeted-car-t-cell-therapy",
+    "startdev": "npm run build && DISPLAY=:0 web-ext run --source-dir ./ --keep-profile-changes --devtools --start-url https://www.ajmc.com/view/advances-and-limitations-in-cd20-targeted-car-t-cell-therapy",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
