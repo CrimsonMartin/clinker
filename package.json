@@ -27,6 +27,6 @@
     "web-ext-submit": "^7.8.0"
   },
   "dependencies": {
-    "firebase": "^8.10.1"
+    "firebase": "^10.9.0"
   }
 }
