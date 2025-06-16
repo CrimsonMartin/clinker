@@ -5,8 +5,8 @@
 beforeEach(() => {
   jest.clearAllMocks();
   
-  // Mock browser APIs
-  global.browser = {
+  // Mock Chrome APIs to match what background.ts uses
+  global.chrome = {
     contextMenus: {
       create: jest.fn(),
       onClicked: {
@@ -19,9 +19,17 @@ beforeEach(() => {
         set: jest.fn().mockResolvedValue()
       }
     },
-    browserAction: {
+    action: {
       setIcon: jest.fn().mockResolvedValue(),
       setTitle: jest.fn().mockResolvedValue()
+    },
+    runtime: {
+      onInstalled: {
+        addListener: jest.fn()
+      },
+      onStartup: {
+        addListener: jest.fn()
+      }
     }
   };
   
@@ -55,19 +63,19 @@ beforeEach(() => {
 describe('Background Script', () => {
   describe('Initialization', () => {
     it('should log that background script is loaded', () => {
-      expect(console.log).toHaveBeenCalledWith('Research Linker background script loaded.');
+      expect(console.log).toHaveBeenCalledWith('Citation Linker background service worker loaded.');
     });
 
     it('should create context menu item', () => {
-      expect(browser.contextMenus.create).toHaveBeenCalledWith({
+      expect(chrome.contextMenus.create).toHaveBeenCalledWith({
         id: 'save-citation',
-        title: 'Save to Clinker',
+        title: 'Save to Citation Linker',
         contexts: ['selection']
       });
     });
 
     it('should add context menu click listener', () => {
-      expect(browser.contextMenus.onClicked.addListener).toHaveBeenCalledWith(
+      expect(chrome.contextMenus.onClicked.addListener).toHaveBeenCalledWith(
         expect.any(Function)
       );
     });
@@ -78,7 +86,7 @@ describe('Background Script', () => {
 
     beforeEach(() => {
       // Get the click handler that was registered
-      const addListenerCall = browser.contextMenus.onClicked.addListener.mock.calls[0];
+      const addListenerCall = chrome.contextMenus.onClicked.addListener.mock.calls[0];
       clickHandler = addListenerCall[0];
     });
 
@@ -91,8 +99,8 @@ describe('Background Script', () => {
 
       await clickHandler(mockInfo, mockTab);
 
-      expect(browser.storage.local.get).toHaveBeenCalledWith({ citationHistory: [] });
-      expect(browser.storage.local.set).toHaveBeenCalledWith({
+      expect(chrome.storage.local.get).toHaveBeenCalledWith({ citationHistory: [] });
+      expect(chrome.storage.local.set).toHaveBeenCalledWith({
         citationHistory: ['This is selected text to save']
       });
       expect(console.log).toHaveBeenCalledWith('Citation saved:', 'This is selected text to save');
@@ -100,7 +108,7 @@ describe('Background Script', () => {
 
     it('should append to existing citation history', async () => {
       // Mock existing history
-      browser.storage.local.get.mockResolvedValue({
+      chrome.storage.local.get.mockResolvedValue({
         citationHistory: ['Previous citation 1', 'Previous citation 2']
       });
 
@@ -111,7 +119,7 @@ describe('Background Script', () => {
 
       await clickHandler(mockInfo);
 
-      expect(browser.storage.local.set).toHaveBeenCalledWith({
+      expect(chrome.storage.local.set).toHaveBeenCalledWith({
         citationHistory: [
           'Previous citation 1',
           'Previous citation 2',
@@ -131,8 +139,8 @@ describe('Background Script', () => {
 
       await clickHandler(mockInfo);
 
-      expect(browser.storage.local.get).not.toHaveBeenCalled();
-      expect(browser.storage.local.set).not.toHaveBeenCalled();
+      expect(chrome.storage.local.get).not.toHaveBeenCalled();
+      expect(chrome.storage.local.set).not.toHaveBeenCalled();
       expect(console.log).not.toHaveBeenCalledWith(
         expect.stringContaining('Citation saved:')
       );
@@ -146,8 +154,8 @@ describe('Background Script', () => {
 
       await clickHandler(mockInfo);
 
-      expect(browser.storage.local.get).toHaveBeenCalled();
-      expect(browser.storage.local.set).toHaveBeenCalledWith({
+      expect(chrome.storage.local.get).toHaveBeenCalled();
+      expect(chrome.storage.local.set).toHaveBeenCalledWith({
         citationHistory: ['Text without tab info']
       });
     });
@@ -160,13 +168,13 @@ describe('Background Script', () => {
 
       await clickHandler(mockInfo);
 
-      expect(browser.storage.local.set).toHaveBeenCalledWith({
+      expect(chrome.storage.local.set).toHaveBeenCalledWith({
         citationHistory: ['']
       });
     });
 
     it('should handle storage errors gracefully', async () => {
-      browser.storage.local.get.mockRejectedValue(new Error('Storage error'));
+      chrome.storage.local.get.mockRejectedValue(new Error('Storage error'));
 
       const mockInfo = {
         menuItemId: 'save-citation',
@@ -185,7 +193,7 @@ describe('Background Script', () => {
 
       await clickHandler(mockInfo);
 
-      expect(browser.storage.local.set).toHaveBeenCalledWith({
+      expect(chrome.storage.local.set).toHaveBeenCalledWith({
         citationHistory: ['Text with "quotes" and <HTML> & special chars 中文']
       });
     });
@@ -199,7 +207,7 @@ describe('Background Script', () => {
 
       await clickHandler(mockInfo);
 
-      expect(browser.storage.local.set).toHaveBeenCalledWith({
+      expect(chrome.storage.local.set).toHaveBeenCalledWith({
         citationHistory: [longText]
       });
     });
@@ -209,12 +217,12 @@ describe('Background Script', () => {
     let clickHandler;
 
     beforeEach(() => {
-      const addListenerCall = browser.contextMenus.onClicked.addListener.mock.calls[0];
+      const addListenerCall = chrome.contextMenus.onClicked.addListener.mock.calls[0];
       clickHandler = addListenerCall[0];
     });
 
     it('should handle storage.get errors', async () => {
-      browser.storage.local.get.mockRejectedValue(new Error('Failed to get storage'));
+      chrome.storage.local.get.mockRejectedValue(new Error('Failed to get storage'));
 
       const mockInfo = {
         menuItemId: 'save-citation',
@@ -222,11 +230,11 @@ describe('Background Script', () => {
       };
 
       await expect(clickHandler(mockInfo)).rejects.toThrow('Failed to get storage');
-      expect(browser.storage.local.set).not.toHaveBeenCalled();
+      expect(chrome.storage.local.set).not.toHaveBeenCalled();
     });
 
     it('should handle storage.set errors', async () => {
-      browser.storage.local.set.mockRejectedValue(new Error('Failed to set storage'));
+      chrome.storage.local.set.mockRejectedValue(new Error('Failed to set storage'));
 
       const mockInfo = {
         menuItemId: 'save-citation',
@@ -234,7 +242,7 @@ describe('Background Script', () => {
       };
 
       await expect(clickHandler(mockInfo)).rejects.toThrow('Failed to set storage');
-      expect(browser.storage.local.get).toHaveBeenCalled();
+      expect(chrome.storage.local.get).toHaveBeenCalled();
     });
   });
 
@@ -242,7 +250,7 @@ describe('Background Script', () => {
     let clickHandler;
 
     beforeEach(() => {
-      const addListenerCall = browser.contextMenus.onClicked.addListener.mock.calls[0];
+      const addListenerCall = chrome.contextMenus.onClicked.addListener.mock.calls[0];
       clickHandler = addListenerCall[0];
     });
 
@@ -255,12 +263,12 @@ describe('Background Script', () => {
 
       await clickHandler(mockInfo1);
 
-      expect(browser.storage.local.set).toHaveBeenCalledWith({
+      expect(chrome.storage.local.set).toHaveBeenCalledWith({
         citationHistory: ['First citation']
       });
 
       // Update mock to return the new history
-      browser.storage.local.get.mockResolvedValue({
+      chrome.storage.local.get.mockResolvedValue({
         citationHistory: ['First citation']
       });
 
@@ -272,7 +280,7 @@ describe('Background Script', () => {
 
       await clickHandler(mockInfo2);
 
-      expect(browser.storage.local.set).toHaveBeenCalledWith({
+      expect(chrome.storage.local.set).toHaveBeenCalledWith({
         citationHistory: ['First citation', 'Second citation']
       });
     });

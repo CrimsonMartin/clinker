@@ -24,6 +24,42 @@ global.browser = {
   }
 };
 
+// Mock Chrome APIs (same as browser APIs for testing compatibility)
+global.chrome = {
+  storage: {
+    local: {
+      get: jest.fn().mockResolvedValue({}),
+      set: jest.fn().mockResolvedValue(),
+      clear: jest.fn().mockResolvedValue()
+    }
+  },
+  contextMenus: {
+    create: jest.fn(),
+    onClicked: {
+      addListener: jest.fn()
+    }
+  },
+  action: {
+    setIcon: jest.fn().mockResolvedValue(),
+    setTitle: jest.fn().mockResolvedValue()
+  },
+  runtime: {
+    onInstalled: {
+      addListener: jest.fn()
+    },
+    onStartup: {
+      addListener: jest.fn()
+    },
+    onMessage: {
+      addListener: jest.fn()
+    }
+  },
+  tabs: {
+    query: jest.fn().mockResolvedValue([]),
+    sendMessage: jest.fn().mockResolvedValue()
+  }
+};
+
 // Mock AudioContext for sound.js tests
 global.AudioContext = jest.fn().mockImplementation(() => ({
   createOscillator: jest.fn().mockReturnValue({
