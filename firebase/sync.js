@@ -68,11 +68,11 @@ class SyncManager {
     this.notifySyncListeners({ status: 'syncing' });
 
     try {
-      // Get local data
+      // Get local data (don't default lastModified to current time)
       const localData = await browser.storage.local.get({
         citationTree: { nodes: [], currentNodeId: null },
-        nodeCounter: 0,
-        lastModified: new Date().toISOString()
+        nodeCounter: 0
+        // Note: no default lastModified - let it be undefined if not set
       });
 
       // Get cloud data
@@ -80,18 +80,28 @@ class SyncManager {
 
       // Determine which data is newer
       let finalData;
+      
+      // Check if this is a fresh session (no local data) vs existing session
+      const hasLocalNodes = localData.citationTree?.nodes?.length > 0;
+      const hasCloudNodes = cloudData?.citationTree?.nodes?.length > 0;
+      
       if (!cloudData || !cloudData.lastModified) {
-        // No cloud data, upload local
+        // No cloud data exists, upload local data (even if empty)
         console.log('No cloud data found, uploading local data');
         finalData = localData;
         await this.uploadToCloud(user.uid, localData);
-      } else if (!localData.lastModified) {
-        // No local timestamp, download cloud
+      } else if (!hasLocalNodes && hasCloudNodes) {
+        // Fresh session with cloud data available - always download
+        console.log('Fresh session detected with cloud data available, downloading cloud data');
+        finalData = cloudData;
+        await this.saveToLocal(cloudData);
+      } else if (!localData.lastModified && hasCloudNodes) {
+        // No local timestamp but has cloud data - download
         console.log('No local timestamp, downloading cloud data');
         finalData = cloudData;
         await this.saveToLocal(cloudData);
-      } else {
-        // Compare timestamps
+      } else if (localData.lastModified && cloudData.lastModified) {
+        // Both have timestamps, compare them
         const localTime = new Date(localData.lastModified).getTime();
         const cloudTime = new Date(cloudData.lastModified).getTime();
 
@@ -110,6 +120,10 @@ class SyncManager {
           console.log('Data is already in sync');
           finalData = localData;
         }
+      } else {
+        // Fallback: use local data
+        console.log('Using local data as fallback');
+        finalData = localData;
       }
 
       // Update last sync time
@@ -121,7 +135,12 @@ class SyncManager {
         finalData.citationTree.nodes.forEach(node => {
           node.syncStatus = 'synced';
         });
-        await browser.storage.local.set({ citationTree: finalData.citationTree });
+        // Preserve the fromSync flag if it exists
+        const citationTreeToSave = {
+          ...finalData.citationTree,
+          fromSync: finalData.citationTree.fromSync || false
+        };
+        await browser.storage.local.set({ citationTree: citationTreeToSave });
       }
 
       this.notifySyncListeners({ 
@@ -208,11 +227,17 @@ class SyncManager {
   // Save cloud data to local storage
   async saveToLocal(cloudData) {
     try {
-      await browser.storage.local.set({
-        citationTree: cloudData.citationTree,
+      // Add fromSync flag to prevent triggering another sync
+      const dataToSave = {
+        citationTree: { 
+          ...cloudData.citationTree, 
+          fromSync: true 
+        },
         nodeCounter: cloudData.nodeCounter,
         lastModified: cloudData.lastModified
-      });
+      };
+      
+      await browser.storage.local.set(dataToSave);
       console.log('Cloud data saved to local storage');
     } catch (error) {
       console.error('Error saving to local storage:', error);
@@ -225,10 +250,8 @@ class SyncManager {
     const now = new Date().toISOString();
     await browser.storage.local.set({ lastModified: now });
     
-    // If logged in, queue for immediate sync
-    if (authManager.isLoggedIn() && !this.syncInProgress) {
-      setTimeout(() => this.performSync(), 1000); // Small delay to batch changes
-    }
+    // Data will be synced on the next scheduled 30-second interval
+    // No immediate sync to avoid frequent syncing
   }
 
   // Add sync status listener
