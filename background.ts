@@ -1,15 +1,15 @@
-// Background script for Research Linker
+// Background service worker for Citation Linker (Manifest V3)
 // This script will handle the main logic of the extension.
 
-console.log("Research Linker background script loaded.");
+console.log("Citation Linker background service worker loaded.");
 
 // Initialize extension state and icon
 async function initializeExtension() {
-  const result = await browser.storage.local.get({ extensionActive: true });
+  const result = await chrome.storage.local.get({ extensionActive: true });
   await updateIcon(result.extensionActive);
 }
 
-// Update browser action icon based on active state
+// Update action icon based on active state
 async function updateIcon(isActive: boolean) {
   const iconPath = isActive ? {
     "16": "icons/icon16.png",
@@ -21,44 +21,51 @@ async function updateIcon(isActive: boolean) {
     "128": "icons/icon128-inactive.png"
   };
   
-  await browser.browserAction.setIcon({ path: iconPath });
+  await chrome.action.setIcon({ path: iconPath });
   
   // Update title to reflect state
-  const title = isActive ? "Research Linker (Active)" : "Research Linker (Inactive)";
-  await browser.browserAction.setTitle({ title });
+  const title = isActive ? "Citation Linker (Active)" : "Citation Linker (Inactive)";
+  await chrome.action.setTitle({ title });
 }
 
 // Toggle extension state
 async function toggleExtensionState() {
-  const result = await browser.storage.local.get({ extensionActive: true });
+  const result = await chrome.storage.local.get({ extensionActive: true });
   const newState = !result.extensionActive;
   
-  await browser.storage.local.set({ extensionActive: newState });
+  await chrome.storage.local.set({ extensionActive: newState });
   await updateIcon(newState);
   
   console.log("Extension toggled:", newState ? "ON" : "OFF");
 }
 
 // Create context menu items
-browser.contextMenus.create({
+chrome.contextMenus.create({
   id: "save-citation",
-  title: "Save to Clinker",
+  title: "Save to Citation Linker",
   contexts: ["selection"]
 });
 
-
 // Listener for context menu clicks
-browser.contextMenus.onClicked.addListener(async (info: browser.contextMenus.OnClickData, tab?: browser.tabs.Tab) => {
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "save-citation") {
     const selectedText = info.selectionText;
     // Save the citation to storage
-    const result = await browser.storage.local.get({citationHistory: []});
+    const result = await chrome.storage.local.get({citationHistory: []});
     const history = result.citationHistory;
     history.push(selectedText);
-    await browser.storage.local.set({citationHistory: history});
+    await chrome.storage.local.set({citationHistory: history});
     console.log("Citation saved:", selectedText);
   }
 });
 
-// Initialize extension when background script starts
-initializeExtension();
+// Service worker event listeners for Manifest V3
+chrome.runtime.onInstalled.addListener(() => {
+  console.log("Citation Linker extension installed/updated");
+  initializeExtension();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  console.log("Citation Linker extension startup");
+  initializeExtension();
+});

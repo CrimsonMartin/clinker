@@ -1,9 +1,10 @@
 {
-  "name": "research-linker",
+  "name": "citation-linker",
   "version": "1.0.0",
-  "description": "Follow research paper citations seamlessly.",
+  "description": "Follow research paper citations seamlessly and organize your research with annotations",
   "scripts": {
-    "build": "tsc",
+    "build:config": "node build-config.js",
+    "build": "npm run build:config && tsc",
     "start": "npm run build && DISPLAY=:0 web-ext run --source-dir ./ --keep-profile-changes --start-url https://www.ajmc.com/view/advances-and-limitations-in-cd20-targeted-car-t-cell-therapy",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -12,13 +13,16 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/chrome": "^0.0.270",
     "@types/firefox-webext-browser": "^120.0.4",
     "@types/jest": "^29.5.14",
+    "dotenv": "^16.5.0",
     "jest": "^30.0.0",
     "jest-environment-jsdom": "^30.0.0",
+    "lucide-static": "^0.515.0",
     "ts-jest": "^29.4.0",
     "typescript": "^5.8.3",
     "web-ext": "^8.7.1",
-    "lucide-static": "^0.515.0"
+    "web-ext-submit": "^7.0.0"
   }
 }

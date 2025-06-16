@@ -1,18 +1,23 @@
 {
   "compilerOptions": {
-    "target": "es6",
-    "module": "commonjs",
+    "target": "es2020",
+    "module": "esnext",
+    "lib": ["es2020", "dom"],
+    "moduleResolution": "node",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "outDir": "./dist",
-    "rootDir": "./"
+    "rootDir": "./",
+    "types": ["chrome", "firefox-webext-browser"]
   },
   "include": [
     "./**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "dist",
+    "__tests__"
   ]
 }
