@@ -2,18 +2,9 @@
 
 document.addEventListener('DOMContentLoaded', async () => {
   // Initialize authentication
-  try {
-    console.log('Initializing auth manager...');
-    const initialized = await authManager.initialize();
-    if (initialized !== false) {
-      console.log('Auth manager initialized successfully');
-    } else {
-      console.log('Auth manager initialization failed, continuing with offline mode');
-    }
-  } catch (error) {
-    console.error('Failed to initialize auth manager:', error);
-    // Continue with offline functionality
-  }
+  console.log('Initializing auth manager...');
+  await authManager.initialize();
+  console.log('Auth manager initialized successfully');
   
   // Tab switching
   const tabs = document.querySelectorAll('.auth-tab');

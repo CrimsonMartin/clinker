@@ -11,11 +11,7 @@ class SyncManager {
 
   // Initialize Firestore and sync
   async initialize() {
-    if (typeof firebase === 'undefined' || !firebase.firestore) {
-      console.error('Firebase Firestore not loaded');
-      return;
-    }
-
+    // Firebase is guaranteed to be loaded from vendor folder
     this.db = firebase.firestore();
     
     // Enable offline persistence

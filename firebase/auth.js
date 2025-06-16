@@ -8,28 +8,9 @@ class AuthManager {
 
   // Initialize auth and set up listeners
   async initialize() {
-    // Check if Firebase is loaded and initialize if needed
-    if (typeof firebase === 'undefined') {
-      console.error('Firebase SDK not loaded');
-      return false;
-    }
-
-    // Initialize Firebase if not already initialized
-    if (!firebase.apps || firebase.apps.length === 0) {
-      try {
-        if (typeof firebaseConfig !== 'undefined') {
-          firebase.initializeApp(firebaseConfig);
-          console.log('Firebase initialized successfully in auth.js');
-        } else {
-          console.error('Firebase config not found');
-          return false;
-        }
-      } catch (error) {
-        console.error('Failed to initialize Firebase:', error);
-        return false;
-      }
-    }
-
+    // Firebase is guaranteed to be loaded from vendor folder
+    // and initialized by firebase-config.js, so we can directly use it
+    
     // Set up auth state listener
     firebase.auth().onAuthStateChanged((user) => {
       this.currentUser = user;
@@ -47,17 +28,14 @@ class AuthManager {
     const storedAuth = await browser.storage.local.get(['isLoggedIn', 'userEmail', 'userId']);
     if (storedAuth.isLoggedIn && storedAuth.userId) {
       // Verify the stored auth is still valid
-      try {
-        const user = firebase.auth().currentUser;
-        if (!user) {
-          // Clear invalid stored auth
-          await this.clearStoredAuth();
-        }
-      } catch (error) {
-        console.error('Error checking auth state:', error);
+      const user = firebase.auth().currentUser;
+      if (!user) {
+        // Clear invalid stored auth
         await this.clearStoredAuth();
       }
     }
+    
+    return true;
   }
 
   // Add auth state listener
