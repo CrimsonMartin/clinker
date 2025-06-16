@@ -586,6 +586,38 @@
       color: #94a3b8;
     }
     
+    /* Search toggle button */
+    .search-toggle-btn {
+      background: #f1f5f9;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 16px;
+      transition: all 0.2s ease;
+      padding: 0;
+    }
+    
+    .search-toggle-btn:hover {
+      background: #e2e8f0;
+      border-color: #6366f1;
+      transform: scale(1.05);
+    }
+    
+    .search-toggle-btn.active {
+      background: #6366f1;
+      color: white;
+      border-color: #6366f1;
+    }
+    
+    .search-toggle-btn.active:hover {
+      background: #4f46e5;
+    }
+    
     /* Auth and sync status styles */
     .user-section {
       background: white;
@@ -696,6 +728,153 @@
       transform: translateY(-1px);
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     }
+    
+    /* Search functionality styles */
+    .search-container {
+      background: white;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 12px;
+      margin-bottom: 8px;
+      border-radius: 8px 8px 0 0;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    
+    .search-header {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    .search-input-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .search-input {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
+    }
+    
+    .search-input:focus {
+      outline: none;
+      border-color: #6366f1;
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+    
+    .search-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .search-nav-btn {
+      background: #f1f5f9;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 12px;
+      color: #64748b;
+      transition: all 0.2s ease;
+    }
+    
+    .search-nav-btn:hover {
+      background: #e2e8f0;
+      border-color: #6366f1;
+      color: #6366f1;
+    }
+    
+    .search-nav-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .search-counter {
+      font-size: 12px;
+      color: #64748b;
+      min-width: 60px;
+      text-align: center;
+    }
+    
+    .search-close-btn {
+      background: #ef4444;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: bold;
+      transition: background 0.2s ease;
+    }
+    
+    .search-close-btn:hover {
+      background: #dc2626;
+    }
+    
+    .search-options {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    
+    .search-option {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      color: #64748b;
+      cursor: pointer;
+    }
+    
+    .search-option input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+      accent-color: #6366f1;
+    }
+    
+    /* Search result highlighting */
+    .search-highlight {
+      background-color: #fef08a;
+      padding: 1px 2px;
+      border-radius: 2px;
+    }
+    
+    .search-highlight.current {
+      background-color: #f59e0b;
+      color: white;
+    }
+    
+    .tree-node.search-result {
+      border-left-color: #f59e0b;
+      border-left-width: 4px;
+    }
+    
+    .tree-node.search-result.current-result {
+      background-color: #fef3c7;
+      border-left-color: #d97706;
+    }
+    
+    .tree-node.search-hidden {
+      display: none;
+    }
+    
+    .tree-children.search-hidden {
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -703,12 +882,15 @@
     <span class="toggle-label">
       <h1>Citation Linker</h1>
     </span>
-    <div style="display: flex; align-items: center;">
+    <div style="display: flex; align-items: center; gap: 12px;">
       <label class="toggle-switch">
         <input type="checkbox" id="extensionToggle" checked>
         <span class="toggle-slider"></span>
       </label>
       <span class="toggle-status active" id="toggleStatus">ON</span>
+      <button class="search-toggle-btn" id="searchToggleBtn" title="Search research trees">
+        &#128269;
+      </button>
     </div>
   </div>
   
@@ -732,6 +914,35 @@
     </div>
   </div>
   <div class="tree-container">
+    <!-- Search Bar -->
+    <div class="search-container" id="searchContainer" style="display: none;">
+      <div class="search-header">
+        <div class="search-input-wrapper">
+          <input type="text" id="searchInput" class="search-input" placeholder="Search highlighted content and annotations..." />
+          <div class="search-controls">
+            <button id="searchPrevBtn" class="search-nav-btn" title="Previous result">&uarr;</button>
+            <button id="searchNextBtn" class="search-nav-btn" title="Next result">&darr;</button>
+            <span id="searchCounter" class="search-counter">0 of 0</span>
+            <button id="searchCloseBtn" class="search-close-btn" title="Close search">&times;</button>
+          </div>
+        </div>
+        <div class="search-options">
+          <label class="search-option">
+            <input type="checkbox" id="searchHighlighted" checked>
+            <span>Highlighted Content</span>
+          </label>
+          <label class="search-option">
+            <input type="checkbox" id="searchAnnotations" checked>
+            <span>Annotations</span>
+          </label>
+          <label class="search-option">
+            <input type="checkbox" id="searchFilterMode">
+            <span>Filter Mode</span>
+          </label>
+        </div>
+      </div>
+    </div>
+    
     <div id="tree-root">
       <div class="empty-state">No citations saved yet. Highlight text on any webpage to start building your research tree.</div>
     </div>

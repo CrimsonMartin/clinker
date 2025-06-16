@@ -485,6 +485,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   loadAndDisplayTree();
   initializeToggle();
+  initializeSearch();
   
   // Add toggle event listener
   const toggleInput = document.getElementById('extensionToggle');
@@ -700,6 +701,374 @@ async function shiftNodeToParent(nodeId) {
   }
 }
 
+// Search functionality
+let searchResults = [];
+let currentSearchIndex = 0;
+let searchTimeout = null;
+
+function initializeSearch() {
+  const searchInput = document.getElementById('searchInput');
+  const searchContainer = document.getElementById('searchContainer');
+  const searchToggleBtn = document.getElementById('searchToggleBtn');
+  const searchCloseBtn = document.getElementById('searchCloseBtn');
+  const searchPrevBtn = document.getElementById('searchPrevBtn');
+  const searchNextBtn = document.getElementById('searchNextBtn');
+  const searchHighlighted = document.getElementById('searchHighlighted');
+  const searchAnnotations = document.getElementById('searchAnnotations');
+  const searchFilterMode = document.getElementById('searchFilterMode');
+
+  // Search toggle button handler
+  searchToggleBtn.addEventListener('click', () => {
+    if (searchContainer.style.display === 'none') {
+      openSearch();
+    } else {
+      closeSearch();
+    }
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && searchContainer.style.display !== 'none') {
+      closeSearch();
+    }
+    
+    // Navigate search results with arrow keys when search is active
+    if (searchContainer.style.display !== 'none' && searchResults.length > 0) {
+      if (e.key === 'ArrowDown' || (e.key === 'Enter' && !e.shiftKey)) {
+        e.preventDefault();
+        navigateToNextResult();
+      } else if (e.key === 'ArrowUp' || (e.key === 'Enter' && e.shiftKey)) {
+        e.preventDefault();
+        navigateToPreviousResult();
+      }
+    }
+  });
+
+  // Search input handling with debouncing
+  searchInput.addEventListener('input', (e) => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      performSearch(e.target.value);
+    }, 300);
+  });
+
+  // Search option changes
+  [searchHighlighted, searchAnnotations, searchFilterMode].forEach(checkbox => {
+    checkbox.addEventListener('change', () => {
+      if (searchInput.value.trim()) {
+        performSearch(searchInput.value);
+      }
+    });
+  });
+
+  // Navigation buttons
+  searchPrevBtn.addEventListener('click', navigateToPreviousResult);
+  searchNextBtn.addEventListener('click', navigateToNextResult);
+  searchCloseBtn.addEventListener('click', closeSearch);
+}
+
+function openSearch() {
+  const searchContainer = document.getElementById('searchContainer');
+  const searchInput = document.getElementById('searchInput');
+  const searchToggleBtn = document.getElementById('searchToggleBtn');
+  
+  searchContainer.style.display = 'block';
+  searchToggleBtn.classList.add('active');
+  searchInput.focus();
+  searchInput.select();
+}
+
+function closeSearch() {
+  const searchContainer = document.getElementById('searchContainer');
+  const searchInput = document.getElementById('searchInput');
+  const searchToggleBtn = document.getElementById('searchToggleBtn');
+  
+  searchContainer.style.display = 'none';
+  searchToggleBtn.classList.remove('active');
+  searchInput.value = '';
+  clearSearchResults();
+}
+
+function performSearch(query) {
+  const trimmedQuery = query.trim().toLowerCase();
+  
+  if (!trimmedQuery) {
+    clearSearchResults();
+    return;
+  }
+
+  const searchHighlighted = document.getElementById('searchHighlighted').checked;
+  const searchAnnotations = document.getElementById('searchAnnotations').checked;
+  const filterMode = document.getElementById('searchFilterMode').checked;
+
+  // Clear previous results
+  clearSearchResults();
+  
+  // Get all nodes from storage
+  browser.storage.local.get({ citationTree: { nodes: [], currentNodeId: null } }).then(result => {
+    const tree = result.citationTree;
+    searchResults = [];
+
+    // Search through nodes
+    tree.nodes.forEach(node => {
+      const matches = findMatches(node, trimmedQuery, searchHighlighted, searchAnnotations);
+      if (matches.length > 0) {
+        searchResults.push({
+          nodeId: node.id,
+          matches: matches,
+          priority: matches.some(m => m.type === 'highlight') ? 1 : 2
+        });
+      }
+    });
+
+    // Sort results by priority (highlighted content first, then annotations)
+    searchResults.sort((a, b) => a.priority - b.priority);
+
+    updateSearchDisplay(filterMode);
+    updateSearchCounter();
+    
+    if (searchResults.length > 0) {
+      currentSearchIndex = 0;
+      highlightCurrentResult();
+    }
+  });
+}
+
+function findMatches(node, query, searchHighlighted, searchAnnotations) {
+  const matches = [];
+
+  // Search in highlighted content
+  if (searchHighlighted && node.text && node.text.toLowerCase().includes(query)) {
+    matches.push({
+      type: 'highlight',
+      text: node.text,
+      nodeId: node.id
+    });
+  }
+
+  // Search in annotations
+  if (searchAnnotations && node.annotations) {
+    node.annotations.forEach((annotation, index) => {
+      if (annotation.text.toLowerCase().includes(query)) {
+        matches.push({
+          type: 'annotation',
+          text: annotation.text,
+          nodeId: node.id,
+          annotationIndex: index
+        });
+      }
+    });
+  }
+
+  return matches;
+}
+
+function updateSearchDisplay(filterMode) {
+  const allNodes = document.querySelectorAll('.tree-node');
+  const allChildren = document.querySelectorAll('.tree-children');
+  
+  // Reset all nodes and children visibility
+  allNodes.forEach(node => {
+    node.classList.remove('search-result', 'current-result', 'search-hidden');
+  });
+  allChildren.forEach(children => {
+    children.classList.remove('search-hidden');
+  });
+
+  if (filterMode) {
+    // Filter mode: hide non-matching nodes
+    const matchingNodeIds = new Set(searchResults.map(r => r.nodeId));
+    
+    allNodes.forEach(node => {
+      const nodeId = parseInt(node.dataset.nodeId);
+      if (!matchingNodeIds.has(nodeId)) {
+        node.classList.add('search-hidden');
+        
+        // Also hide children containers if parent is hidden
+        const childrenContainer = node.querySelector('.tree-children');
+        if (childrenContainer) {
+          childrenContainer.classList.add('search-hidden');
+        }
+      } else {
+        node.classList.add('search-result');
+      }
+    });
+  } else {
+    // Highlight mode: show all nodes but highlight matches
+    searchResults.forEach(result => {
+      const nodeElement = document.querySelector(`[data-node-id="${result.nodeId}"]`);
+      if (nodeElement) {
+        nodeElement.classList.add('search-result');
+      }
+    });
+  }
+
+  // Apply text highlighting
+  applyTextHighlighting();
+}
+
+function applyTextHighlighting() {
+  const query = document.getElementById('searchInput').value.trim().toLowerCase();
+  if (!query) return;
+
+  // Remove existing highlights
+  document.querySelectorAll('.search-highlight').forEach(highlight => {
+    const parent = highlight.parentNode;
+    parent.replaceChild(document.createTextNode(highlight.textContent), highlight);
+    parent.normalize();
+  });
+
+  searchResults.forEach(result => {
+    const nodeElement = document.querySelector(`[data-node-id="${result.nodeId}"]`);
+    if (!nodeElement) return;
+
+    result.matches.forEach(match => {
+      if (match.type === 'highlight') {
+        // Highlight in main text content
+        const contentElement = nodeElement.querySelector('.tree-node-content');
+        if (contentElement) {
+          highlightTextInElement(contentElement, query);
+        }
+      } else if (match.type === 'annotation') {
+        // Highlight in annotation tooltip if visible
+        const tooltips = nodeElement.querySelectorAll('.annotation-text');
+        tooltips.forEach(tooltip => {
+          if (tooltip.textContent.toLowerCase().includes(query)) {
+            highlightTextInElement(tooltip, query);
+          }
+        });
+      }
+    });
+  });
+}
+
+function highlightTextInElement(element, query) {
+  const walker = document.createTreeWalker(
+    element,
+    NodeFilter.SHOW_TEXT,
+    null,
+    false
+  );
+
+  const textNodes = [];
+  let node;
+  while (node = walker.nextNode()) {
+    textNodes.push(node);
+  }
+
+  textNodes.forEach(textNode => {
+    const text = textNode.textContent;
+    const lowerText = text.toLowerCase();
+    const queryIndex = lowerText.indexOf(query);
+    
+    if (queryIndex !== -1) {
+      const beforeText = text.substring(0, queryIndex);
+      const matchText = text.substring(queryIndex, queryIndex + query.length);
+      const afterText = text.substring(queryIndex + query.length);
+      
+      const fragment = document.createDocumentFragment();
+      
+      if (beforeText) {
+        fragment.appendChild(document.createTextNode(beforeText));
+      }
+      
+      const highlight = document.createElement('span');
+      highlight.className = 'search-highlight';
+      highlight.textContent = matchText;
+      fragment.appendChild(highlight);
+      
+      if (afterText) {
+        fragment.appendChild(document.createTextNode(afterText));
+      }
+      
+      textNode.parentNode.replaceChild(fragment, textNode);
+    }
+  });
+}
+
+function highlightCurrentResult() {
+  // Remove previous current result highlighting
+  document.querySelectorAll('.current-result').forEach(el => {
+    el.classList.remove('current-result');
+  });
+  
+  document.querySelectorAll('.search-highlight.current').forEach(el => {
+    el.classList.remove('current');
+  });
+
+  if (searchResults.length === 0) return;
+
+  const currentResult = searchResults[currentSearchIndex];
+  const nodeElement = document.querySelector(`[data-node-id="${currentResult.nodeId}"]`);
+  
+  if (nodeElement) {
+    nodeElement.classList.add('current-result');
+    
+    // Highlight the first match in this node as current
+    const firstHighlight = nodeElement.querySelector('.search-highlight');
+    if (firstHighlight) {
+      firstHighlight.classList.add('current');
+    }
+    
+    // Scroll to result
+    nodeElement.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center'
+    });
+  }
+}
+
+function navigateToNextResult() {
+  if (searchResults.length === 0) return;
+  
+  currentSearchIndex = (currentSearchIndex + 1) % searchResults.length;
+  highlightCurrentResult();
+  updateSearchCounter();
+}
+
+function navigateToPreviousResult() {
+  if (searchResults.length === 0) return;
+  
+  currentSearchIndex = currentSearchIndex === 0 ? searchResults.length - 1 : currentSearchIndex - 1;
+  highlightCurrentResult();
+  updateSearchCounter();
+}
+
+function updateSearchCounter() {
+  const counter = document.getElementById('searchCounter');
+  const prevBtn = document.getElementById('searchPrevBtn');
+  const nextBtn = document.getElementById('searchNextBtn');
+  
+  if (searchResults.length === 0) {
+    counter.textContent = '0 of 0';
+    prevBtn.disabled = true;
+    nextBtn.disabled = true;
+  } else {
+    counter.textContent = `${currentSearchIndex + 1} of ${searchResults.length}`;
+    prevBtn.disabled = false;
+    nextBtn.disabled = false;
+  }
+}
+
+function clearSearchResults() {
+  searchResults = [];
+  currentSearchIndex = 0;
+  
+  // Remove all search-related classes
+  document.querySelectorAll('.search-result, .current-result, .search-hidden').forEach(el => {
+    el.classList.remove('search-result', 'current-result', 'search-hidden');
+  });
+  
+  // Remove text highlights
+  document.querySelectorAll('.search-highlight').forEach(highlight => {
+    const parent = highlight.parentNode;
+    parent.replaceChild(document.createTextNode(highlight.textContent), highlight);
+    parent.normalize();
+  });
+  
+  updateSearchCounter();
+}
+
 // Listen for storage changes to update the tree in real-time
 browser.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === 'local' && changes.citationTree) {
@@ -708,6 +1077,15 @@ browser.storage.onChanged.addListener((changes, namespace) => {
     // Mark as modified for sync when tree changes
     if (syncInitialized && !changes.citationTree.newValue?.fromSync) {
       syncManager.markAsModified();
+    }
+    
+    // Re-run search if active
+    const searchContainer = document.getElementById('searchContainer');
+    const searchInput = document.getElementById('searchInput');
+    if (searchContainer && searchContainer.style.display !== 'none' && searchInput.value.trim()) {
+      setTimeout(() => {
+        performSearch(searchInput.value);
+      }, 100);
     }
   }
 });
