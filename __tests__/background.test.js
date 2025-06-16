@@ -15,9 +15,13 @@ beforeEach(() => {
     },
     storage: {
       local: {
-        get: jest.fn().mockResolvedValue({ citationHistory: [] }),
+        get: jest.fn().mockResolvedValue({ citationHistory: [], extensionActive: true }),
         set: jest.fn().mockResolvedValue()
       }
+    },
+    browserAction: {
+      setIcon: jest.fn().mockResolvedValue(),
+      setTitle: jest.fn().mockResolvedValue()
     }
   };
   
@@ -37,7 +41,13 @@ beforeEach(() => {
   scriptContent = scriptContent
     .replace(/: browser\.contextMenus\.OnClickData/g, '')
     .replace(/\?: browser\.tabs\.Tab/g, '')
-    .replace(/browser\.tabs\.Tab/g, 'any');
+    .replace(/browser\.tabs\.Tab/g, 'any')
+    .replace(/async function ([^(]+)\(([^)]*)\): [^{]*/g, 'async function $1($2)')
+    .replace(/function ([^(]+)\(([^)]*)\): [^{]*/g, 'function $1($2)')
+    .replace(/\(([^)]*): boolean\)/g, '($1)')
+    .replace(/: Promise<[^>]*>/g, '')
+    .replace(/: void/g, '')
+    .replace(/: boolean(?!\s*[=:])/g, '');
   
   eval(scriptContent);
 });
@@ -111,6 +121,9 @@ describe('Background Script', () => {
     });
 
     it('should not save citation for other menu items', async () => {
+      // Clear mocks to ignore initialization calls
+      jest.clearAllMocks();
+      
       const mockInfo = {
         menuItemId: 'other-menu-item',
         selectionText: 'This should not be saved'
