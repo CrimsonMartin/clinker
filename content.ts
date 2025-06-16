@@ -2,6 +2,18 @@
 
 let saveButton: HTMLButtonElement | null = null;
 
+// Listen for storage changes to react to extension toggle
+browser.storage.onChanged.addListener((changes, namespace) => {
+  if (namespace === 'local' && changes.extensionActive) {
+    const isActive = changes.extensionActive.newValue;
+    if (!isActive && saveButton) {
+      // Extension was turned off, hide save button if visible
+      saveButton.style.display = 'none';
+    }
+    console.log('Extension state changed:', isActive ? 'ON' : 'OFF');
+  }
+});
+
 // Track page navigation to update current node
 window.addEventListener('beforeunload', async () => {
   // When navigating away, we'll let the new page set itself as current
@@ -21,9 +33,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 });
 
-document.addEventListener('mouseup', (event) => {
+document.addEventListener('mouseup', async (event) => {
   const selection = window.getSelection();
   if (selection && selection.toString().length > 0) {
+    // Check if extension is active before showing save button
+    const result = await browser.storage.local.get({ extensionActive: true });
+    if (!result.extensionActive) {
+      // Extension is inactive, don't show save button
+      if (saveButton) {
+        saveButton.style.display = 'none';
+      }
+      return;
+    }
     if (!saveButton) {
       saveButton = document.createElement('button');
       saveButton.innerHTML = 'Save to Clinker';

@@ -32,9 +32,13 @@ sed -i 's/stroke="currentColor"/stroke="#000000"/g' icons/icon.svg
 
 # Generate PNG versions at required sizes with transparent background
 echo "Generating PNG icons with transparent background..."
-convert -background none -density 300 icons/icon.svg -resize 16x16 icons/icon16.png
-convert -background none -density 300 icons/icon.svg -resize 48x48 icons/icon48.png
-convert -background none -density 300 icons/icon.svg -resize 128x128 icons/icon128.png
+convert -background purple -density 300 icons/icon.svg -resize 16x16 icons/icon16.png
+convert -background purple -density 300 icons/icon.svg -resize 48x48 icons/icon48.png
+convert -background purple -density 300 icons/icon.svg -resize 128x128 icons/icon128.png
+
+convert -background grey -density 300 icons/icon.svg -resize 16x16 icons/icon16-inactive.png
+convert -background grey -density 300 icons/icon.svg -resize 48x48 icons/icon48-inactive.png
+convert -background grey -density 300 icons/icon.svg -resize 128x128 icons/icon128-inactive.png
 
 echo "✅ Icons successfully updated!"
 echo "Generated files:"
