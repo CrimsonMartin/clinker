@@ -16,26 +16,26 @@ class SpeechRecognitionManager {
   }
   
   initializeRecognition() {
-    // Check for browser support
+    // Check for native Web Speech API support only
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     
-    if (!SpeechRecognition) {
-      console.warn('Speech recognition not supported in this browser');
+    if (SpeechRecognition) {
+      console.log('Using native Web Speech API');
+      this.isSupported = true;
+      this.recognition = new SpeechRecognition();
+      
+      // Configure recognition settings
+      this.recognition.continuous = true;
+      this.recognition.interimResults = true;
+      this.recognition.lang = navigator.language || 'en-US';
+      this.recognition.maxAlternatives = 1;
+      
+      // Set up event handlers
+      this.setupEventHandlers();
+    } else {
+      console.log('Speech recognition not supported in this browser');
       this.isSupported = false;
-      return;
     }
-    
-    this.isSupported = true;
-    this.recognition = new SpeechRecognition();
-    
-    // Configure recognition settings
-    this.recognition.continuous = true;
-    this.recognition.interimResults = true;
-    this.recognition.lang = navigator.language || 'en-US';
-    this.recognition.maxAlternatives = 1;
-    
-    // Set up event handlers
-    this.setupEventHandlers();
   }
   
   setupEventHandlers() {
@@ -116,7 +116,7 @@ class SpeechRecognitionManager {
   start() {
     if (!this.isSupported) {
       if (this.onError) {
-        this.onError('Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.');
+        this.onError('Speech recognition is not supported in this browser.');
       }
       return false;
     }

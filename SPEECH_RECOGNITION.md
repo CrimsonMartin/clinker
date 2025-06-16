@@ -31,10 +31,12 @@ This document describes the speech-to-text functionality added to the Citation L
 
 ## Browser Support
 
-- **Chrome/Chromium**: Full support with best accuracy
-- **Microsoft Edge**: Full support with good accuracy
-- **Safari**: Limited support (desktop only)
-- **Firefox**: Not supported (Web Speech API not available)
+- **Chrome/Chromium**: Full support with microphone button and real-time transcription
+- **Microsoft Edge**: Full support with microphone button and real-time transcription  
+- **Safari**: Full support with microphone button (desktop only)
+- **Firefox**: Microphone button hidden (Web Speech API not available)
+
+**Note**: In browsers without speech recognition support (like Firefox), the microphone button will not appear in the annotation interface. Users can still add annotations by typing normally.
 
 ## Permissions
 
