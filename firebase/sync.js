@@ -154,17 +154,50 @@ class SyncManager {
     }
   }
 
+  // Sanitize data to remove undefined values (Firestore doesn't support undefined)
+  sanitizeData(obj) {
+    if (obj === null || obj === undefined) {
+      return null;
+    }
+    
+    if (Array.isArray(obj)) {
+      return obj.map(item => this.sanitizeData(item)).filter(item => item !== undefined);
+    }
+    
+    if (typeof obj === 'object') {
+      const sanitized = {};
+      for (const [key, value] of Object.entries(obj)) {
+        const sanitizedValue = this.sanitizeData(value);
+        if (sanitizedValue !== undefined) {
+          sanitized[key] = sanitizedValue;
+        }
+      }
+      return sanitized;
+    }
+    
+    return obj;
+  }
+
   // Upload data to Firestore
   async uploadToCloud(userId, localData) {
     try {
+      // Get current user safely
+      const currentUser = authManager.getCurrentUser();
+      const userEmail = currentUser ? currentUser.email : null;
+
+      // Create data object with safe defaults
       const dataToUpload = {
-        citationTree: localData.citationTree,
-        nodeCounter: localData.nodeCounter,
+        citationTree: localData.citationTree || { nodes: [], currentNodeId: null },
+        nodeCounter: localData.nodeCounter || 0,
         lastModified: new Date().toISOString(),
-        userEmail: authManager.getCurrentUser().email
+        userEmail: userEmail
       };
 
-      await this.db.collection('users').doc(userId).set(dataToUpload);
+      // Sanitize data to remove any undefined values
+      const sanitizedData = this.sanitizeData(dataToUpload);
+
+      console.log('Uploading sanitized data to cloud:', sanitizedData);
+      await this.db.collection('users').doc(userId).set(sanitizedData);
       console.log('Data uploaded to cloud successfully');
     } catch (error) {
       console.error('Error uploading to cloud:', error);
