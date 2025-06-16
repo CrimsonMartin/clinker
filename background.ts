@@ -46,11 +46,6 @@ browser.contextMenus.create({
   contexts: ["selection"]
 });
 
-browser.contextMenus.create({
-  id: "toggle-extension",
-  title: "Toggle Extension On/Off",
-  contexts: ["browser_action"]
-});
 
 // Listener for context menu clicks
 browser.contextMenus.onClicked.addListener(async (info: browser.contextMenus.OnClickData, tab?: browser.tabs.Tab) => {
@@ -62,8 +57,6 @@ browser.contextMenus.onClicked.addListener(async (info: browser.contextMenus.OnC
     history.push(selectedText);
     await browser.storage.local.set({citationHistory: history});
     console.log("Citation saved:", selectedText);
-  } else if (info.menuItemId === "toggle-extension") {
-    await toggleExtensionState();
   }
 });
 

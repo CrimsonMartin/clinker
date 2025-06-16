@@ -1,8 +1,8 @@
 {
   "manifest_version": 2,
-  "name": "Research Linker",
+  "name": "Citation Linker",
   "version": "1.0",
-  "description": "Follow research paper citations seamlessly.",
+  "description": "Organize the intrusive thoughts",
   "permissions": [
     "activeTab",
     "storage",
@@ -20,7 +20,7 @@
   ],
   "browser_action": {
     "default_popup": "sidebar.html",
-    "default_title": "Research Linker",
+    "default_title": "Citation Linker",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",

@@ -322,7 +322,67 @@ async function moveNodeToRoot(nodeId) {
   }
 }
 
-document.addEventListener('DOMContentLoaded', loadAndDisplayTree);
+// Toggle functionality
+async function initializeToggle() {
+  const result = await browser.storage.local.get({ extensionActive: true });
+  const isActive = result.extensionActive;
+  
+  const toggleInput = document.getElementById('extensionToggle');
+  const toggleStatus = document.getElementById('toggleStatus');
+  
+  if (toggleInput && toggleStatus) {
+    toggleInput.checked = isActive;
+    updateToggleStatus(isActive);
+  }
+}
+
+function updateToggleStatus(isActive) {
+  const toggleStatus = document.getElementById('toggleStatus');
+  if (toggleStatus) {
+    toggleStatus.textContent = isActive ? 'ON' : 'OFF';
+    toggleStatus.className = isActive ? 'toggle-status active' : 'toggle-status inactive';
+  }
+}
+
+async function handleToggleChange(event) {
+  const isActive = event.target.checked;
+  
+  // Update storage
+  await browser.storage.local.set({ extensionActive: isActive });
+  
+  // Update UI
+  updateToggleStatus(isActive);
+  
+  // Update browser icon
+  const iconPath = isActive ? {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  } : {
+    "16": "icons/icon16-inactive.png",
+    "48": "icons/icon48-inactive.png",
+    "128": "icons/icon128-inactive.png"
+  };
+  
+  await browser.browserAction.setIcon({ path: iconPath });
+  
+  // Update title
+  const title = isActive ? "Research Linker (Active)" : "Research Linker (Inactive)";
+  await browser.browserAction.setTitle({ title });
+  
+  console.log('Extension toggled from sidebar:', isActive ? 'ON' : 'OFF');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadAndDisplayTree();
+  initializeToggle();
+  
+  // Add toggle event listener
+  const toggleInput = document.getElementById('extensionToggle');
+  if (toggleInput) {
+    toggleInput.addEventListener('change', handleToggleChange);
+  }
+});
 
 // Modal functions
 function showImageModal(imageData) {
