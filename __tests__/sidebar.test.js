@@ -552,7 +552,7 @@ describe('Sidebar', () => {
       expect(contextMenu.style.top).toBe('200px');
       
       const shiftUpOption = contextMenu.querySelector('.context-menu-item');
-      expect(shiftUpOption.textContent).toBe('Shift up');
+      expect(shiftUpOption.textContent).toBe('Shift out');
     });
 
     it('should not show shift up option for root node', () => {

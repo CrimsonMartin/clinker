@@ -622,11 +622,11 @@ function showContextMenu(event, node) {
   contextMenu.style.top = event.clientY + 'px';
   contextMenu.style.zIndex = '10000';
   
-  // Only show "Shift up to parent" if the node has a parent
+  // Only show "Shift out to parent" if the node has a parent
   if (node.parentId !== null) {
     const shiftUpOption = document.createElement('div');
     shiftUpOption.className = 'context-menu-item';
-    shiftUpOption.textContent = 'Shift up';
+    shiftUpOption.textContent = 'Shift out';
     shiftUpOption.addEventListener('click', async () => {
       await shiftNodeToParent(node.id);
       contextMenu.remove();
