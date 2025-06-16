@@ -1,5 +1,106 @@
 // sidebar.js for Research Linker
-// This script displays the citation tree in the sidebar.
+// This script displays the citation tree in the sidebar with auth and sync support.
+
+// Initialize auth and sync when DOM is loaded
+let authInitialized = false;
+let syncInitialized = false;
+
+async function initializeAuthAndSync() {
+  if (!authInitialized) {
+    await authManager.initialize();
+    authInitialized = true;
+    
+    // Set up auth state listener
+    authManager.onAuthStateChanged((user) => {
+      updateAuthUI(user);
+      
+      if (user && !syncInitialized) {
+        // Initialize sync when user logs in
+        initializeSync();
+      } else if (!user && syncInitialized) {
+        // Stop sync when user logs out
+        syncManager.stopAutoSync();
+        syncInitialized = false;
+        updateSyncUI({ status: 'offline' });
+      }
+    });
+  }
+}
+
+async function initializeSync() {
+  if (!syncInitialized) {
+    await syncManager.initialize();
+    syncInitialized = true;
+    
+    // Set up sync status listener
+    syncManager.onSyncStatusChange((status) => {
+      updateSyncUI(status);
+    });
+    
+    // Start auto-sync
+    syncManager.startAutoSync();
+  }
+}
+
+function updateAuthUI(user) {
+  const loginPrompt = document.getElementById('loginPrompt');
+  const userSection = document.getElementById('userSection');
+  const userEmail = document.getElementById('userEmail');
+  
+  if (user) {
+    // User is logged in
+    loginPrompt.classList.remove('show');
+    userSection.classList.add('show');
+    userEmail.textContent = user.email;
+  } else {
+    // User is not logged in
+    loginPrompt.classList.add('show');
+    userSection.classList.remove('show');
+    userEmail.textContent = '';
+  }
+}
+
+function updateSyncUI(status) {
+  const syncIcon = document.getElementById('syncIcon');
+  const syncStatusText = document.getElementById('syncStatusText');
+  
+  // Remove all status classes
+  syncIcon.classList.remove('synced', 'error', 'offline');
+  
+  switch (status.status) {
+    case 'syncing':
+      syncStatusText.textContent = 'Syncing...';
+      break;
+    case 'synced':
+      syncIcon.classList.add('synced');
+      syncStatusText.textContent = 'Synced';
+      if (status.lastSyncTime) {
+        const timeAgo = getTimeAgo(new Date(status.lastSyncTime));
+        syncStatusText.textContent = `Synced ${timeAgo}`;
+      }
+      break;
+    case 'error':
+      syncIcon.classList.add('error');
+      syncStatusText.textContent = 'Sync error';
+      break;
+    case 'offline':
+      syncIcon.classList.add('offline');
+      syncStatusText.textContent = 'Offline';
+      break;
+  }
+}
+
+function getTimeAgo(date) {
+  const seconds = Math.floor((new Date() - date) / 1000);
+  
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
 
 function formatTimestamp(timestamp) {
   const date = new Date(timestamp);
@@ -317,6 +418,11 @@ async function moveNodeToRoot(nodeId) {
     console.log('Updated tree:', tree);
     
     await browser.storage.local.set({ citationTree: tree });
+    
+    // Mark as modified for sync
+    if (syncInitialized) {
+      await syncManager.markAsModified();
+    }
   } catch (error) {
     console.error('Error moving node to root:', error);
   }
@@ -373,7 +479,10 @@ async function handleToggleChange(event) {
   console.log('Extension toggled from sidebar:', isActive ? 'ON' : 'OFF');
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  // Initialize auth and sync
+  await initializeAuthAndSync();
+  
   loadAndDisplayTree();
   initializeToggle();
   
@@ -381,6 +490,27 @@ document.addEventListener('DOMContentLoaded', () => {
   const toggleInput = document.getElementById('extensionToggle');
   if (toggleInput) {
     toggleInput.addEventListener('change', handleToggleChange);
+  }
+  
+  // Add login button listener
+  const loginButton = document.getElementById('loginButton');
+  if (loginButton) {
+    loginButton.addEventListener('click', () => {
+      window.location.href = 'login.html';
+    });
+  }
+  
+  // Add logout button listener
+  const logoutButton = document.getElementById('logoutButton');
+  if (logoutButton) {
+    logoutButton.addEventListener('click', async () => {
+      const result = await authManager.signOut();
+      if (result.success) {
+        console.log('Successfully logged out');
+      } else {
+        console.error('Logout error:', result.error);
+      }
+    });
   }
 });
 
@@ -467,6 +597,11 @@ async function moveNode(draggedNodeId, targetNodeId) {
     console.log('Updated tree:', tree);
     
     await browser.storage.local.set({ citationTree: tree });
+    
+    // Mark as modified for sync
+    if (syncInitialized) {
+      await syncManager.markAsModified();
+    }
   } catch (error) {
     console.error('Error moving node:', error);
   }
@@ -555,6 +690,11 @@ async function shiftNodeToParent(nodeId) {
     console.log('Updated tree:', tree);
     
     await browser.storage.local.set({ citationTree: tree });
+    
+    // Mark as modified for sync
+    if (syncInitialized) {
+      await syncManager.markAsModified();
+    }
   } catch (error) {
     console.error('Error shifting node to parent:', error);
   }
@@ -564,5 +704,10 @@ async function shiftNodeToParent(nodeId) {
 browser.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === 'local' && changes.citationTree) {
     loadAndDisplayTree();
+    
+    // Mark as modified for sync when tree changes
+    if (syncInitialized && !changes.citationTree.newValue?.fromSync) {
+      syncManager.markAsModified();
+    }
   }
 });

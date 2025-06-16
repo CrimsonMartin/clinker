@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Citation Linker Login</title>
+  <style>
+    body {
+      width: 350px;
+      min-height: 600px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 16px;
+      background-color: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .login-container {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      width: 100%;
+      max-width: 300px;
+    }
+    
+    .logo-section {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    
+    .logo-section h1 {
+      font-size: 24px;
+      color: #1e293b;
+      margin: 0 0 8px 0;
+    }
+    
+    .logo-section p {
+      color: #64748b;
+      font-size: 14px;
+      margin: 0;
+    }
+    
+    .auth-tabs {
+      display: flex;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .auth-tab {
+      flex: 1;
+      padding: 12px;
+      background: none;
+      border: none;
+      font-size: 14px;
+      font-weight: 500;
+      color: #64748b;
+      cursor: pointer;
+      position: relative;
+      transition: color 0.2s ease;
+    }
+    
+    .auth-tab:hover {
+      color: #475569;
+    }
+    
+    .auth-tab.active {
+      color: #6366f1;
+    }
+    
+    .auth-tab.active::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: #6366f1;
+    }
+    
+    .auth-form {
+      display: none;
+    }
+    
+    .auth-form.active {
+      display: block;
+    }
+    
+    .form-group {
+      margin-bottom: 16px;
+    }
+    
+    .form-label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      color: #334155;
+      margin-bottom: 6px;
+    }
+    
+    .form-input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: inherit;
+      transition: all 0.2s ease;
+      box-sizing: border-box;
+    }
+    
+    .form-input:focus {
+      outline: none;
+      border-color: #6366f1;
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+    
+    .form-input.error {
+      border-color: #ef4444;
+    }
+    
+    .error-message {
+      font-size: 12px;
+      color: #ef4444;
+      margin-top: 4px;
+      display: none;
+    }
+    
+    .error-message.show {
+      display: block;
+    }
+    
+    .submit-button {
+      width: 100%;
+      background: #6366f1;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 12px 16px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-top: 8px;
+    }
+    
+    .submit-button:hover {
+      background: #4f46e5;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    
+    .submit-button:active {
+      transform: translateY(0);
+    }
+    
+    .submit-button:disabled {
+      background: #94a3b8;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .divider {
+      text-align: center;
+      margin: 20px 0;
+      position: relative;
+    }
+    
+    .divider::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: #e2e8f0;
+    }
+    
+    .divider span {
+      background: white;
+      padding: 0 12px;
+      position: relative;
+      font-size: 12px;
+      color: #64748b;
+    }
+    
+    .social-login {
+      width: 100%;
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 10px 16px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: #334155;
+    }
+    
+    .social-login:hover {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+    }
+    
+    .social-login img {
+      width: 18px;
+      height: 18px;
+    }
+    
+    .continue-offline {
+      text-align: center;
+      margin-top: 20px;
+    }
+    
+    .continue-offline-button {
+      background: none;
+      border: none;
+      color: #6366f1;
+      font-size: 14px;
+      cursor: pointer;
+      text-decoration: underline;
+      transition: color 0.2s ease;
+    }
+    
+    .continue-offline-button:hover {
+      color: #4f46e5;
+    }
+    
+    .forgot-password {
+      text-align: right;
+      margin-top: 8px;
+    }
+    
+    .forgot-password-link {
+      background: none;
+      border: none;
+      color: #6366f1;
+      font-size: 12px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: color 0.2s ease;
+    }
+    
+    .forgot-password-link:hover {
+      color: #4f46e5;
+      text-decoration: underline;
+    }
+    
+    .loading-spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #ffffff;
+      border-radius: 50%;
+      border-top-color: transparent;
+      animation: spin 0.8s linear infinite;
+      margin-right: 8px;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .success-message {
+      background: #10b981;
+      color: white;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      text-align: center;
+      margin-bottom: 16px;
+      display: none;
+    }
+    
+    .success-message.show {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="logo-section">
+      <h1>Citation Linker</h1>
+      <p>Sign in to sync your research across devices</p>
+    </div>
+    
+    <div class="success-message" id="successMessage"></div>
+    
+    <div class="auth-tabs">
+      <button class="auth-tab active" data-tab="signin">Sign In</button>
+      <button class="auth-tab" data-tab="signup">Sign Up</button>
+    </div>
+    
+    <!-- Sign In Form -->
+    <form class="auth-form active" id="signinForm">
+      <div class="form-group">
+        <label class="form-label" for="signin-email">Email</label>
+        <input type="email" id="signin-email" class="form-input" placeholder="you@example.com" required>
+        <div class="error-message" id="signin-email-error"></div>
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label" for="signin-password">Password</label>
+        <input type="password" id="signin-password" class="form-input" placeholder="••••••••" required>
+        <div class="error-message" id="signin-password-error"></div>
+      </div>
+      
+      <div class="forgot-password">
+        <button type="button" class="forgot-password-link" id="forgotPasswordBtn">Forgot password?</button>
+      </div>
+      
+      <button type="submit" class="submit-button" id="signinBtn">
+        Sign In
+      </button>
+      
+      <div class="divider">
+        <span>or</span>
+      </div>
+      
+      <button type="button" class="social-login" id="googleSigninBtn">
+        <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+          <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+          <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
+          <path d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.335z" fill="#FBBC05"/>
+          <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+        </svg>
+        Continue with Google
+      </button>
+    </form>
+    
+    <!-- Sign Up Form -->
+    <form class="auth-form" id="signupForm">
+      <div class="form-group">
+        <label class="form-label" for="signup-email">Email</label>
+        <input type="email" id="signup-email" class="form-input" placeholder="you@example.com" required>
+        <div class="error-message" id="signup-email-error"></div>
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label" for="signup-password">Password</label>
+        <input type="password" id="signup-password" class="form-input" placeholder="••••••••" required>
+        <div class="error-message" id="signup-password-error"></div>
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label" for="signup-confirm-password">Confirm Password</label>
+        <input type="password" id="signup-confirm-password" class="form-input" placeholder="••••••••" required>
+        <div class="error-message" id="signup-confirm-password-error"></div>
+      </div>
+      
+      <button type="submit" class="submit-button" id="signupBtn">
+        Create Account
+      </button>
+      
+      <div class="divider">
+        <span>or</span>
+      </div>
+      
+      <button type="button" class="social-login" id="googleSignupBtn">
+        <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+          <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+          <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
+          <path d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.335z" fill="#FBBC05"/>
+          <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+        </svg>
+        Sign up with Google
+      </button>
+    </form>
+    
+    <div class="continue-offline">
+      <button class="continue-offline-button" id="continueOfflineBtn">Continue without signing in</button>
+    </div>
+  </div>
+  
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
+  
+  <!-- Extension scripts -->
+  <script src="firebase/firebase-config.js"></script>
+  <script src="firebase/auth.js"></script>
+  <script src="login.js"></script>
+</body>
+</html>

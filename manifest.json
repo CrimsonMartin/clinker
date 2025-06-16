@@ -7,7 +7,10 @@
     "activeTab",
     "storage",
     "contextMenus",
-    "tabs"
+    "tabs",
+    "identity",
+    "https://*.firebaseapp.com/*",
+    "https://*.firebaseio.com/*"
   ],
   "background": {
     "scripts": ["dist/background.js"]

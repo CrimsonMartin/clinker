@@ -158,7 +158,8 @@ document.addEventListener('mouseup', async (event) => {
           
           await browser.storage.local.set({ 
             citationTree: tree,
-            nodeCounter: nodeCounter + 1
+            nodeCounter: nodeCounter + 1,
+            lastModified: new Date().toISOString()
           });
           
           console.log('Citation saved to tree:', selectedText);

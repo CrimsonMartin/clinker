@@ -506,6 +506,117 @@
     .toggle-status.inactive {
       color: #94a3b8;
     }
+    
+    /* Auth and sync status styles */
+    .user-section {
+      background: white;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      display: none;
+    }
+    
+    .user-section.show {
+      display: block;
+    }
+    
+    .user-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    
+    .user-email {
+      font-size: 14px;
+      color: #334155;
+      font-weight: 500;
+    }
+    
+    .logout-button {
+      background: none;
+      border: 1px solid #e2e8f0;
+      color: #64748b;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    
+    .logout-button:hover {
+      background: #fee2e2;
+      border-color: #ef4444;
+      color: #ef4444;
+    }
+    
+    .sync-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #64748b;
+    }
+    
+    .sync-icon {
+      width: 16px;
+      height: 16px;
+      animation: spin 1s linear infinite;
+    }
+    
+    .sync-icon.synced {
+      animation: none;
+      color: #10b981;
+    }
+    
+    .sync-icon.error {
+      animation: none;
+      color: #ef4444;
+    }
+    
+    .sync-icon.offline {
+      animation: none;
+      color: #94a3b8;
+    }
+    
+    .login-prompt {
+      background: #f0f9ff;
+      border: 1px solid #3b82f6;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      text-align: center;
+      display: none;
+    }
+    
+    .login-prompt.show {
+      display: block;
+    }
+    
+    .login-prompt-text {
+      font-size: 13px;
+      color: #1e40af;
+      margin-bottom: 8px;
+    }
+    
+    .login-button {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    
+    .login-button:hover {
+      background: #2563eb;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
   </style>
 </head>
 <body>
@@ -521,11 +632,40 @@
       <span class="toggle-status active" id="toggleStatus">ON</span>
     </div>
   </div>
+  
+  <!-- Login prompt -->
+  <div class="login-prompt" id="loginPrompt">
+    <div class="login-prompt-text">Sign in to sync your research across devices</div>
+    <button class="login-button" id="loginButton">Sign In</button>
+  </div>
+  
+  <!-- User section -->
+  <div class="user-section" id="userSection">
+    <div class="user-info">
+      <span class="user-email" id="userEmail"></span>
+      <button class="logout-button" id="logoutButton">Sign Out</button>
+    </div>
+    <div class="sync-status" id="syncStatus">
+      <svg class="sync-icon" id="syncIcon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+      </svg>
+      <span id="syncStatusText">Offline</span>
+    </div>
+  </div>
   <div class="tree-container">
     <div id="tree-root">
       <div class="empty-state">No citations saved yet. Highlight text on any webpage to start building your research tree.</div>
     </div>
   </div>
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
+  
+  <!-- Extension scripts -->
+  <script src="firebase/firebase-config.js"></script>
+  <script src="firebase/auth.js"></script>
+  <script src="firebase/sync.js"></script>
   <script src="deleteButton.js"></script>
   <script src="annotationButton.js"></script>
   <script src="sidebar.js"></script>
