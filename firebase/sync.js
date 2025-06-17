@@ -7,6 +7,9 @@ class SyncManager {
     this.syncListeners = [];
     this.lastSyncTime = null;
     this.syncInterval = null;
+    this.syncThrottleTimeout = null;
+    this.lastImmediateSync = null;
+    this.THROTTLE_DELAY = 2000; // 2 seconds minimum between immediate syncs
   }
 
   // Initialize Firestore and sync
@@ -49,6 +52,12 @@ class SyncManager {
       clearInterval(this.syncInterval);
       this.syncInterval = null;
     }
+    
+    // Clear any pending throttled sync
+    if (this.syncThrottleTimeout) {
+      clearTimeout(this.syncThrottleTimeout);
+      this.syncThrottleTimeout = null;
+    }
   }
 
   // Perform sync operation
@@ -80,51 +89,69 @@ class SyncManager {
 
       // Determine which data is newer
       let finalData;
+      let action;
       
-      // Check if this is a fresh session (no local data) vs existing session
+      // Analyze the current state
       const hasLocalNodes = localData.citationTree?.nodes?.length > 0;
       const hasCloudNodes = cloudData?.citationTree?.nodes?.length > 0;
+      const hasLocalTimestamp = !!localData.lastModified;
+      const hasCloudTimestamp = !!cloudData?.lastModified;
       
-      if (!cloudData || !cloudData.lastModified) {
-        // No cloud data exists, upload local data (even if empty)
-        console.log('No cloud data found, uploading local data');
+      console.log('=== SYNC DECISION ANALYSIS ===');
+      console.log('Local:', { hasNodes: hasLocalNodes, hasTimestamp: hasLocalTimestamp, nodeCount: localData.citationTree?.nodes?.length || 0 });
+      console.log('Cloud:', { hasNodes: hasCloudNodes, hasTimestamp: hasCloudTimestamp, nodeCount: cloudData?.citationTree?.nodes?.length || 0 });
+      
+      if (!cloudData || !hasCloudTimestamp) {
+        // No cloud data exists - upload local data (even if empty)
+        action = 'upload_no_cloud';
         finalData = localData;
         await this.uploadToCloud(user.uid, localData);
       } else if (!hasLocalNodes && hasCloudNodes) {
-        // Fresh session with cloud data available - always download
-        console.log('Fresh session detected with cloud data available, downloading cloud data');
+        // Fresh session: no local content, cloud has content - safe to download
+        action = 'download_fresh_session';
         finalData = cloudData;
         await this.saveToLocal(cloudData);
-      } else if (!localData.lastModified && hasCloudNodes) {
-        // No local timestamp but has cloud data - download
-        console.log('No local timestamp, downloading cloud data');
+      } else if (!hasLocalTimestamp && hasLocalNodes) {
+        // Local content exists but no timestamp - prioritize local to prevent data loss
+        action = 'upload_preserve_local_content';
+        finalData = localData;
+        await this.uploadToCloud(user.uid, localData);
+        console.warn('Local content found without timestamp - uploading to preserve user data');
+      } else if (!hasLocalTimestamp && !hasLocalNodes && hasCloudNodes) {
+        // No local content or timestamp, cloud has content - download
+        action = 'download_no_local_data';
         finalData = cloudData;
         await this.saveToLocal(cloudData);
-      } else if (localData.lastModified && cloudData.lastModified) {
-        // Both have timestamps, compare them
+      } else if (hasLocalTimestamp && hasCloudTimestamp) {
+        // Both have timestamps - compare them
         const localTime = new Date(localData.lastModified).getTime();
         const cloudTime = new Date(cloudData.lastModified).getTime();
-
-        if (localTime > cloudTime) {
-          // Local is newer, upload
-          console.log('Local data is newer, uploading');
+        const timeDiff = localTime - cloudTime;
+        
+        if (timeDiff > 0) {
+          // Local is newer - upload
+          action = 'upload_local_newer';
           finalData = localData;
           await this.uploadToCloud(user.uid, localData);
-        } else if (cloudTime > localTime) {
-          // Cloud is newer, download
-          console.log('Cloud data is newer, downloading');
+        } else if (timeDiff < 0) {
+          // Cloud is newer - download
+          action = 'download_cloud_newer';
           finalData = cloudData;
           await this.saveToLocal(cloudData);
         } else {
-          // Same timestamp, no action needed
-          console.log('Data is already in sync');
+          // Timestamps equal - no sync needed
+          action = 'no_sync_equal_timestamps';
           finalData = localData;
         }
       } else {
-        // Fallback: use local data
-        console.log('Using local data as fallback');
+        // Fallback: upload local data to be safe
+        action = 'upload_fallback';
         finalData = localData;
+        await this.uploadToCloud(user.uid, localData);
       }
+      
+      console.log('Sync action taken:', action);
+      console.log('=== END SYNC ANALYSIS ===');
 
       // Update last sync time
       this.lastSyncTime = new Date().toISOString();
@@ -245,13 +272,62 @@ class SyncManager {
     }
   }
 
-  // Mark data as modified (triggers sync on next interval)
+  // Mark data as modified and trigger immediate sync with throttling
   async markAsModified() {
     const now = new Date().toISOString();
-    await browser.storage.local.set({ lastModified: now });
     
-    // Data will be synced on the next scheduled 30-second interval
-    // No immediate sync to avoid frequent syncing
+    // Clear the fromSync flag when user makes local changes
+    const result = await browser.storage.local.get({ citationTree: { nodes: [], currentNodeId: null } });
+    const citationTree = { ...result.citationTree };
+    delete citationTree.fromSync; // Remove flag so this change can be synced
+    
+    await browser.storage.local.set({ 
+      lastModified: now,
+      citationTree: citationTree
+    });
+    
+    console.log('Data marked as modified at:', now);
+    
+    // Trigger immediate sync with throttling to prevent excessive syncing
+    this.triggerImmediateSync();
+  }
+
+  // Trigger immediate sync with throttling
+  triggerImmediateSync() {
+    if (!authManager.isLoggedIn()) {
+      console.log('User not logged in, skipping immediate sync');
+      return;
+    }
+
+    // Clear any existing throttle timeout
+    if (this.syncThrottleTimeout) {
+      clearTimeout(this.syncThrottleTimeout);
+    }
+
+    // Check if we recently did an immediate sync
+    const now = Date.now();
+    if (this.lastImmediateSync && (now - this.lastImmediateSync) < this.THROTTLE_DELAY) {
+      // Too soon, schedule a delayed sync instead
+      console.log('Throttling immediate sync, scheduling delayed sync');
+      this.syncThrottleTimeout = setTimeout(() => {
+        this.performImmediateSync();
+      }, this.THROTTLE_DELAY - (now - this.lastImmediateSync));
+    } else {
+      // Perform immediate sync
+      this.performImmediateSync();
+    }
+  }
+
+  // Perform immediate sync (internal method)
+  async performImmediateSync() {
+    this.lastImmediateSync = Date.now();
+    console.log('Performing immediate sync due to local changes');
+    
+    try {
+      await this.performSync();
+    } catch (error) {
+      console.error('Immediate sync failed:', error);
+    }
   }
 
   // Add sync status listener

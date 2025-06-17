@@ -236,20 +236,22 @@ function createTreeNodeElement(node, isCurrentNode) {
   nodeElement.appendChild(contentElement);
   nodeElement.appendChild(metaElement);
   
-  // Add single-click handler to update highlighting
+  // Add single-click handler to update highlighting (UI-only, no sync)
   nodeElement.addEventListener('click', async () => {
     try {
       // Update current node in storage (just for highlighting)
       const result = await browser.storage.local.get({ citationTree: { nodes: [], currentNodeId: null } });
       const tree = result.citationTree;
       tree.currentNodeId = node.id;
+      // Use a special flag to indicate this is UI-only change
+      tree.uiOnlyChange = true;
       await browser.storage.local.set({ citationTree: tree });
     } catch (error) {
       console.error('Error updating current node:', error);
     }
   });
   
-  // Add double-click handler for navigation
+  // Add double-click handler for navigation (UI-only, no sync)
   nodeElement.addEventListener('dblclick', async (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -260,6 +262,8 @@ function createTreeNodeElement(node, isCurrentNode) {
       const result = await browser.storage.local.get({ citationTree: { nodes: [], currentNodeId: null } });
       const tree = result.citationTree;
       tree.currentNodeId = node.id;
+      // Use a special flag to indicate this is UI-only change
+      tree.uiOnlyChange = true;
       await browser.storage.local.set({ citationTree: tree });
       
       // Then navigate to the URL
@@ -1075,9 +1079,23 @@ browser.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === 'local' && changes.citationTree) {
     loadAndDisplayTree();
     
-    // Mark as modified for sync when tree changes
-    if (syncInitialized && !changes.citationTree.newValue?.fromSync) {
+    // Only trigger sync for actual content changes, not UI-only changes
+    const newValue = changes.citationTree.newValue;
+    const isUIOnlyChange = newValue?.uiOnlyChange === true;
+    const isFromSync = newValue?.fromSync === true;
+    
+    if (syncInitialized && !isFromSync && !isUIOnlyChange) {
+      console.log('Tree content change detected, triggering sync');
       syncManager.markAsModified();
+    } else if (isUIOnlyChange) {
+      console.log('UI-only change detected, no sync needed');
+      // Clean up the flag for next time
+      setTimeout(async () => {
+        const result = await browser.storage.local.get({ citationTree: { nodes: [], currentNodeId: null } });
+        const tree = result.citationTree;
+        delete tree.uiOnlyChange;
+        await browser.storage.local.set({ citationTree: tree });
+      }, 100);
     }
     
     // Re-run search if active
