@@ -117,6 +117,184 @@ function truncateText(text, maxLength = 100) {
   return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
 }
 
+// Data validation and repair functions
+function validateAndRepairTree(tree) {
+  if (!tree || !tree.nodes || !Array.isArray(tree.nodes)) {
+    console.warn('Invalid tree structure, initializing empty tree');
+    return {
+      nodes: [],
+      currentNodeId: null,
+      repaired: false,
+      repairs: []
+    };
+  }
+
+  const repairs = [];
+  const nodeIds = new Set(tree.nodes.map(node => node.id));
+  let modified = false;
+
+  // Find orphaned nodes (nodes whose parent doesn't exist)
+  const orphanedNodes = tree.nodes.filter(node => 
+    node.parentId !== null && !nodeIds.has(node.parentId)
+  );
+
+  if (orphanedNodes.length > 0) {
+    console.log('Found orphaned nodes:', orphanedNodes.map(n => ({ id: n.id, missingParent: n.parentId })));
+
+    // Group orphaned nodes into chains and find the root of each chain
+    const orphanedChains = groupOrphanedNodesIntoChains(tree.nodes, orphanedNodes);
+    
+    orphanedChains.forEach(chain => {
+      const rootNode = chain[0]; // First node in chain becomes root
+      console.log(`Promoting orphaned node ${rootNode.id} to root (was child of missing node ${rootNode.parentId})`);
+      
+      rootNode.parentId = null;
+      modified = true;
+      
+      repairs.push({
+        type: 'promoted_to_root',
+        nodeId: rootNode.id,
+        originalParentId: rootNode.parentId,
+        chainLength: chain.length
+      });
+    });
+  }
+
+  // Validate and repair children arrays
+  tree.nodes.forEach(node => {
+    if (!node.children) {
+      node.children = [];
+    }
+
+    // Find actual children based on parentId references
+    const actualChildren = tree.nodes
+      .filter(child => child.parentId === node.id)
+      .map(child => child.id);
+
+    // Check if children array matches actual parent-child relationships
+    const currentChildren = new Set(node.children);
+    const expectedChildren = new Set(actualChildren);
+    
+    // Remove invalid children (children that don't actually reference this node as parent)
+    const invalidChildren = node.children.filter(childId => !expectedChildren.has(childId));
+    if (invalidChildren.length > 0) {
+      console.log(`Removing invalid children from node ${node.id}:`, invalidChildren);
+      node.children = node.children.filter(childId => expectedChildren.has(childId));
+      modified = true;
+      
+      repairs.push({
+        type: 'removed_invalid_children',
+        nodeId: node.id,
+        removedChildren: invalidChildren
+      });
+    }
+
+    // Add missing children (nodes that reference this as parent but aren't in children array)
+    const missingChildren = actualChildren.filter(childId => !currentChildren.has(childId));
+    if (missingChildren.length > 0) {
+      console.log(`Adding missing children to node ${node.id}:`, missingChildren);
+      node.children.push(...missingChildren);
+      modified = true;
+      
+      repairs.push({
+        type: 'added_missing_children',
+        nodeId: node.id,
+        addedChildren: missingChildren
+      });
+    }
+  });
+
+  // Validate currentNodeId - clear if node doesn't exist or is deleted
+  if (tree.currentNodeId !== null) {
+    const currentNode = tree.nodes.find(node => node.id === tree.currentNodeId);
+    if (!currentNode) {
+      console.log(`Current node ${tree.currentNodeId} doesn't exist, clearing currentNodeId`);
+      tree.currentNodeId = null;
+      modified = true;
+      
+      repairs.push({
+        type: 'cleared_invalid_current_node',
+        invalidNodeId: tree.currentNodeId
+      });
+    } else if (currentNode.deleted) {
+      console.log(`Current node ${tree.currentNodeId} is deleted, clearing currentNodeId`);
+      tree.currentNodeId = null;
+      modified = true;
+      
+      repairs.push({
+        type: 'cleared_deleted_current_node',
+        invalidNodeId: tree.currentNodeId
+      });
+    }
+  }
+
+  if (repairs.length > 0) {
+    console.log('Tree repair completed:', repairs);
+  }
+
+  return {
+    ...tree,
+    repaired: modified,
+    repairs: repairs
+  };
+}
+
+function groupOrphanedNodesIntoChains(allNodes, orphanedNodes) {
+  const chains = [];
+  const processed = new Set();
+
+  orphanedNodes.forEach(orphanedNode => {
+    if (processed.has(orphanedNode.id)) return;
+
+    // Find the chain starting from this orphaned node
+    const chain = [orphanedNode];
+    processed.add(orphanedNode.id);
+
+    // Follow the chain downward (children of this orphaned node)
+    let currentNode = orphanedNode;
+    while (true) {
+      const child = allNodes.find(node => node.parentId === currentNode.id);
+      if (!child) break;
+      
+      chain.push(child);
+      processed.add(child.id);
+      currentNode = child;
+    }
+
+    chains.push(chain);
+  });
+
+  return chains;
+}
+
+function repairTreeIntegrity(tree) {
+  const repairResult = validateAndRepairTree(tree);
+  
+  if (repairResult.repaired) {
+    console.log('Tree structure repaired, saving changes...');
+    // Save the repaired tree back to storage
+    browser.storage.local.set({ 
+      citationTree: {
+        nodes: repairResult.nodes,
+        currentNodeId: repairResult.currentNodeId,
+        fromRepair: true // Flag to prevent sync conflicts
+      },
+      lastModified: new Date().toISOString()
+    }).then(() => {
+      console.log('Repaired tree saved to local storage');
+      
+      // Trigger sync to update cloud with repaired data
+      if (syncInitialized && authManager.isLoggedIn()) {
+        syncManager.markAsModified();
+      }
+    }).catch(error => {
+      console.error('Error saving repaired tree:', error);
+    });
+  }
+
+  return repairResult;
+}
+
 function createTreeNodeElement(node, isCurrentNode) {
   const nodeElement = document.createElement('div');
   nodeElement.className = `tree-node ${isCurrentNode ? 'current' : ''}`;
@@ -289,8 +467,8 @@ function createTreeNodeElement(node, isCurrentNode) {
 function renderTree(nodes, currentNodeId, parentId = null) {
   const container = document.createElement('div');
   
-  // Find all nodes with the specified parent
-  const childNodes = nodes.filter(node => node.parentId === parentId);
+  // Find all nodes with the specified parent, excluding deleted nodes
+  const childNodes = nodes.filter(node => node.parentId === parentId && !node.deleted);
   
   childNodes.forEach(node => {
     // Ensure node has children array
@@ -330,17 +508,39 @@ async function loadAndDisplayTree() {
     
     console.log('Loading tree with nodes:', tree.nodes);
     
+    // Validate and repair tree structure before rendering
+    const repairedTree = validateAndRepairTree(tree);
+    
+    // If repairs were made, save the corrected tree and sync to cloud
+    if (repairedTree.repaired) {
+      console.log('Tree repairs detected, saving corrected structure...');
+      await browser.storage.local.set({ 
+        citationTree: {
+          nodes: repairedTree.nodes,
+          currentNodeId: repairedTree.currentNodeId,
+          fromRepair: true // Flag to prevent sync conflicts
+        },
+        lastModified: new Date().toISOString()
+      });
+      
+      // Trigger sync to update cloud with repaired data
+      if (syncInitialized && authManager.isLoggedIn()) {
+        syncManager.markAsModified();
+      }
+    }
+    
     // Clear existing content
     treeRoot.innerHTML = '';
     
-    // Check if tree is empty and show empty state
-    if (!tree.nodes || tree.nodes.length === 0) {
+    // Check if tree is empty and show empty state (only count non-deleted nodes)
+    const visibleNodes = repairedTree.nodes ? repairedTree.nodes.filter(node => !node.deleted) : [];
+    if (!repairedTree.nodes || repairedTree.nodes.length === 0 || visibleNodes.length === 0) {
       treeRoot.innerHTML = '<div class="empty-state">No citations saved yet. Highlight text on any webpage to start building your research tree.</div>';
       return;
     }
     
     // Render the tree starting from root nodes (parentId === null)
-    const treeElements = renderTree(tree.nodes, tree.currentNodeId);
+    const treeElements = renderTree(repairedTree.nodes, repairedTree.currentNodeId);
     treeRoot.appendChild(treeElements);
     
     // Setup drop functionality for the background to make nodes root-level (only once)
@@ -483,6 +683,21 @@ async function handleToggleChange(event) {
   
   console.log('Extension toggled from sidebar:', isActive ? 'ON' : 'OFF');
 }
+
+// Listen for sync messages from background script
+browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === "performSync") {
+    console.log("Performing immediate sync requested by content script");
+    if (syncInitialized && authManager.isLoggedIn()) {
+      syncManager.forceSync().then((result) => {
+        sendResponse(result);
+      });
+    } else {
+      sendResponse({ success: false, error: "Sync not initialized or user not logged in" });
+    }
+    return true; // Keep the message channel open for async response
+  }
+});
 
 document.addEventListener('DOMContentLoaded', async () => {
   // Initialize auth and sync
@@ -814,15 +1029,17 @@ function performSearch(query) {
     const tree = result.citationTree;
     searchResults = [];
 
-    // Search through nodes
+    // Search through nodes, excluding deleted nodes
     tree.nodes.forEach(node => {
-      const matches = findMatches(node, trimmedQuery, searchHighlighted, searchAnnotations);
-      if (matches.length > 0) {
-        searchResults.push({
-          nodeId: node.id,
-          matches: matches,
-          priority: matches.some(m => m.type === 'highlight') ? 1 : 2
-        });
+      if (!node.deleted) {
+        const matches = findMatches(node, trimmedQuery, searchHighlighted, searchAnnotations);
+        if (matches.length > 0) {
+          searchResults.push({
+            nodeId: node.id,
+            matches: matches,
+            priority: matches.some(m => m.type === 'highlight') ? 1 : 2
+          });
+        }
       }
     });
 

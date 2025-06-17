@@ -253,10 +253,13 @@ class SyncManager {
   // Save cloud data to local storage
   async saveToLocal(cloudData) {
     try {
+      // Validate and repair tree structure before saving
+      const validatedTree = this.validateAndRepairTreeStructure(cloudData.citationTree);
+      
       // Add fromSync flag to prevent triggering another sync
       const dataToSave = {
         citationTree: { 
-          ...cloudData.citationTree, 
+          ...validatedTree, 
           fromSync: true 
         },
         nodeCounter: cloudData.nodeCounter,
@@ -264,11 +267,79 @@ class SyncManager {
       };
       
       await browser.storage.local.set(dataToSave);
-      console.log('Cloud data saved to local storage');
+      console.log('Cloud data validated and saved to local storage');
     } catch (error) {
       console.error('Error saving to local storage:', error);
       throw error;
     }
+  }
+
+  // Validate and repair tree structure (simplified version for sync context)
+  validateAndRepairTreeStructure(tree) {
+    if (!tree || !tree.nodes || !Array.isArray(tree.nodes)) {
+      console.warn('Invalid tree structure in cloud data, initializing empty tree');
+      return {
+        nodes: [],
+        currentNodeId: null
+      };
+    }
+
+    const nodeIds = new Set(tree.nodes.map(node => node.id));
+    let repaired = false;
+
+    // Find and repair orphaned nodes
+    const orphanedNodes = tree.nodes.filter(node => 
+      node.parentId !== null && !nodeIds.has(node.parentId)
+    );
+
+    if (orphanedNodes.length > 0) {
+      console.log('Found orphaned nodes in cloud data, promoting to root:', orphanedNodes.map(n => n.id));
+      
+      // Group orphaned nodes into chains and promote first node of each chain to root
+      const processed = new Set();
+      
+      orphanedNodes.forEach(orphanedNode => {
+        if (processed.has(orphanedNode.id)) return;
+        
+        // This orphaned node becomes a root
+        orphanedNode.parentId = null;
+        processed.add(orphanedNode.id);
+        repaired = true;
+        
+        console.log(`Promoted orphaned node ${orphanedNode.id} to root in cloud data`);
+      });
+    }
+
+    // Ensure all nodes have children arrays and validate them
+    tree.nodes.forEach(node => {
+      if (!node.children) {
+        node.children = [];
+      }
+
+      // Find actual children based on parentId references
+      const actualChildren = tree.nodes
+        .filter(child => child.parentId === node.id)
+        .map(child => child.id);
+
+      // Update children array to match actual relationships
+      if (JSON.stringify(node.children.sort()) !== JSON.stringify(actualChildren.sort())) {
+        node.children = actualChildren;
+        repaired = true;
+      }
+    });
+
+    // Validate currentNodeId
+    if (tree.currentNodeId !== null && !nodeIds.has(tree.currentNodeId)) {
+      console.log(`Current node ${tree.currentNodeId} doesn't exist in cloud data, clearing`);
+      tree.currentNodeId = null;
+      repaired = true;
+    }
+
+    if (repaired) {
+      console.log('Cloud data tree structure repaired during sync');
+    }
+
+    return tree;
   }
 
   // Mark data as modified (will sync on next 30-second interval)

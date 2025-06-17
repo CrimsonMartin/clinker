@@ -163,6 +163,16 @@ document.addEventListener('mouseup', async (event) => {
           });
           
           console.log('Citation saved to tree:', selectedText);
+          
+          // Trigger immediate sync to cloud
+          browser.runtime.sendMessage({ action: "triggerSync" })
+            .then((response) => {
+              console.log('Sync triggered:', response);
+            })
+            .catch((error) => {
+              console.log('Sync trigger error:', error);
+            });
+          
           if (saveButton) {
             saveButton.style.display = 'none';
           }

@@ -52,7 +52,7 @@ describe('DeleteButton', () => {
   });
 
   describe('deleteNode', () => {
-    it('should delete a node and all its descendants', async () => {
+    it('should soft delete a node and all its descendants', async () => {
       const mockTree = {
         nodes: [
           { id: 1, parentId: null, children: [2] },
@@ -67,18 +67,31 @@ describe('DeleteButton', () => {
 
       await deleteNode(2);
 
-      expect(browser.storage.local.set).toHaveBeenCalledWith({
-        citationTree: {
-          nodes: [
-            { id: 1, parentId: null, children: [] },
-            { id: 4, parentId: null, children: [] }
-          ],
-          currentNodeId: 1
-        }
-      });
+      const setCall = browser.storage.local.set.mock.calls[0][0];
+      const savedTree = setCall.citationTree;
+      
+      // Check that node 2 and its descendant (node 3) are marked as deleted
+      const node2 = savedTree.nodes.find(n => n.id === 2);
+      const node3 = savedTree.nodes.find(n => n.id === 3);
+      
+      expect(node2.deleted).toBe(true);
+      expect(node2.deletedAt).toBeDefined();
+      expect(node3.deleted).toBe(true);
+      expect(node3.deletedAt).toBeDefined();
+      
+      // Check that other nodes are not deleted
+      const node1 = savedTree.nodes.find(n => n.id === 1);
+      const node4 = savedTree.nodes.find(n => n.id === 4);
+      
+      expect(node1.deleted).toBeUndefined();
+      expect(node4.deleted).toBeUndefined();
+      
+      // All nodes should still be in the array
+      expect(savedTree.nodes).toHaveLength(4);
+      expect(savedTree.currentNodeId).toBe(1);
     });
 
-    it('should remove node from parent children array', async () => {
+    it('should soft delete node and preserve all nodes in array', async () => {
       const mockTree = {
         nodes: [
           { id: 1, parentId: null, children: [2, 3] },
@@ -92,15 +105,23 @@ describe('DeleteButton', () => {
 
       await deleteNode(2);
 
-      expect(browser.storage.local.set).toHaveBeenCalledWith({
-        citationTree: {
-          nodes: [
-            { id: 1, parentId: null, children: [3] },
-            { id: 3, parentId: 1, children: [] }
-          ],
-          currentNodeId: 1
-        }
-      });
+      const setCall = browser.storage.local.set.mock.calls[0][0];
+      const savedTree = setCall.citationTree;
+      
+      // Check that node 2 is marked as deleted
+      const node2 = savedTree.nodes.find(n => n.id === 2);
+      expect(node2.deleted).toBe(true);
+      expect(node2.deletedAt).toBeDefined();
+      
+      // Check that other nodes are not deleted
+      const node1 = savedTree.nodes.find(n => n.id === 1);
+      const node3 = savedTree.nodes.find(n => n.id === 3);
+      expect(node1.deleted).toBeUndefined();
+      expect(node3.deleted).toBeUndefined();
+      
+      // All nodes should still be in the array
+      expect(savedTree.nodes).toHaveLength(3);
+      expect(savedTree.currentNodeId).toBe(1);
     });
 
     it('should clear current node if deleted node was current', async () => {
@@ -115,12 +136,19 @@ describe('DeleteButton', () => {
 
       await deleteNode(1);
 
-      expect(browser.storage.local.set).toHaveBeenCalledWith({
-        citationTree: {
-          nodes: [],
-          currentNodeId: null
-        }
-      });
+      const setCall = browser.storage.local.set.mock.calls[0][0];
+      const savedTree = setCall.citationTree;
+      
+      // Node should be marked as deleted but still in array
+      const node1 = savedTree.nodes.find(n => n.id === 1);
+      expect(node1.deleted).toBe(true);
+      expect(node1.deletedAt).toBeDefined();
+      
+      // Current node should be cleared since it was deleted
+      expect(savedTree.currentNodeId).toBe(null);
+      
+      // Node should still be in the array
+      expect(savedTree.nodes).toHaveLength(1);
     });
 
     it('should clear current node if current node is a descendant of deleted node', async () => {
@@ -137,14 +165,27 @@ describe('DeleteButton', () => {
 
       await deleteNode(2); // Delete the child, which should also delete grandchild
 
-      expect(browser.storage.local.set).toHaveBeenCalledWith({
-        citationTree: {
-          nodes: [
-            { id: 1, parentId: null, children: [] }
-          ],
-          currentNodeId: null
-        }
-      });
+      const setCall = browser.storage.local.set.mock.calls[0][0];
+      const savedTree = setCall.citationTree;
+      
+      // Check that node 2 and its descendant (node 3) are marked as deleted
+      const node2 = savedTree.nodes.find(n => n.id === 2);
+      const node3 = savedTree.nodes.find(n => n.id === 3);
+      
+      expect(node2.deleted).toBe(true);
+      expect(node2.deletedAt).toBeDefined();
+      expect(node3.deleted).toBe(true);
+      expect(node3.deletedAt).toBeDefined();
+      
+      // Check that node 1 is not deleted
+      const node1 = savedTree.nodes.find(n => n.id === 1);
+      expect(node1.deleted).toBeUndefined();
+      
+      // Current node should be cleared since it was deleted (descendant of deleted node)
+      expect(savedTree.currentNodeId).toBe(null);
+      
+      // All nodes should still be in the array
+      expect(savedTree.nodes).toHaveLength(3);
     });
 
     it('should handle deleting root node', async () => {
@@ -160,12 +201,23 @@ describe('DeleteButton', () => {
 
       await deleteNode(1);
 
-      expect(browser.storage.local.set).toHaveBeenCalledWith({
-        citationTree: {
-          nodes: [],
-          currentNodeId: null
-        }
-      });
+      const setCall = browser.storage.local.set.mock.calls[0][0];
+      const savedTree = setCall.citationTree;
+      
+      // Check that node 1 and its descendant (node 2) are marked as deleted
+      const node1 = savedTree.nodes.find(n => n.id === 1);
+      const node2 = savedTree.nodes.find(n => n.id === 2);
+      
+      expect(node1.deleted).toBe(true);
+      expect(node1.deletedAt).toBeDefined();
+      expect(node2.deleted).toBe(true);
+      expect(node2.deletedAt).toBeDefined();
+      
+      // Current node should be cleared since it was deleted
+      expect(savedTree.currentNodeId).toBe(null);
+      
+      // All nodes should still be in the array
+      expect(savedTree.nodes).toHaveLength(2);
     });
 
     it('should handle complex tree structures', async () => {
@@ -184,16 +236,32 @@ describe('DeleteButton', () => {
 
       await deleteNode(2); // Delete Branch A and its children
 
-      expect(browser.storage.local.set).toHaveBeenCalledWith({
-        citationTree: {
-          nodes: [
-            { id: 1, parentId: null, children: [4] },
-            { id: 4, parentId: 1, children: [5] },
-            { id: 5, parentId: 4, children: [] }
-          ],
-          currentNodeId: 5
-        }
-      });
+      const setCall = browser.storage.local.set.mock.calls[0][0];
+      const savedTree = setCall.citationTree;
+      
+      // Check that node 2 and its descendant (node 3) are marked as deleted
+      const node2 = savedTree.nodes.find(n => n.id === 2);
+      const node3 = savedTree.nodes.find(n => n.id === 3);
+      
+      expect(node2.deleted).toBe(true);
+      expect(node2.deletedAt).toBeDefined();
+      expect(node3.deleted).toBe(true);
+      expect(node3.deletedAt).toBeDefined();
+      
+      // Check that other nodes are not deleted
+      const node1 = savedTree.nodes.find(n => n.id === 1);
+      const node4 = savedTree.nodes.find(n => n.id === 4);
+      const node5 = savedTree.nodes.find(n => n.id === 5);
+      
+      expect(node1.deleted).toBeUndefined();
+      expect(node4.deleted).toBeUndefined();
+      expect(node5.deleted).toBeUndefined();
+      
+      // Current node should remain the same since it wasn't deleted
+      expect(savedTree.currentNodeId).toBe(5);
+      
+      // All nodes should still be in the array
+      expect(savedTree.nodes).toHaveLength(5);
     });
 
     it('should handle storage errors gracefully', async () => {
@@ -217,12 +285,19 @@ describe('DeleteButton', () => {
 
       await deleteNode(1);
 
-      expect(browser.storage.local.set).toHaveBeenCalledWith({
-        citationTree: {
-          nodes: [],
-          currentNodeId: null
-        }
-      });
+      const setCall = browser.storage.local.set.mock.calls[0][0];
+      const savedTree = setCall.citationTree;
+      
+      // Node should be marked as deleted but still in array
+      const node1 = savedTree.nodes.find(n => n.id === 1);
+      expect(node1.deleted).toBe(true);
+      expect(node1.deletedAt).toBeDefined();
+      
+      // Current node should be cleared since it was deleted
+      expect(savedTree.currentNodeId).toBe(null);
+      
+      // Node should still be in the array
+      expect(savedTree.nodes).toHaveLength(1);
     });
   });
 
@@ -267,12 +342,20 @@ describe('DeleteButton', () => {
       expect(clickEvent.stopPropagation).toHaveBeenCalled();
       // Verify deleteNode was called by checking storage operations
       expect(browser.storage.local.get).toHaveBeenCalledWith({ citationTree: { nodes: [], currentNodeId: null } });
-      expect(browser.storage.local.set).toHaveBeenCalledWith({
-        citationTree: {
-          nodes: [],
-          currentNodeId: null
-        }
-      });
+      
+      const setCall = browser.storage.local.set.mock.calls[0][0];
+      const savedTree = setCall.citationTree;
+      
+      // Node should be marked as deleted but still in array
+      const node1 = savedTree.nodes.find(n => n.id === 1);
+      expect(node1.deleted).toBe(true);
+      expect(node1.deletedAt).toBeDefined();
+      
+      // Current node should be cleared since it was deleted
+      expect(savedTree.currentNodeId).toBe(null);
+      
+      // Node should still be in the array
+      expect(savedTree.nodes).toHaveLength(1);
     });
 
     it('should work with different node types', () => {
@@ -355,12 +438,20 @@ describe('DeleteButton', () => {
       await new Promise(resolve => setTimeout(resolve, 10));
 
       expect(browser.storage.local.get).toHaveBeenCalled();
-      expect(browser.storage.local.set).toHaveBeenCalledWith({
-        citationTree: {
-          nodes: [],
-          currentNodeId: null
-        }
-      });
+      
+      const setCall = browser.storage.local.set.mock.calls[0][0];
+      const savedTree = setCall.citationTree;
+      
+      // Node should be marked as deleted but still in array
+      const node1 = savedTree.nodes.find(n => n.id === 1);
+      expect(node1.deleted).toBe(true);
+      expect(node1.deletedAt).toBeDefined();
+      
+      // Current node should be cleared since it was deleted
+      expect(savedTree.currentNodeId).toBe(null);
+      
+      // Node should still be in the array
+      expect(savedTree.nodes).toHaveLength(1);
     });
 
     it('should handle multiple delete operations', async () => {

@@ -29,7 +29,14 @@ beforeEach(() => {
       },
       onStartup: {
         addListener: jest.fn()
-      }
+      },
+      onMessage: {
+        addListener: jest.fn()
+      },
+      sendMessage: jest.fn().mockImplementation((message, callback) => {
+        if (callback) callback({ success: true });
+        return Promise.resolve({ success: true });
+      })
     }
   };
   
@@ -76,6 +83,12 @@ describe('Background Script', () => {
 
     it('should add context menu click listener', () => {
       expect(chrome.contextMenus.onClicked.addListener).toHaveBeenCalledWith(
+        expect.any(Function)
+      );
+    });
+
+    it('should add message listener for sync triggers', () => {
+      expect(chrome.runtime.onMessage.addListener).toHaveBeenCalledWith(
         expect.any(Function)
       );
     });
@@ -283,6 +296,68 @@ describe('Background Script', () => {
       expect(chrome.storage.local.set).toHaveBeenCalledWith({
         citationHistory: ['First citation', 'Second citation']
       });
+    });
+  });
+
+  describe('Sync Trigger Message Handler', () => {
+    let messageHandler;
+
+    beforeEach(() => {
+      // Get the message handler that was registered
+      const addListenerCall = chrome.runtime.onMessage.addListener.mock.calls[0];
+      messageHandler = addListenerCall[0];
+    });
+
+    it('should handle triggerSync messages', async () => {
+      const mockRequest = { action: 'triggerSync' };
+      const mockSender = {};
+      const mockSendResponse = jest.fn();
+
+      const result = messageHandler(mockRequest, mockSender, mockSendResponse);
+
+      expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
+        { action: 'performSync' },
+        expect.any(Function)
+      );
+      expect(result).toBe(true); // Should return true to keep message channel open
+    });
+
+    it('should ignore non-triggerSync messages', () => {
+      const mockRequest = { action: 'someOtherAction' };
+      const mockSender = {};
+      const mockSendResponse = jest.fn();
+
+      const result = messageHandler(mockRequest, mockSender, mockSendResponse);
+
+      expect(chrome.runtime.sendMessage).not.toHaveBeenCalled();
+      expect(result).toBeUndefined();
+    });
+
+    it('should forward sync response back to sender', async () => {
+      const mockRequest = { action: 'triggerSync' };
+      const mockSender = {};
+      const mockSendResponse = jest.fn();
+      const mockSyncResponse = { success: true, data: 'test' };
+
+      // Mock chrome.runtime.sendMessage to call the callback with mock response
+      chrome.runtime.sendMessage.mockImplementation((message, callback) => {
+        if (callback) callback(mockSyncResponse);
+        return Promise.resolve(mockSyncResponse);
+      });
+
+      messageHandler(mockRequest, mockSender, mockSendResponse);
+
+      expect(mockSendResponse).toHaveBeenCalledWith(mockSyncResponse);
+    });
+
+    it('should log sync trigger request', () => {
+      const mockRequest = { action: 'triggerSync' };
+      const mockSender = {};
+      const mockSendResponse = jest.fn();
+
+      messageHandler(mockRequest, mockSender, mockSendResponse);
+
+      expect(console.log).toHaveBeenCalledWith('Sync trigger requested from content script');
     });
   });
 });

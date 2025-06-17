@@ -26,6 +26,12 @@ beforeEach(() => {
     tabs: {
       query: jest.fn().mockResolvedValue([{ id: 1, active: true }]),
       update: jest.fn().mockResolvedValue()
+    },
+    runtime: {
+      onMessage: {
+        addListener: jest.fn()
+      },
+      sendMessage: jest.fn().mockResolvedValue({ success: true })
     }
   };
   

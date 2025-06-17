@@ -4,8 +4,9 @@ async function deleteNode(nodeId) {
   try {
     const result = await browser.storage.local.get({ citationTree: { nodes: [], currentNodeId: null } });
     const tree = result.citationTree;
+    const now = new Date().toISOString();
     
-    // Find all nodes to delete (the node and all its descendants)
+    // Find all nodes to soft delete (the node and all its descendants)
     const nodesToDelete = new Set();
     
     function collectDescendants(id) {
@@ -18,17 +19,13 @@ async function deleteNode(nodeId) {
     
     collectDescendants(nodeId);
     
-    // Remove the node from its parent's children array
-    const nodeToDelete = tree.nodes.find((n) => n.id === nodeId);
-    if (nodeToDelete && nodeToDelete.parentId !== null) {
-      const parentNode = tree.nodes.find((n) => n.id === nodeToDelete.parentId);
-      if (parentNode) {
-        parentNode.children = parentNode.children.filter((childId) => childId !== nodeId);
+    // Mark all collected nodes as deleted (soft delete)
+    tree.nodes.forEach(node => {
+      if (nodesToDelete.has(node.id)) {
+        node.deleted = true;
+        node.deletedAt = now;
       }
-    }
-    
-    // Remove all nodes to delete from the tree
-    tree.nodes = tree.nodes.filter((n) => !nodesToDelete.has(n.id));
+    });
     
     // If the current node was deleted, clear the current node
     if (tree.currentNodeId && nodesToDelete.has(tree.currentNodeId)) {

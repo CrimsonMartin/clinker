@@ -59,6 +59,19 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 });
 
+// Message handler for sync requests
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === "triggerSync") {
+    console.log("Sync trigger requested from content script");
+    // Forward the sync request to all open sidebars
+    chrome.runtime.sendMessage({ action: "performSync" }, (response) => {
+      console.log("Sync response:", response);
+      sendResponse(response);
+    });
+    return true; // Keep the message channel open for async response
+  }
+});
+
 // Service worker event listeners for Manifest V3
 chrome.runtime.onInstalled.addListener(() => {
   console.log("Citation Linker extension installed/updated");
