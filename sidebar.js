@@ -759,7 +759,7 @@ function showImageModal(imageData) {
   
   const closeButton = document.createElement('button');
   closeButton.className = 'modal-close';
-  closeButton.innerHTML = '×';
+  closeButton.innerHTML = '&times;';
   closeButton.addEventListener('click', () => {
     document.body.removeChild(modal);
   });

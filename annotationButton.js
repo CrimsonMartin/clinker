@@ -65,7 +65,7 @@ function showAnnotationModal(node) {
   
   const closeButton = document.createElement('button');
   closeButton.className = 'modal-close';
-  closeButton.innerHTML = '×';
+  closeButton.innerHTML = '&times;';
   closeButton.addEventListener('click', () => {
     // Stop speech recognition if active
     if (window.speechRecognitionInstance) {
@@ -96,7 +96,7 @@ function showAnnotationModal(node) {
       
       const deleteButton = document.createElement('button');
       deleteButton.className = 'annotation-delete';
-      deleteButton.innerHTML = '🗑️';
+      deleteButton.innerHTML = '&#128465;';
       deleteButton.title = 'Delete annotation';
       deleteButton.addEventListener('click', async () => {
         await deleteAnnotation(node.id, annotation.id);
@@ -140,7 +140,7 @@ function showAnnotationModal(node) {
     micButton = document.createElement('button');
     micButton.className = 'microphone-button';
     micButton.type = 'button';
-    micButton.innerHTML = '🎤';
+    micButton.innerHTML = '&#127908;';
     micButton.title = 'Click to start dictation';
     
     // Create status indicator
@@ -153,7 +153,7 @@ function showAnnotationModal(node) {
   if (speechRecognition.getIsSupported()) {
     speechRecognition.setOnStart(() => {
       micButton.classList.add('recording');
-      micButton.innerHTML = '⏹️';
+      micButton.innerHTML = '&#9209;';
       micButton.title = 'Click to stop dictation';
       statusIndicator.textContent = 'Listening...';
       statusIndicator.style.display = 'block';
@@ -177,7 +177,7 @@ function showAnnotationModal(node) {
     
     speechRecognition.setOnEnd(() => {
       micButton.classList.remove('recording');
-      micButton.innerHTML = '🎤';
+      micButton.innerHTML = '&#127908;';
       micButton.title = 'Click to start dictation';
       statusIndicator.style.display = 'none';
       
@@ -190,7 +190,7 @@ function showAnnotationModal(node) {
     
     speechRecognition.setOnError((error) => {
       micButton.classList.remove('recording');
-      micButton.innerHTML = '🎤';
+      micButton.innerHTML = '&#127908;';
       micButton.title = 'Click to start dictation';
       statusIndicator.textContent = error;
       statusIndicator.className = 'speech-status error';
