@@ -71,8 +71,8 @@ class SyncManager {
       // Get local data (don't default lastModified to current time)
       const localData = await browser.storage.local.get({
         citationTree: { nodes: [], currentNodeId: null },
-        nodeCounter: 0
-        // Note: no default lastModified - let it be undefined if not set
+        nodeCounter: 0,
+        lastModified: undefined // Include lastModified in the request
       });
 
       // Get cloud data
@@ -106,7 +106,16 @@ class SyncManager {
         // Local content exists but no timestamp - prioritize local to prevent data loss
         action = 'upload_preserve_local_content';
         finalData = localData;
-        await this.uploadToCloud(user.uid, localData);
+        
+        // Use consistent timestamp for both local and cloud
+        const now = new Date().toISOString();
+        finalData.lastModified = now; // Set timestamp for upload
+        
+        await this.uploadToCloud(user.uid, finalData);
+        
+        // Set the same timestamp in local storage to prevent repeating this case
+        await browser.storage.local.set({ lastModified: now });
+        
         console.warn('Local content found without timestamp - uploading to preserve user data');
       } else if (!hasLocalTimestamp && !hasLocalNodes && hasCloudNodes) {
         // No local content or timestamp, cloud has content - download
@@ -225,7 +234,7 @@ class SyncManager {
       const dataToUpload = {
         citationTree: localData.citationTree || { nodes: [], currentNodeId: null },
         nodeCounter: localData.nodeCounter || 0,
-        lastModified: new Date().toISOString(),
+        lastModified: localData.lastModified || new Date().toISOString(), // Use existing timestamp if available
         userEmail: userEmail
       };
 
