@@ -1089,13 +1089,7 @@ browser.storage.onChanged.addListener((changes, namespace) => {
       syncManager.markAsModified();
     } else if (isUIOnlyChange) {
       console.log('UI-only change detected, no sync needed');
-      // Clean up the flag for next time
-      setTimeout(async () => {
-        const result = await browser.storage.local.get({ citationTree: { nodes: [], currentNodeId: null } });
-        const tree = result.citationTree;
-        delete tree.uiOnlyChange;
-        await browser.storage.local.set({ citationTree: tree });
-      }, 100);
+      // Don't clean up the flag to avoid triggering another storage change
     }
     
     // Re-run search if active

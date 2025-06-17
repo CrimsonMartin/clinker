@@ -7,9 +7,6 @@ class SyncManager {
     this.syncListeners = [];
     this.lastSyncTime = null;
     this.syncInterval = null;
-    this.syncThrottleTimeout = null;
-    this.lastImmediateSync = null;
-    this.THROTTLE_DELAY = 2000; // 2 seconds minimum between immediate syncs
   }
 
   // Initialize Firestore and sync
@@ -51,12 +48,6 @@ class SyncManager {
     if (this.syncInterval) {
       clearInterval(this.syncInterval);
       this.syncInterval = null;
-    }
-    
-    // Clear any pending throttled sync
-    if (this.syncThrottleTimeout) {
-      clearTimeout(this.syncThrottleTimeout);
-      this.syncThrottleTimeout = null;
     }
   }
 
@@ -157,17 +148,16 @@ class SyncManager {
       this.lastSyncTime = new Date().toISOString();
       await browser.storage.local.set({ lastSyncTime: this.lastSyncTime });
 
-      // Mark all nodes as synced
-      if (finalData.citationTree && finalData.citationTree.nodes) {
-        finalData.citationTree.nodes.forEach(node => {
-          node.syncStatus = 'synced';
-        });
-        // Preserve the fromSync flag if it exists
-        const citationTreeToSave = {
-          ...finalData.citationTree,
-          fromSync: finalData.citationTree.fromSync || false
-        };
-        await browser.storage.local.set({ citationTree: citationTreeToSave });
+      // Only update nodes if we need to mark them as synced
+      // Don't update the storage if data came from cloud (already has fromSync flag)
+      if (action && action.startsWith('upload')) {
+        // Only update sync status for uploaded data
+        if (finalData.citationTree && finalData.citationTree.nodes) {
+          finalData.citationTree.nodes.forEach(node => {
+            node.syncStatus = 'synced';
+          });
+          // No need to update storage again - data was already uploaded
+        }
       }
 
       this.notifySyncListeners({ 
@@ -272,62 +262,17 @@ class SyncManager {
     }
   }
 
-  // Mark data as modified and trigger immediate sync with throttling
+  // Mark data as modified (will sync on next 30-second interval)
   async markAsModified() {
     const now = new Date().toISOString();
     
-    // Clear the fromSync flag when user makes local changes
-    const result = await browser.storage.local.get({ citationTree: { nodes: [], currentNodeId: null } });
-    const citationTree = { ...result.citationTree };
-    delete citationTree.fromSync; // Remove flag so this change can be synced
-    
+    // Only update the timestamp, don't modify citationTree to avoid triggering storage listener
     await browser.storage.local.set({ 
-      lastModified: now,
-      citationTree: citationTree
+      lastModified: now
     });
     
     console.log('Data marked as modified at:', now);
-    
-    // Trigger immediate sync with throttling to prevent excessive syncing
-    this.triggerImmediateSync();
-  }
-
-  // Trigger immediate sync with throttling
-  triggerImmediateSync() {
-    if (!authManager.isLoggedIn()) {
-      console.log('User not logged in, skipping immediate sync');
-      return;
-    }
-
-    // Clear any existing throttle timeout
-    if (this.syncThrottleTimeout) {
-      clearTimeout(this.syncThrottleTimeout);
-    }
-
-    // Check if we recently did an immediate sync
-    const now = Date.now();
-    if (this.lastImmediateSync && (now - this.lastImmediateSync) < this.THROTTLE_DELAY) {
-      // Too soon, schedule a delayed sync instead
-      console.log('Throttling immediate sync, scheduling delayed sync');
-      this.syncThrottleTimeout = setTimeout(() => {
-        this.performImmediateSync();
-      }, this.THROTTLE_DELAY - (now - this.lastImmediateSync));
-    } else {
-      // Perform immediate sync
-      this.performImmediateSync();
-    }
-  }
-
-  // Perform immediate sync (internal method)
-  async performImmediateSync() {
-    this.lastImmediateSync = Date.now();
-    console.log('Performing immediate sync due to local changes');
-    
-    try {
-      await this.performSync();
-    } catch (error) {
-      console.error('Immediate sync failed:', error);
-    }
+    // Data will be synced on the next scheduled 30-second interval
   }
 
   // Add sync status listener
