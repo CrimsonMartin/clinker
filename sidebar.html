@@ -875,6 +875,148 @@
     .tree-children.search-hidden {
       display: none;
     }
+    
+    /* Buy Me a Coffee Donation Button Styles */
+    .donation-container {
+      margin-top: 16px;
+      padding: 0 0 16px 0;
+    }
+    
+    .donation-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      transition: all 0.3s ease;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .donation-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    }
+    
+    .donation-content {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    
+    .donation-icon {
+      font-size: 24px;
+      width: 40px;
+      height: 40px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+    
+    .donation-text {
+      flex: 1;
+      color: white;
+    }
+    
+    .donation-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 2px;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+    
+    .donation-subtitle {
+      font-size: 12px;
+      opacity: 0.9;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+    
+    .donation-button {
+      background: rgba(255, 255, 255, 0.95);
+      color: #667eea;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+      justify-content: center;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+    
+    .donation-button:hover {
+      background: white;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+    
+    .donation-button:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    
+    .heart-icon {
+      font-size: 14px;
+      animation: heartbeat 2s ease-in-out infinite;
+    }
+    
+    @keyframes heartbeat {
+      0% {
+        transform: scale(1);
+      }
+      14% {
+        transform: scale(1.1);
+      }
+      28% {
+        transform: scale(1);
+      }
+      42% {
+        transform: scale(1.1);
+      }
+      70% {
+        transform: scale(1);
+      }
+    }
+    
+    /* Responsive donation button for smaller screens */
+    @media (max-width: 380px) {
+      .donation-card {
+        padding: 12px;
+      }
+      
+      .donation-content {
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+      
+      .donation-icon {
+        width: 32px;
+        height: 32px;
+        font-size: 18px;
+      }
+      
+      .donation-title {
+        font-size: 13px;
+      }
+      
+      .donation-subtitle {
+        font-size: 11px;
+      }
+      
+      .donation-button {
+        padding: 8px 12px;
+        font-size: 12px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -947,6 +1089,24 @@
       <div class="empty-state">No citations saved yet. Highlight text on any webpage to start building your research tree.</div>
     </div>
   </div>
+  
+  <!-- Buy Me a Coffee Donation Button -->
+  <div class="donation-container">
+    <div class="donation-card">
+      <div class="donation-content">
+        <span class="donation-icon">&#9749;</span>
+        <div class="donation-text">
+          <div class="donation-title">Support Development</div>
+          <div class="donation-subtitle">Buy me a coffee</div>
+        </div>
+      </div>
+      <button class="donation-button" id="donationButton">
+        <span class="heart-icon">&#10084;</span>
+        Donate
+      </button>
+    </div>
+  </div>
+  
   <!-- Firebase SDK (Local) -->
   <script src="vendor/firebase-app.js"></script>
   <script src="vendor/firebase-auth.js"></script>

@@ -30,15 +30,35 @@ cp node_modules/lucide-static/icons/link.svg icons/icon.svg
 echo "Fixing SVG color..."
 sed -i 's/stroke="currentColor"/stroke="#000000"/g' icons/icon.svg
 
-# Generate PNG versions at required sizes with transparent background
-echo "Generating PNG icons with transparent background..."
-convert -background purple -density 300 icons/icon.svg -resize 16x16 icons/icon16.png
-convert -background purple -density 300 icons/icon.svg -resize 48x48 icons/icon48.png
-convert -background purple -density 300 icons/icon.svg -resize 128x128 icons/icon128.png
+# Generate PNG versions at required sizes with rounded corners for logo usage
+echo "Generating PNG icons with rounded corners..."
 
-convert -background grey -density 300 icons/icon.svg -resize 16x16 icons/icon16-inactive.png
-convert -background grey -density 300 icons/icon.svg -resize 48x48 icons/icon48-inactive.png
-convert -background grey -density 300 icons/icon.svg -resize 128x128 icons/icon128-inactive.png
+# Function to create rounded corner icons
+create_rounded_icon() {
+    local size=$1
+    local background=$2
+    local output=$3
+    local radius=$((size / 8))  # Radius is 1/8 of the size for nice proportions
+    
+    # Create the icon with background
+    convert -background "$background" -density 300 icons/icon.svg -resize "${size}x${size}" \
+        \( +clone -alpha extract \
+           -draw "fill black polygon 0,0 0,$radius $radius,0 \
+                  fill white circle $radius,$radius $radius,0" \
+           \( +clone -flip \) -compose Multiply -composite \
+           \( +clone -flop \) -compose Multiply -composite \
+        \) -alpha off -compose CopyOpacity -composite "$output"
+}
+
+# Generate active icons with purple background and rounded corners
+create_rounded_icon 16 purple icons/icon16.png
+create_rounded_icon 48 purple icons/icon48.png  
+create_rounded_icon 128 purple icons/icon128.png
+
+# Generate inactive icons with grey background and rounded corners
+create_rounded_icon 16 grey icons/icon16-inactive.png
+create_rounded_icon 48 grey icons/icon48-inactive.png
+create_rounded_icon 128 grey icons/icon128-inactive.png
 
 echo "✅ Icons successfully updated!"
 echo "Generated files:"

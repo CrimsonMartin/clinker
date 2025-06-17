@@ -733,6 +733,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
   }
+  
+  // Add donation button listener
+  const donationButton = document.getElementById('donationButton');
+  if (donationButton) {
+    donationButton.addEventListener('click', () => {
+      // Get donation URL from generated config
+      const donationUrl = (typeof appConfig !== 'undefined' && appConfig.donationUrl) 
+        ? appConfig.donationUrl 
+        : 'https://www.buymeacoffee.com/YOUR_USERNAME';
+      
+      // Open donation page in new tab
+      browser.tabs.create({ url: donationUrl });
+    });
+  }
 });
 
 // Modal functions
