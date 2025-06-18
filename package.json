@@ -18,6 +18,7 @@
     "@types/chrome": "^0.0.270",
     "@types/firefox-webext-browser": "^120.0.4",
     "@types/jest": "^29.5.14",
+    "chrome-webstore-upload-cli": "^3.3.2",
     "dotenv": "^16.5.0",
     "jest": "^30.0.0",
     "jest-environment-jsdom": "^30.0.0",

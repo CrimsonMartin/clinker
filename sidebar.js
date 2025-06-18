@@ -113,7 +113,7 @@ function formatTimestamp(timestamp) {
   });
 }
 
-function truncateText(text, maxLength = 100) {
+function truncateText(text, maxLength = 200) {
   return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
 }
 
@@ -391,6 +391,10 @@ function createTreeNodeElement(node, isCurrentNode) {
   const metaElement = document.createElement('div');
   metaElement.className = 'tree-node-meta';
   
+  // Create info container for URL and timestamp
+  const infoElement = document.createElement('div');
+  infoElement.className = 'tree-node-info';
+  
   const urlElement = document.createElement('span');
   urlElement.className = 'tree-node-url';
   urlElement.textContent = new URL(node.url).hostname;
@@ -399,17 +403,23 @@ function createTreeNodeElement(node, isCurrentNode) {
   const timeElement = document.createElement('span');
   timeElement.textContent = formatTimestamp(node.timestamp);
   
-  metaElement.appendChild(urlElement);
-  metaElement.appendChild(timeElement);
+  infoElement.appendChild(urlElement);
+  infoElement.appendChild(timeElement);
+  
+  // Create buttons container
+  const buttonsElement = document.createElement('div');
+  buttonsElement.className = 'tree-node-buttons';
+  
+  // Add annotation button
+  const annotationButton = createAnnotationButton(node);
+  buttonsElement.appendChild(annotationButton);
   
   // Add delete button
   const deleteButton = createDeleteButton(node);
-
-  // Add annotation button
-  const annotationButton = createAnnotationButton(node);
-  metaElement.appendChild(annotationButton);
+  buttonsElement.appendChild(deleteButton);
   
-  metaElement.appendChild(deleteButton);
+  metaElement.appendChild(infoElement);
+  metaElement.appendChild(buttonsElement);
   
   nodeElement.appendChild(contentElement);
   nodeElement.appendChild(metaElement);
