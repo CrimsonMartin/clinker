@@ -113,7 +113,7 @@ function formatTimestamp(timestamp) {
   });
 }
 
-function truncateText(text, maxLength = 200) {
+function truncateText(text, maxLength = 100) {
   return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
 }
 
