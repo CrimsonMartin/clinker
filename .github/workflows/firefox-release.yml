@@ -95,9 +95,6 @@ jobs:
     - name: Submit to Firefox Add-ons
       if: ${{ !github.event.inputs.draft || github.event.inputs.draft == false }}
       run: |
-        # Install web-ext-submit
-        npm install -g web-ext-submit
-        
         # Set submission channel
         if [ "${{ github.event.inputs.listed }}" == "true" ]; then
           CHANNEL="listed"
@@ -105,8 +102,8 @@ jobs:
           CHANNEL="unlisted"
         fi
         
-        # Submit to AMO
-        web-ext-submit \
+        # Submit to AMO using npx (uses local dependency)
+        npx web-ext-submit \
           --source-dir firefox-build \
           --api-key ${{ secrets.FIREFOX_API_KEY }} \
           --api-secret ${{ secrets.FIREFOX_API_SECRET }} \
