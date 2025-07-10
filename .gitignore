@@ -2,3 +2,7 @@ node_modules/*
 dist/*
 .env
 firebase/firebase-config.js
+dist-extension/*
+dist-chrome/*
+dist-firefox/*
+*.zip
