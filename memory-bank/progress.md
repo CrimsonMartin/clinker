@@ -9,7 +9,7 @@ The Citation Linker browser extension is functionally complete for its core use 
 ### Core Features (Fully Implemented)
 
 #### 1. Citation Collection System
-- **Text Highlighting**: Users can select any text on web pages
+- **Text Highlighting**: Users can select any text on web pages ✅ **FIXED**: Button now appears correctly in both Chromium and Firefox
 - **Context Menu Integration**: Right-click "Save to Citation Linker" works reliably
 - **Metadata Capture**: URL, timestamp, domain extraction working correctly
 - **Local Storage**: Immediate citation saving with browser storage API

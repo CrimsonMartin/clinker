@@ -7,10 +7,10 @@ The Citation Linker browser extension is in an advanced development state with c
 ## Recent Context (Last Work Session)
 
 ### Key Areas of Focus
-1. **Citation Tree Management**: Complex drag-and-drop functionality with tree validation and repair
-2. **Firebase Sync Integration**: Real-time synchronization with conflict resolution
-3. **Search Implementation**: Advanced search with filtering and text highlighting
-4. **UI Polish**: Modal interactions, context menus, and visual feedback
+1. **Critical Bug Fix**: Resolved extension button not appearing on text selection in both Chromium and Firefox
+2. **Module Import Issue**: Fixed ES6 module import problem in content script for Manifest V3 compatibility
+3. **Unit Test Updates**: Updated content script tests to reflect inline browser API implementation
+4. **Cross-Browser Testing**: Verified fix works in both Firefox and Chromium browsers
 
 ### Active Patterns & Decisions
 

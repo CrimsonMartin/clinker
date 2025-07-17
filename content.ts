@@ -1,6 +1,40 @@
 // Content script for Research Linker
 
-import { browserAPI } from './browser-compat.js';
+// Cross-browser compatibility - inline to avoid module import issues in content scripts
+const browserAPI = (() => {
+  if (typeof chrome !== 'undefined' && chrome.runtime) {
+    return {
+      storage: {
+        local: {
+          get: (keys: any) => new Promise<any>((resolve) => {
+            chrome.storage.local.get(keys, (result) => resolve(result));
+          }),
+          set: (items: any) => new Promise<void>((resolve) => {
+            chrome.storage.local.set(items, () => resolve());
+          })
+        },
+        onChanged: chrome.storage.onChanged
+      },
+      runtime: {
+        sendMessage: (message: any) => {
+          return new Promise<any>((resolve, reject) => {
+            chrome.runtime.sendMessage(message, (response) => {
+              if (chrome.runtime.lastError) {
+                reject(chrome.runtime.lastError);
+              } else {
+                resolve(response);
+              }
+            });
+          });
+        }
+      }
+    };
+  } else if (typeof browser !== 'undefined') {
+    return browser;
+  } else {
+    throw new Error('Neither chrome nor browser API available');
+  }
+})();
 
 let saveButton: HTMLButtonElement | null = null;
 
