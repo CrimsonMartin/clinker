@@ -124,9 +124,11 @@ The Citation Linker browser extension is functionally complete for its core use 
 
 ### Short-term (Next 2-4 weeks)
 1. **Chrome Web Store Submission**: Extension bundling and publishing completed ✅
-2. **Stress Testing**: Large citation collections, multiple devices
-3. **Error Recovery**: Better Firebase connection handling
-4. **UI Polish**: Loading states, smoother animations
+2. **Manifest V3 Compliance**: Successfully migrated from Firebase SDK to REST API ✅
+3. **Chrome Store Resubmission**: Ready for upload - no more remotely hosted code ✅
+4. **Stress Testing**: Large citation collections, multiple devices
+5. **Error Recovery**: Better Firebase connection handling
+6. **UI Polish**: Loading states, smoother animations
 
 ### Medium-term (Next 1-2 months)
 1. **Performance Optimization**: Virtual scrolling, search indexing

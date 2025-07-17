@@ -34,15 +34,10 @@ const INCLUDE_FILES = [
   'dist/background.js',
   'dist/content.js',
   
-  // Firebase integration
+  // Firebase integration (REST API)
   'firebase/auth.js',
   'firebase/sync.js',
   'firebase/firebase-config.js',
-  
-  // Vendor libraries (local Firebase SDK)
-  'vendor/firebase-app.js',
-  'vendor/firebase-auth.js',
-  'vendor/firebase-firestore.js',
   
   // Icons
   'icons/icon16.png',

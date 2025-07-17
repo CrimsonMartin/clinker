@@ -1,29 +1,65 @@
-// Cloud synchronization management for Citation Linker
+// REST-based Cloud synchronization management for Citation Linker
+// Uses Firestore REST API (Manifest V3 compliant)
 
 class SyncManager {
   constructor() {
-    this.db = null;
     this.syncInProgress = false;
     this.syncListeners = [];
     this.lastSyncTime = null;
     this.syncInterval = null;
+    this.projectId = null;
+    this.apiKey = null;
   }
 
-  // Initialize Firestore and sync
+  // Initialize sync and load configuration
   async initialize() {
-    // Firebase is guaranteed to be loaded from vendor folder
-    this.db = firebase.firestore();
-    
-    // Enable offline persistence
-    try {
-      await this.db.enablePersistence();
-    } catch (error) {
-      console.warn('Firestore persistence error:', error);
-    }
+    await this.loadFirebaseConfig();
 
     // Load last sync time from storage
-    const stored = await browser.storage.local.get(['lastSyncTime']);
+    const stored = await this.getStorageData(['lastSyncTime']);
     this.lastSyncTime = stored.lastSyncTime || null;
+  }
+
+  // Load Firebase configuration
+  async loadFirebaseConfig() {
+    try {
+      // Try to get config from global window object (set by build-config.js)
+      if (typeof window !== 'undefined' && window.FIREBASE_CONFIG) {
+        this.apiKey = window.FIREBASE_CONFIG.apiKey;
+        this.projectId = window.FIREBASE_CONFIG.projectId;
+      } else {
+        // Fallback: try to get from environment or use defaults
+        this.apiKey = process.env.FIREBASE_API_KEY || 'your_api_key_here';
+        this.projectId = process.env.FIREBASE_PROJECT_ID || 'your_project_id';
+      }
+      console.log('Sync manager initialized for project:', this.projectId);
+    } catch (error) {
+      console.error('Error loading Firebase config for sync:', error);
+      throw new Error('Firebase configuration not available for sync');
+    }
+  }
+
+  // Browser storage abstraction
+  async getStorageData(keys) {
+    if (typeof browser !== 'undefined') {
+      return await browser.storage.local.get(keys);
+    } else if (typeof chrome !== 'undefined') {
+      return new Promise((resolve) => {
+        chrome.storage.local.get(keys, resolve);
+      });
+    }
+    throw new Error('Browser storage not available');
+  }
+
+  async setStorageData(data) {
+    if (typeof browser !== 'undefined') {
+      return await browser.storage.local.set(data);
+    } else if (typeof chrome !== 'undefined') {
+      return new Promise((resolve) => {
+        chrome.storage.local.set(data, resolve);
+      });
+    }
+    throw new Error('Browser storage not available');
   }
 
   // Start automatic sync
@@ -69,7 +105,7 @@ class SyncManager {
 
     try {
       // Get local data (don't default lastModified to current time)
-      const localData = await browser.storage.local.get({
+      const localData = await this.getStorageData({
         citationTree: { nodes: [], currentNodeId: null },
         nodeCounter: 0,
         lastModified: undefined // Include lastModified in the request
@@ -114,7 +150,7 @@ class SyncManager {
         await this.uploadToCloud(user.uid, finalData);
         
         // Set the same timestamp in local storage to prevent repeating this case
-        await browser.storage.local.set({ lastModified: now });
+        await this.setStorageData({ lastModified: now });
         
         console.warn('Local content found without timestamp - uploading to preserve user data');
       } else if (!hasLocalTimestamp && !hasLocalNodes && hasCloudNodes) {
@@ -155,7 +191,7 @@ class SyncManager {
 
       // Update last sync time
       this.lastSyncTime = new Date().toISOString();
-      await browser.storage.local.set({ lastSyncTime: this.lastSyncTime });
+      await this.setStorageData({ lastSyncTime: this.lastSyncTime });
 
       // Only update nodes if we need to mark them as synced
       // Don't update the storage if data came from cloud (already has fromSync flag)
@@ -185,21 +221,130 @@ class SyncManager {
     }
   }
 
-  // Get data from Firestore
+  // Get data from Firestore using REST API
   async getCloudData(userId) {
     try {
-      const doc = await this.db.collection('users').doc(userId).get();
-      if (doc.exists) {
-        return doc.data();
+      const authToken = await authManager.ensureValidToken();
+      
+      const response = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${this.projectId}/databases/(default)/documents/users/${userId}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (response.status === 404) {
+        // Document doesn't exist yet
+        return null;
       }
-      return null;
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Firestore GET error: ${errorData.error?.message || response.statusText}`);
+      }
+
+      const firestoreDoc = await response.json();
+      
+      // Convert Firestore fields format back to JavaScript objects
+      const cloudData = this.convertFromFirestoreFields(firestoreDoc.fields || {});
+      
+      console.log('Retrieved cloud data:', cloudData);
+      return cloudData;
+
     } catch (error) {
       console.error('Error getting cloud data:', error);
       throw error;
     }
   }
 
-  // Sanitize data to remove undefined values (Firestore doesn't support undefined)
+  // Convert JavaScript objects to Firestore fields format
+  convertToFirestoreFields(obj) {
+    if (obj === null || obj === undefined) {
+      return { nullValue: null };
+    }
+    
+    if (typeof obj === 'string') {
+      return { stringValue: obj };
+    }
+    
+    if (typeof obj === 'number') {
+      return Number.isInteger(obj) ? 
+        { integerValue: obj.toString() } : 
+        { doubleValue: obj };
+    }
+    
+    if (typeof obj === 'boolean') {
+      return { booleanValue: obj };
+    }
+    
+    if (Array.isArray(obj)) {
+      return {
+        arrayValue: {
+          values: obj.map(item => this.convertToFirestoreFields(item))
+        }
+      };
+    }
+    
+    if (typeof obj === 'object') {
+      const fields = {};
+      for (const [key, value] of Object.entries(obj)) {
+        fields[key] = this.convertToFirestoreFields(value);
+      }
+      return { mapValue: { fields } };
+    }
+    
+    return { stringValue: String(obj) };
+  }
+
+  // Convert Firestore fields format back to JavaScript objects
+  convertFromFirestoreFields(fields) {
+    const result = {};
+    
+    for (const [key, value] of Object.entries(fields)) {
+      result[key] = this.convertFirestoreValue(value);
+    }
+    
+    return result;
+  }
+
+  // Convert individual Firestore value to JavaScript value
+  convertFirestoreValue(value) {
+    if (value.nullValue !== undefined) {
+      return null;
+    }
+    
+    if (value.stringValue !== undefined) {
+      return value.stringValue;
+    }
+    
+    if (value.integerValue !== undefined) {
+      return parseInt(value.integerValue);
+    }
+    
+    if (value.doubleValue !== undefined) {
+      return value.doubleValue;
+    }
+    
+    if (value.booleanValue !== undefined) {
+      return value.booleanValue;
+    }
+    
+    if (value.arrayValue !== undefined) {
+      return value.arrayValue.values?.map(item => this.convertFirestoreValue(item)) || [];
+    }
+    
+    if (value.mapValue !== undefined) {
+      return this.convertFromFirestoreFields(value.mapValue.fields || {});
+    }
+    
+    return null;
+  }
+
+  // Sanitize data to remove undefined values
   sanitizeData(obj) {
     if (obj === null || obj === undefined) {
       return null;
@@ -223,10 +368,10 @@ class SyncManager {
     return obj;
   }
 
-  // Upload data to Firestore
+  // Upload data to Firestore using REST API
   async uploadToCloud(userId, localData) {
     try {
-      // Get current user safely
+      const authToken = await authManager.ensureValidToken();
       const currentUser = authManager.getCurrentUser();
       const userEmail = currentUser ? currentUser.email : null;
 
@@ -234,16 +379,42 @@ class SyncManager {
       const dataToUpload = {
         citationTree: localData.citationTree || { nodes: [], currentNodeId: null },
         nodeCounter: localData.nodeCounter || 0,
-        lastModified: localData.lastModified || new Date().toISOString(), // Use existing timestamp if available
+        lastModified: localData.lastModified || new Date().toISOString(),
         userEmail: userEmail
       };
 
       // Sanitize data to remove any undefined values
       const sanitizedData = this.sanitizeData(dataToUpload);
 
-      console.log('Uploading sanitized data to cloud:', sanitizedData);
-      await this.db.collection('users').doc(userId).set(sanitizedData);
-      console.log('Data uploaded to cloud successfully');
+      // Convert to Firestore fields format
+      const firestoreFields = {};
+      for (const [key, value] of Object.entries(sanitizedData)) {
+        firestoreFields[key] = this.convertToFirestoreFields(value);
+      }
+
+      console.log('Uploading data to cloud via REST API...');
+
+      const response = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${this.projectId}/databases/(default)/documents/users/${userId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            fields: firestoreFields
+          })
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Firestore PATCH error: ${errorData.error?.message || response.statusText}`);
+      }
+
+      console.log('Data uploaded to cloud successfully via REST API');
+
     } catch (error) {
       console.error('Error uploading to cloud:', error);
       throw error;
@@ -266,7 +437,7 @@ class SyncManager {
         lastModified: cloudData.lastModified
       };
       
-      await browser.storage.local.set(dataToSave);
+      await this.setStorageData(dataToSave);
       console.log('Cloud data validated and saved to local storage');
     } catch (error) {
       console.error('Error saving to local storage:', error);
@@ -347,7 +518,7 @@ class SyncManager {
     const now = new Date().toISOString();
     
     // Only update the timestamp, don't modify citationTree to avoid triggering storage listener
-    await browser.storage.local.set({ 
+    await this.setStorageData({ 
       lastModified: now
     });
     
@@ -400,8 +571,25 @@ class SyncManager {
     }
 
     try {
-      await this.db.collection('users').doc(user.uid).delete();
-      console.log('Cloud data cleared');
+      const authToken = await authManager.ensureValidToken();
+      
+      const response = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${this.projectId}/databases/(default)/documents/users/${user.uid}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (!response.ok && response.status !== 404) {
+        const errorData = await response.json();
+        throw new Error(`Firestore DELETE error: ${errorData.error?.message || response.statusText}`);
+      }
+
+      console.log('Cloud data cleared via REST API');
     } catch (error) {
       console.error('Error clearing cloud data:', error);
       throw error;

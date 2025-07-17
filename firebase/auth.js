@@ -1,41 +1,95 @@
-// Authentication management for Citation Linker
+// REST-based Authentication management for Citation Linker
+// Uses Chrome Identity API + Firebase Auth REST API (Manifest V3 compliant)
 
 class AuthManager {
   constructor() {
     this.currentUser = null;
     this.authStateListeners = [];
+    this.apiKey = null;
+    this.projectId = null;
   }
 
   // Initialize auth and set up listeners
   async initialize() {
-    // Firebase is guaranteed to be loaded from vendor folder
-    // and initialized by firebase-config.js, so we can directly use it
+    // Get Firebase config from build-time environment
+    await this.loadFirebaseConfig();
     
-    // Set up auth state listener
-    firebase.auth().onAuthStateChanged((user) => {
-      this.currentUser = user;
-      this.notifyAuthStateListeners(user);
-      
-      // Store auth state in browser storage
-      browser.storage.local.set({ 
-        isLoggedIn: !!user,
-        userEmail: user?.email || null,
-        userId: user?.uid || null
-      });
-    });
-
-    // Check initial auth state
-    const storedAuth = await browser.storage.local.get(['isLoggedIn', 'userEmail', 'userId']);
-    if (storedAuth.isLoggedIn && storedAuth.userId) {
-      // Verify the stored auth is still valid
-      const user = firebase.auth().currentUser;
-      if (!user) {
-        // Clear invalid stored auth
-        await this.clearStoredAuth();
-      }
-    }
+    // Check for existing auth state
+    await this.checkStoredAuthState();
     
     return true;
+  }
+
+  // Load Firebase configuration
+  async loadFirebaseConfig() {
+    try {
+      // Try to get config from global window object (set by build-config.js)
+      if (typeof window !== 'undefined' && window.FIREBASE_CONFIG) {
+        this.apiKey = window.FIREBASE_CONFIG.apiKey;
+        this.projectId = window.FIREBASE_CONFIG.projectId;
+      } else {
+        // Fallback: try to get from environment or use defaults
+        this.apiKey = process.env.FIREBASE_API_KEY;
+        this.projectId = process.env.FIREBASE_PROJECT_ID;
+      }
+      console.log('Firebase config loaded for project:', this.projectId);
+    } catch (error) {
+      console.error('Error loading Firebase config:', error);
+      throw new Error('Firebase configuration not available');
+    }
+  }
+
+  // Check for stored authentication state
+  async checkStoredAuthState() {
+    try {
+      const stored = await this.getStorageData(['isLoggedIn', 'userEmail', 'userId', 'authToken', 'tokenExpiry']);
+      
+      if (stored.isLoggedIn && stored.authToken && stored.tokenExpiry) {
+        const now = Date.now();
+        const expiry = new Date(stored.tokenExpiry).getTime();
+        
+        if (now < expiry) {
+          // Token still valid, restore user state
+          this.currentUser = {
+            uid: stored.userId,
+            email: stored.userEmail,
+            authToken: stored.authToken
+          };
+          console.log('Restored auth state for user:', stored.userEmail);
+          this.notifyAuthStateListeners(this.currentUser);
+        } else {
+          // Token expired, clear stored auth
+          console.log('Stored auth token expired, clearing...');
+          await this.clearStoredAuth();
+        }
+      }
+    } catch (error) {
+      console.error('Error checking stored auth state:', error);
+      await this.clearStoredAuth();
+    }
+  }
+
+  // Browser storage abstraction
+  async getStorageData(keys) {
+    if (typeof browser !== 'undefined') {
+      return await browser.storage.local.get(keys);
+    } else if (typeof chrome !== 'undefined') {
+      return new Promise((resolve) => {
+        chrome.storage.local.get(keys, resolve);
+      });
+    }
+    throw new Error('Browser storage not available');
+  }
+
+  async setStorageData(data) {
+    if (typeof browser !== 'undefined') {
+      return await browser.storage.local.set(data);
+    } else if (typeof chrome !== 'undefined') {
+      return new Promise((resolve) => {
+        chrome.storage.local.set(data, resolve);
+      });
+    }
+    throw new Error('Browser storage not available');
   }
 
   // Add auth state listener
@@ -50,52 +104,229 @@ class AuthManager {
     this.authStateListeners.forEach(callback => callback(user));
   }
 
-  // Sign in with Google
+  // Sign in with Google using Chrome Identity API
   async signInWithGoogle() {
     try {
-      const provider = new firebase.auth.GoogleAuthProvider();
-      provider.addScope('email');
+      if (typeof chrome === 'undefined' || !chrome.identity) {
+        throw new Error('Chrome Identity API not available');
+      }
+
+      // Get OAuth token from Chrome Identity API
+      const token = await new Promise((resolve, reject) => {
+        chrome.identity.getAuthToken({ interactive: true }, (token) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve(token);
+          }
+        });
+      });
+
+      console.log('Got OAuth token from Chrome Identity API');
+
+      // Exchange OAuth token for Firebase custom token
+      const firebaseAuth = await this.exchangeOAuthTokenForFirebase(token);
       
-      const result = await firebase.auth().signInWithPopup(provider);
-      console.log('Successfully signed in with Google:', result.user.email);
-      return { success: true, user: result.user };
+      if (firebaseAuth.success) {
+        await this.setUserAuthState(firebaseAuth.user, firebaseAuth.token, firebaseAuth.expiresIn);
+        console.log('Successfully signed in with Google:', firebaseAuth.user.email);
+        return { success: true, user: firebaseAuth.user };
+      } else {
+        throw new Error(firebaseAuth.error);
+      }
+
     } catch (error) {
       console.error('Google sign-in error:', error);
       return { success: false, error: error.message };
     }
   }
 
-  // Sign in with email and password
+  // Exchange OAuth token for Firebase authentication
+  async exchangeOAuthTokenForFirebase(oauthToken) {
+    try {
+      // Use Firebase Auth REST API to sign in with OAuth credential
+      const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${this.apiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          requestUri: window.location.origin,
+          postBody: `access_token=${oauthToken}&providerId=google.com`,
+          returnSecureToken: true,
+          returnIdpCredential: true
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error?.message || 'OAuth exchange failed');
+      }
+
+      const user = {
+        uid: data.localId,
+        email: data.email,
+        displayName: data.displayName || data.email
+      };
+
+      return {
+        success: true,
+        user: user,
+        token: data.idToken,
+        expiresIn: parseInt(data.expiresIn) * 1000 // Convert to milliseconds
+      };
+
+    } catch (error) {
+      console.error('OAuth exchange error:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  // Sign in with email and password using Firebase Auth REST API
   async signInWithEmail(email, password) {
     try {
-      const result = await firebase.auth().signInWithEmailAndPassword(email, password);
-      console.log('Successfully signed in with email:', result.user.email);
-      return { success: true, user: result.user };
+      const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${this.apiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email,
+          password: password,
+          returnSecureToken: true
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMessage = this.getFirebaseErrorMessage(data.error?.message);
+        throw new Error(errorMessage);
+      }
+
+      const user = {
+        uid: data.localId,
+        email: data.email,
+        displayName: data.displayName || data.email
+      };
+
+      await this.setUserAuthState(user, data.idToken, parseInt(data.expiresIn) * 1000);
+      console.log('Successfully signed in with email:', user.email);
+      return { success: true, user: user };
+
     } catch (error) {
       console.error('Email sign-in error:', error);
       return { success: false, error: error.message };
     }
   }
 
-  // Create account with email and password
+  // Create account with email and password using Firebase Auth REST API
   async createAccount(email, password) {
     try {
-      const result = await firebase.auth().createUserWithEmailAndPassword(email, password);
-      console.log('Successfully created account:', result.user.email);
-      return { success: true, user: result.user };
+      const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${this.apiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email,
+          password: password,
+          returnSecureToken: true
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMessage = this.getFirebaseErrorMessage(data.error?.message);
+        throw new Error(errorMessage);
+      }
+
+      const user = {
+        uid: data.localId,
+        email: data.email,
+        displayName: data.displayName || data.email
+      };
+
+      await this.setUserAuthState(user, data.idToken, parseInt(data.expiresIn) * 1000);
+      console.log('Successfully created account:', user.email);
+      return { success: true, user: user };
+
     } catch (error) {
       console.error('Account creation error:', error);
       return { success: false, error: error.message };
     }
   }
 
+  // Set user authentication state and store it
+  async setUserAuthState(user, authToken, expiresIn) {
+    this.currentUser = {
+      ...user,
+      authToken: authToken
+    };
+
+    const expiry = new Date(Date.now() + expiresIn);
+
+    await this.setStorageData({
+      isLoggedIn: true,
+      userEmail: user.email,
+      userId: user.uid,
+      authToken: authToken,
+      tokenExpiry: expiry.toISOString()
+    });
+
+    this.notifyAuthStateListeners(this.currentUser);
+  }
+
+  // Convert Firebase error codes to user-friendly messages
+  getFirebaseErrorMessage(errorCode) {
+    const errorMessages = {
+      'EMAIL_EXISTS': 'An account with this email already exists',
+      'EMAIL_NOT_FOUND': 'No account found with this email address',
+      'INVALID_PASSWORD': 'Incorrect password',
+      'WEAK_PASSWORD': 'Password should be at least 6 characters',
+      'INVALID_EMAIL': 'Invalid email address',
+      'USER_DISABLED': 'This account has been disabled',
+      'TOO_MANY_ATTEMPTS_TRY_LATER': 'Too many failed attempts. Please try again later'
+    };
+
+    return errorMessages[errorCode] || errorCode || 'Authentication failed';
+  }
+
   // Sign out
   async signOut() {
     try {
-      await firebase.auth().signOut();
+      // Clear Chrome Identity API cached tokens if available
+      if (typeof chrome !== 'undefined' && chrome.identity && this.currentUser?.authToken) {
+        try {
+          await new Promise((resolve) => {
+            chrome.identity.removeCachedAuthToken(
+              { token: this.currentUser.authToken }, 
+              resolve
+            );
+          });
+        } catch (e) {
+          console.warn('Could not clear Chrome Identity token:', e);
+        }
+      }
+
+      // Clear local auth state
       await this.clearStoredAuth();
+      
+      const wasLoggedIn = !!this.currentUser;
+      this.currentUser = null;
+      
+      if (wasLoggedIn) {
+        this.notifyAuthStateListeners(null);
+      }
+
       console.log('Successfully signed out');
       return { success: true };
+
     } catch (error) {
       console.error('Sign out error:', error);
       return { success: false, error: error.message };
@@ -104,10 +335,12 @@ class AuthManager {
 
   // Clear stored authentication
   async clearStoredAuth() {
-    await browser.storage.local.set({ 
+    await this.setStorageData({
       isLoggedIn: false,
       userEmail: null,
-      userId: null 
+      userId: null,
+      authToken: null,
+      tokenExpiry: null
     });
   }
 
@@ -121,16 +354,61 @@ class AuthManager {
     return !!this.currentUser;
   }
 
-  // Send password reset email
+  // Send password reset email using Firebase Auth REST API
   async sendPasswordResetEmail(email) {
     try {
-      await firebase.auth().sendPasswordResetEmail(email);
+      const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${this.apiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          requestType: 'PASSWORD_RESET',
+          email: email
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMessage = this.getFirebaseErrorMessage(data.error?.message);
+        throw new Error(errorMessage);
+      }
+
       console.log('Password reset email sent to:', email);
       return { success: true };
+
     } catch (error) {
       console.error('Password reset error:', error);
       return { success: false, error: error.message };
     }
+  }
+
+  // Get auth token for API calls
+  getAuthToken() {
+    return this.currentUser?.authToken || null;
+  }
+
+  // Check if auth token is valid and refresh if needed
+  async ensureValidToken() {
+    if (!this.currentUser) {
+      throw new Error('No user logged in');
+    }
+
+    const stored = await this.getStorageData(['tokenExpiry']);
+    if (stored.tokenExpiry) {
+      const expiry = new Date(stored.tokenExpiry).getTime();
+      const now = Date.now();
+      
+      // If token expires in less than 5 minutes, try to refresh
+      if (expiry - now < 5 * 60 * 1000) {
+        console.log('Auth token expiring soon, user may need to re-authenticate');
+        // For now, we'll let it expire and require re-authentication
+        // Future enhancement: implement token refresh
+      }
+    }
+
+    return this.currentUser.authToken;
   }
 }
 

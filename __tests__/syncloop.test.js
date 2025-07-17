@@ -7,14 +7,12 @@
 
 describe('Sync Loop Prevention', () => {
   let mockAuthManager;
-  let mockDb;
-  let mockDoc;
-  let mockCollection;
   let mockStorageLocal;
   let storageData;
   let storageChangeListeners;
   let SyncManager;
   let syncManager;
+  let originalFetch;
 
   // Mock the global browser object
   global.browser = {
@@ -32,15 +30,25 @@ describe('Sync Loop Prevention', () => {
     }
   };
 
-  // Mock Firebase
-  global.firebase = {
-    firestore: jest.fn()
+  // Mock window object for Firebase config
+  global.window = {
+    FIREBASE_CONFIG: {
+      apiKey: 'test-api-key',
+      projectId: 'test-project'
+    }
   };
+
+  // Mock process.env as fallback
+  process.env.FIREBASE_API_KEY = 'test-api-key';
+  process.env.FIREBASE_PROJECT_ID = 'test-project';
 
   beforeEach(() => {
     // Reset storage data
     storageData = {};
     storageChangeListeners = [];
+
+    // Store original fetch
+    originalFetch = global.fetch;
 
     // Mock storage operations
     mockStorageLocal = {
@@ -92,28 +100,17 @@ describe('Sync Loop Prevention', () => {
     global.browser.storage.local = mockStorageLocal;
     global.browser.storage.onChanged.addListener = mockStorageLocal.onChanged.addListener;
 
-    // Mock Firestore
-    mockDoc = {
-      get: jest.fn(),
-      set: jest.fn().mockResolvedValue(),
-      delete: jest.fn().mockResolvedValue()
-    };
-    mockCollection = {
-      doc: jest.fn().mockReturnValue(mockDoc)
-    };
-    mockDb = {
-      collection: jest.fn().mockReturnValue(mockCollection),
-      enablePersistence: jest.fn().mockResolvedValue()
-    };
-    global.firebase.firestore.mockReturnValue(mockDb);
+    // Mock fetch for REST API calls
+    global.fetch = jest.fn();
 
-    // Mock authManager
+    // Mock authManager with ensureValidToken
     mockAuthManager = {
       isLoggedIn: jest.fn().mockReturnValue(true),
       getCurrentUser: jest.fn().mockReturnValue({
         uid: 'test-uid',
         email: 'test@example.com'
-      })
+      }),
+      ensureValidToken: jest.fn().mockResolvedValue('mock-auth-token')
     };
     global.authManager = mockAuthManager;
 
@@ -131,6 +128,10 @@ describe('Sync Loop Prevention', () => {
     if (syncManager.syncInterval) {
       clearInterval(syncManager.syncInterval);
     }
+    // Restore original fetch
+    if (originalFetch) {
+      global.fetch = originalFetch;
+    }
     jest.clearAllMocks();
   });
 
@@ -146,9 +147,47 @@ describe('Sync Loop Prevention', () => {
         lastModified: new Date(Date.now() - 1000).toISOString()
       };
 
-      mockDoc.get.mockResolvedValue({
-        exists: true,
-        data: () => cloudData
+      // Mock fetch for cloud data GET request
+      global.fetch.mockImplementation((url, options) => {
+        if (options.method === 'GET') {
+          // Return cloud data in Firestore REST format
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({
+              fields: {
+                citationTree: {
+                  mapValue: {
+                    fields: {
+                      nodes: {
+                        arrayValue: {
+                          values: [{
+                            mapValue: {
+                              fields: {
+                                id: { integerValue: '2' },
+                                text: { stringValue: 'Cloud node' },
+                                url: { stringValue: 'https://cloud.com' },
+                                timestamp: { stringValue: new Date(Date.now() - 1000).toISOString() }
+                              }
+                            }
+                          }]
+                        }
+                      },
+                      currentNodeId: { integerValue: '2' }
+                    }
+                  }
+                },
+                nodeCounter: { integerValue: '2' },
+                lastModified: { stringValue: new Date(Date.now() - 1000).toISOString() }
+              }
+            })
+          });
+        } else if (options.method === 'PATCH') {
+          // Return success for upload
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({})
+          });
+        }
       });
 
       // Local content exists but no timestamp
@@ -164,7 +203,22 @@ describe('Sync Loop Prevention', () => {
       };
 
       await syncManager.initialize();
+      // Override config for test
+      syncManager.projectId = 'test-project';
+      syncManager.apiKey = 'test-api-key';
+      
       await syncManager.performSync();
+
+      // Verify fetch was called for both GET and PATCH
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://firestore.googleapis.com/v1/projects/test-project/databases/(default)/documents/users/test-uid',
+        expect.objectContaining({ method: 'GET' })
+      );
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://firestore.googleapis.com/v1/projects/test-project/databases/(default)/documents/users/test-uid',
+        expect.objectContaining({ method: 'PATCH' })
+      );
 
       // Verify that lastModified was set in local storage after upload_preserve_local_content
       const setCall = mockStorageLocal.set.mock.calls.find(call => 
@@ -178,19 +232,86 @@ describe('Sync Loop Prevention', () => {
     });
 
     it('should not repeat upload_preserve_local_content after timestamp is set', async () => {
-      // Setup cloud data
-      const cloudData = {
-        citationTree: {
-          nodes: [{ id: 2, text: 'Cloud node', url: 'https://cloud.com', timestamp: new Date(Date.now() - 1000).toISOString() }],
-          currentNodeId: 2
-        },
-        nodeCounter: 2,
-        lastModified: new Date(Date.now() - 1000).toISOString()
-      };
-
-      mockDoc.get.mockResolvedValue({
-        exists: true,
-        data: () => cloudData
+      let callCount = 0;
+      
+      // Mock fetch responses
+      global.fetch.mockImplementation((url, options) => {
+        callCount++;
+        
+        if (options.method === 'GET') {
+          if (callCount === 1) {
+            // First call - return cloud data (older)
+            return Promise.resolve({
+              ok: true,
+              json: () => Promise.resolve({
+                fields: {
+                  citationTree: {
+                    mapValue: {
+                      fields: {
+                        nodes: {
+                          arrayValue: {
+                            values: [{
+                              mapValue: {
+                                fields: {
+                                  id: { integerValue: '2' },
+                                  text: { stringValue: 'Cloud node' },
+                                  url: { stringValue: 'https://cloud.com' },
+                                  timestamp: { stringValue: new Date(Date.now() - 1000).toISOString() }
+                                }
+                              }
+                            }]
+                          }
+                        },
+                        currentNodeId: { integerValue: '2' }
+                      }
+                    }
+                  },
+                  nodeCounter: { integerValue: '2' },
+                  lastModified: { stringValue: new Date(Date.now() - 1000).toISOString() }
+                }
+              })
+            });
+          } else {
+            // Second call - return newer cloud data
+            const futureTimestamp = new Date(Date.now() + 5000).toISOString();
+            return Promise.resolve({
+              ok: true,
+              json: () => Promise.resolve({
+                fields: {
+                  citationTree: {
+                    mapValue: {
+                      fields: {
+                        nodes: {
+                          arrayValue: {
+                            values: [{
+                              mapValue: {
+                                fields: {
+                                  id: { integerValue: '3' },
+                                  text: { stringValue: 'Newer cloud node' },
+                                  url: { stringValue: 'https://newer.com' },
+                                  timestamp: { stringValue: futureTimestamp }
+                                }
+                              }
+                            }]
+                          }
+                        },
+                        currentNodeId: { integerValue: '3' }
+                      }
+                    }
+                  },
+                  nodeCounter: { integerValue: '3' },
+                  lastModified: { stringValue: futureTimestamp }
+                }
+              })
+            });
+          }
+        } else if (options.method === 'PATCH') {
+          // Return success for upload
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({})
+          });
+        }
       });
 
       // Local content without timestamp
@@ -204,53 +325,114 @@ describe('Sync Loop Prevention', () => {
       };
 
       await syncManager.initialize();
+      // Override config for test
+      syncManager.projectId = 'test-project';
+      syncManager.apiKey = 'test-api-key';
       
       // First sync should upload and set timestamp
       await syncManager.performSync();
-      expect(mockDoc.set).toHaveBeenCalledTimes(1);
+      
+      // Should have made 1 GET and 1 PATCH call
+      const patchCalls = global.fetch.mock.calls.filter(call => call[1].method === 'PATCH');
+      expect(patchCalls).toHaveLength(1);
       
       // After first sync, storageData should now have lastModified timestamp
       expect(storageData.lastModified).toBeDefined();
       
-      // Clear the mock calls
-      mockDoc.set.mockClear();
-
-      // For second sync, mock cloud to have data with timestamp slightly newer than local
-      // This ensures download_cloud_newer path instead of upload
-      const futureTimestamp = new Date(Date.now() + 5000).toISOString();
-      const newerCloudData = {
-        citationTree: {
-          nodes: [{ id: 3, text: 'Newer cloud node', url: 'https://newer.com', timestamp: futureTimestamp }],
-          currentNodeId: 3
-        },
-        nodeCounter: 3,
-        lastModified: futureTimestamp
-      };
-
-      mockDoc.get.mockResolvedValue({
-        exists: true,
-        data: () => newerCloudData
-      });
+      // Clear the mock calls for second sync
+      global.fetch.mockClear();
+      callCount = 1; // Set to trigger newer cloud data response
 
       await syncManager.performSync();
-      // Should download cloud data, not upload
-      expect(mockDoc.set).not.toHaveBeenCalled();
+      
+      // Should only have made a GET call, no PATCH (download only)
+      const getCalls = global.fetch.mock.calls.filter(call => call[1].method === 'GET');
+      const patchCalls2 = global.fetch.mock.calls.filter(call => call[1].method === 'PATCH');
+      expect(getCalls).toHaveLength(1);
+      expect(patchCalls2).toHaveLength(0);
     });
 
     it('should handle sidebar reopen without repeated uploads', async () => {
-      // Setup: Cloud data already exists
-      const cloudData = {
-        citationTree: {
-          nodes: [{ id: 2, text: 'Cloud node', url: 'https://cloud.com', timestamp: new Date(Date.now() - 1000).toISOString() }],
-          currentNodeId: 2
-        },
-        nodeCounter: 2,
-        lastModified: new Date(Date.now() - 1000).toISOString()
-      };
-
-      mockDoc.get.mockResolvedValue({
-        exists: true,
-        data: () => cloudData
+      let callCount = 0;
+      
+      // Mock fetch responses for multiple calls
+      global.fetch.mockImplementation((url, options) => {
+        callCount++;
+        
+        if (options.method === 'GET') {
+          if (callCount <= 2) {
+            // First two calls - return cloud data (older)
+            return Promise.resolve({
+              ok: true,
+              json: () => Promise.resolve({
+                fields: {
+                  citationTree: {
+                    mapValue: {
+                      fields: {
+                        nodes: {
+                          arrayValue: {
+                            values: [{
+                              mapValue: {
+                                fields: {
+                                  id: { integerValue: '2' },
+                                  text: { stringValue: 'Cloud node' },
+                                  url: { stringValue: 'https://cloud.com' },
+                                  timestamp: { stringValue: new Date(Date.now() - 1000).toISOString() }
+                                }
+                              }
+                            }]
+                          }
+                        },
+                        currentNodeId: { integerValue: '2' }
+                      }
+                    }
+                  },
+                  nodeCounter: { integerValue: '2' },
+                  lastModified: { stringValue: new Date(Date.now() - 1000).toISOString() }
+                }
+              })
+            });
+          } else {
+            // Third call - return newer cloud data
+            const futureTimestamp = new Date(Date.now() + 10000).toISOString();
+            return Promise.resolve({
+              ok: true,
+              json: () => Promise.resolve({
+                fields: {
+                  citationTree: {
+                    mapValue: {
+                      fields: {
+                        nodes: {
+                          arrayValue: {
+                            values: [{
+                              mapValue: {
+                                fields: {
+                                  id: { integerValue: '3' },
+                                  text: { stringValue: 'Future cloud node' },
+                                  url: { stringValue: 'https://future.com' },
+                                  timestamp: { stringValue: futureTimestamp }
+                                }
+                              }
+                            }]
+                          }
+                        },
+                        currentNodeId: { integerValue: '3' }
+                      }
+                    }
+                  },
+                  nodeCounter: { integerValue: '3' },
+                  lastModified: { stringValue: futureTimestamp }
+                }
+              })
+            });
+          }
+        } else if (options.method === 'PATCH') {
+          // Return success for upload
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({})
+          });
+        }
       });
 
       // Simulate problematic scenario: local content but no timestamp
@@ -268,48 +450,55 @@ describe('Sync Loop Prevention', () => {
       await syncManager1.initialize();
       await syncManager1.performSync();
       
-      expect(mockDoc.set).toHaveBeenCalledTimes(1);
+      // Should have uploaded (PATCH call)
+      const patchCalls = global.fetch.mock.calls.filter(call => call[1].method === 'PATCH');
+      expect(patchCalls).toHaveLength(1);
       
       // Storage should now have timestamp
       expect(storageData.lastModified).toBeDefined();
       
-      mockDoc.set.mockClear();
-
-      // For second sidebar open, use future timestamp to ensure download behavior
-      const futureTimestamp = new Date(Date.now() + 10000).toISOString();
-      const newerCloudData = {
-        citationTree: {
-          nodes: [{ id: 3, text: 'Future cloud node', url: 'https://future.com', timestamp: futureTimestamp }],
-          currentNodeId: 3
-        },
-        nodeCounter: 3,
-        lastModified: futureTimestamp
-      };
-
-      mockDoc.get.mockResolvedValue({
-        exists: true,
-        data: () => newerCloudData
-      });
+      // Clear calls before second manager
+      global.fetch.mockClear();
+      callCount = 2; // Reset to trigger newer cloud data behavior
 
       // Simulate sidebar close/reopen (new SyncManager instance)
       const syncManager2 = new SyncManager();
       await syncManager2.initialize();
       await syncManager2.performSync();
 
-      // Should download cloud data, not upload
-      expect(mockDoc.set).not.toHaveBeenCalled();
+      // Should only have made GET call, no PATCH (download only)
+      const getCalls2 = global.fetch.mock.calls.filter(call => call[1].method === 'GET');
+      const patchCalls2 = global.fetch.mock.calls.filter(call => call[1].method === 'PATCH');
+      expect(getCalls2).toHaveLength(1);
+      expect(patchCalls2).toHaveLength(0);
     });
   });
 
   describe('Sync Loop Prevention', () => {
     it('should prevent concurrent syncs with syncInProgress flag', async () => {
-      const slowMockDoc = {
-        get: jest.fn().mockImplementation(() => new Promise(resolve => setTimeout(() => resolve({ exists: false }), 100))),
-        set: jest.fn().mockResolvedValue()
-      };
-      mockCollection.doc.mockReturnValue(slowMockDoc);
+      // Mock slow fetch response (100ms delay) but track calls
+      let callCount = 0;
+      global.fetch.mockImplementation((url, options) => {
+        if (options.method === 'GET') {
+          callCount++;
+          return new Promise(resolve => 
+            setTimeout(() => resolve({
+              ok: true,
+              status: 404,
+              json: () => Promise.resolve({})
+            }), 100)
+          );
+        }
+      });
 
       await syncManager.initialize();
+      // Override config for test
+      syncManager.projectId = 'test-project';
+      syncManager.apiKey = 'test-api-key';
+
+      // Clear any calls from initialization
+      global.fetch.mockClear();
+      callCount = 0;
 
       // Start multiple syncs concurrently
       const sync1 = syncManager.performSync();
@@ -318,8 +507,12 @@ describe('Sync Loop Prevention', () => {
 
       await Promise.all([sync1, sync2, sync3]);
 
-      // Only one sync should have executed
-      expect(slowMockDoc.get).toHaveBeenCalledTimes(1);
+      // Only one sync should have executed (only one GET call)
+      expect(callCount).toBe(1);
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://firestore.googleapis.com/v1/projects/test-project/databases/(default)/documents/users/test-uid',
+        expect.objectContaining({ method: 'GET' })
+      );
     });
 
     it('should not trigger sync when fromSync flag is present', async () => {
@@ -473,14 +666,40 @@ describe('Sync Loop Prevention', () => {
         lastModified: new Date().toISOString()
       };
 
-      // Mock cloud data
-      mockDoc.get.mockResolvedValue({
-        exists: true,
-        data: () => ({
-          citationTree: { nodes: [{ id: 1, text: 'Cloud node', url: 'https://example.com', timestamp: new Date().toISOString() }], currentNodeId: 1 },
-          nodeCounter: 1,
-          lastModified: new Date(Date.now() + 1000).toISOString() // Cloud is newer
-        })
+      // Mock cloud data (newer than local)
+      global.fetch.mockImplementation((url, options) => {
+        if (options.method === 'GET') {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({
+              fields: {
+                citationTree: {
+                  mapValue: {
+                    fields: {
+                      nodes: {
+                        arrayValue: {
+                          values: [{
+                            mapValue: {
+                              fields: {
+                                id: { integerValue: '1' },
+                                text: { stringValue: 'Cloud node' },
+                                url: { stringValue: 'https://example.com' },
+                                timestamp: { stringValue: new Date().toISOString() }
+                              }
+                            }
+                          }]
+                        }
+                      },
+                      currentNodeId: { integerValue: '1' }
+                    }
+                  }
+                },
+                nodeCounter: { integerValue: '1' },
+                lastModified: { stringValue: new Date(Date.now() + 1000).toISOString() }
+              }
+            })
+          });
+        }
       });
 
       // Start sync
@@ -498,14 +717,17 @@ describe('Sync Loop Prevention', () => {
       await syncPromise;
 
       // Verify sync completed successfully
-      expect(mockDoc.get).toHaveBeenCalled();
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://firestore.googleapis.com/v1/projects/test-project/databases/(default)/documents/users/test-uid',
+        expect.objectContaining({ method: 'GET' })
+      );
     });
 
     it('should handle network errors gracefully without causing loops', async () => {
       await syncManager.initialize();
       
       // Mock network error
-      mockDoc.get.mockRejectedValue(new Error('Network error'));
+      global.fetch.mockRejectedValue(new Error('Network error'));
       
       let errorCount = 0;
       syncManager.onSyncStatusChange((status) => {
@@ -530,13 +752,29 @@ describe('Sync Loop Prevention', () => {
         lastModified: 'invalid-date'
       };
 
-      mockDoc.get.mockResolvedValue({
-        exists: true,
-        data: () => ({
-          citationTree: { nodes: [], currentNodeId: null },
-          nodeCounter: 0,
-          lastModified: 'also-invalid'
-        })
+      // Mock cloud data with invalid timestamp
+      global.fetch.mockImplementation((url, options) => {
+        if (options.method === 'GET') {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({
+              fields: {
+                citationTree: {
+                  mapValue: {
+                    fields: {
+                      nodes: {
+                        arrayValue: { values: [] }
+                      },
+                      currentNodeId: { nullValue: null }
+                    }
+                  }
+                },
+                nodeCounter: { integerValue: '0' },
+                lastModified: { stringValue: 'also-invalid' }
+              }
+            })
+          });
+        }
       });
 
       // Should not throw error or loop infinitely
@@ -552,19 +790,35 @@ describe('Sync Loop Prevention', () => {
       await syncManager.initialize();
       await syncManager.performSync();
 
-      expect(mockDoc.get).not.toHaveBeenCalled();
+      expect(global.fetch).not.toHaveBeenCalled();
     });
 
     it('should handle auto-sync interval correctly', async () => {
       jest.useFakeTimers();
       
-      // Mock document to return no cloud data
-      mockDoc.get.mockResolvedValue({ exists: false });
+      // Track calls separately
+      let callCount = 0;
+      
+      // Mock fetch to return no cloud data (404)
+      global.fetch.mockImplementation((url, options) => {
+        if (options.method === 'GET') {
+          callCount++;
+          return Promise.resolve({
+            ok: true,
+            status: 404,
+            json: () => Promise.resolve({})
+          });
+        }
+      });
       
       await syncManager.initialize();
+      // Override config for test
+      syncManager.projectId = 'test-project';
+      syncManager.apiKey = 'test-api-key';
       
       // Clear any calls that happened during initialization
-      mockDoc.get.mockClear();
+      global.fetch.mockClear();
+      callCount = 0;
       
       // Start auto-sync with short interval for testing
       syncManager.startAutoSync(1000);
@@ -573,12 +827,12 @@ describe('Sync Loop Prevention', () => {
       // Use advanceTimersByTime to let it complete
       await jest.advanceTimersByTimeAsync(0);
       
-      expect(mockDoc.get).toHaveBeenCalledTimes(1); // Initial sync from startAutoSync
+      expect(callCount).toBe(1); // Initial sync from startAutoSync
       
       // Fast-forward time to trigger interval syncs
       await jest.advanceTimersByTimeAsync(2000);
       
-      expect(mockDoc.get).toHaveBeenCalledTimes(3); // Initial + 2 interval syncs
+      expect(callCount).toBe(3); // Initial + 2 interval syncs
       
       syncManager.stopAutoSync();
       jest.useRealTimers();
