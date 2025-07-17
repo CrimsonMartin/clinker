@@ -1,9 +1,11 @@
 // Content script for Research Linker
 
+import { browserAPI } from './browser-compat.js';
+
 let saveButton: HTMLButtonElement | null = null;
 
 // Listen for storage changes to react to extension toggle
-browser.storage.onChanged.addListener((changes, namespace) => {
+browserAPI.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === 'local' && changes.extensionActive) {
     const isActive = changes.extensionActive.newValue;
     if (!isActive && saveButton) {
@@ -22,14 +24,14 @@ window.addEventListener('beforeunload', async () => {
 
 // When page loads, check if we should update the current node
 document.addEventListener('DOMContentLoaded', async () => {
-  const result = await browser.storage.local.get({ citationTree: { nodes: [], currentNodeId: null } });
+  const result = await browserAPI.storage.local.get({ citationTree: { nodes: [], currentNodeId: null } });
   const tree = result.citationTree;
   
   // Find if current URL matches any existing node
   const currentNode = tree.nodes.find((node: any) => node.url === window.location.href);
   if (currentNode) {
     tree.currentNodeId = currentNode.id;
-    await browser.storage.local.set({ citationTree: tree });
+    await browserAPI.storage.local.set({ citationTree: tree });
   }
 });
 
@@ -37,7 +39,7 @@ document.addEventListener('mouseup', async (event) => {
   const selection = window.getSelection();
   if (selection && selection.toString().length > 0) {
     // Check if extension is active before showing save button
-    const result = await browser.storage.local.get({ extensionActive: true });
+    const result = await browserAPI.storage.local.get({ extensionActive: true });
     if (!result.extensionActive) {
       // Extension is inactive, don't show save button
       if (saveButton) {
@@ -84,11 +86,11 @@ document.addEventListener('mouseup', async (event) => {
         }
         
         const selectedText = window.getSelection()?.toString();
-        if (selectedText) {
-          const result = await browser.storage.local.get({ 
-            citationTree: { nodes: [], currentNodeId: null },
-            nodeCounter: 0 
-          });
+                if (selectedText) {
+                  const result = await browserAPI.storage.local.get({ 
+                    citationTree: { nodes: [], currentNodeId: null },
+                    nodeCounter: 0 
+                  });
           
           const tree = result.citationTree;
           const nodeCounter = result.nodeCounter;
@@ -156,7 +158,7 @@ document.addEventListener('mouseup', async (event) => {
           tree.nodes.push(newNode);
           tree.currentNodeId = newNode.id;
           
-          await browser.storage.local.set({ 
+          await browserAPI.storage.local.set({ 
             citationTree: tree,
             nodeCounter: nodeCounter + 1,
             lastModified: new Date().toISOString()
@@ -165,13 +167,12 @@ document.addEventListener('mouseup', async (event) => {
           console.log('Citation saved to tree:', selectedText);
           
           // Trigger immediate sync to cloud
-          browser.runtime.sendMessage({ action: "triggerSync" })
-            .then((response) => {
-              console.log('Sync triggered:', response);
-            })
-            .catch((error) => {
-              console.log('Sync trigger error:', error);
-            });
+          try {
+            const response = await browserAPI.runtime.sendMessage({ action: "triggerSync" });
+            console.log('Sync triggered:', response);
+          } catch (error) {
+            console.log('Sync trigger error:', error);
+          }
           
           if (saveButton) {
             saveButton.style.display = 'none';

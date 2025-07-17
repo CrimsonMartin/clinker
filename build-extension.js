@@ -33,6 +33,7 @@ const INCLUDE_FILES = [
   // Compiled TypeScript files (from dist/)
   'dist/background.js',
   'dist/content.js',
+  'dist/browser-compat.js',
   
   // Firebase integration (REST API)
   'firebase/auth.js',

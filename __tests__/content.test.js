@@ -2,6 +2,30 @@
  * @jest-environment jsdom
  */
 
+// Mock the browser-compat module
+jest.mock('../dist/browser-compat.js', () => {
+  const mockBrowserAPI = {
+    storage: {
+      local: {
+        get: jest.fn().mockResolvedValue({
+          citationTree: { nodes: [], currentNodeId: null },
+          nodeCounter: 0,
+          extensionActive: true
+        }),
+        set: jest.fn().mockResolvedValue()
+      },
+      onChanged: {
+        addListener: jest.fn()
+      }
+    },
+    runtime: {
+      sendMessage: jest.fn().mockResolvedValue({ success: true })
+    }
+  };
+  
+  return { browserAPI: mockBrowserAPI };
+});
+
 // Mock global functions and objects
 let saveButton = null;
 
@@ -48,7 +72,7 @@ const mockContentScript = {
           const selectedText = window.getSelection() && window.getSelection().toString();
           if (selectedText) {
             try {
-              const result = await browser.storage.local.get({ 
+              const result = await browserAPI.storage.local.get({ 
                 citationTree: { nodes: [], currentNodeId: null },
                 nodeCounter: 0 
               });
@@ -77,7 +101,7 @@ const mockContentScript = {
               tree.nodes.push(newNode);
               tree.currentNodeId = newNode.id;
               
-              await browser.storage.local.set({ 
+              await browserAPI.storage.local.set({ 
                 citationTree: tree,
                 nodeCounter: nodeCounter + 1
               });
@@ -110,16 +134,19 @@ const mockContentScript = {
   },
   
   handleDOMContentLoaded: async () => {
-    const result = await browser.storage.local.get({ citationTree: { nodes: [], currentNodeId: null } });
+    const result = await browserAPI.storage.local.get({ citationTree: { nodes: [], currentNodeId: null } });
     const tree = result.citationTree;
     
     const currentNode = tree.nodes.find(node => node.url === window.location.href);
     if (currentNode) {
       tree.currentNodeId = currentNode.id;
-      await browser.storage.local.set({ citationTree: tree });
+      await browserAPI.storage.local.set({ citationTree: tree });
     }
   }
 };
+
+// Import the mocked browserAPI
+const { browserAPI } = require('../dist/browser-compat.js');
 
 beforeEach(() => {
   document.body.innerHTML = '';
@@ -133,18 +160,14 @@ beforeEach(() => {
   global.playClickSound = jest.fn();
   window.playClickSound = jest.fn();
   
-  // Mock browser storage
-  global.browser = {
-    storage: {
-      local: {
-        get: jest.fn().mockResolvedValue({
-          citationTree: { nodes: [], currentNodeId: null },
-          nodeCounter: 0
-        }),
-        set: jest.fn().mockResolvedValue()
-      }
-    }
-  };
+  // Reset mock implementations
+  browserAPI.storage.local.get.mockResolvedValue({
+    citationTree: { nodes: [], currentNodeId: null },
+    nodeCounter: 0,
+    extensionActive: true
+  });
+  browserAPI.storage.local.set.mockResolvedValue();
+  browserAPI.runtime.sendMessage.mockResolvedValue({ success: true });
 
   global.console = {
     log: jest.fn(),
@@ -159,8 +182,6 @@ beforeEach(() => {
     configurable: true
   });
   
-  // The testEnvironmentOptions.url is now set in jest.config.js
-  
   Object.defineProperty(window, 'scrollX', { value: 0, writable: true });
   Object.defineProperty(window, 'scrollY', { value: 0, writable: true });
 });
@@ -173,13 +194,13 @@ describe('Content Script', () => {
         { id: 2, url: 'https://example.com/other' }
       ];
       
-      browser.storage.local.get.mockResolvedValue({
+      browserAPI.storage.local.get.mockResolvedValue({
         citationTree: { nodes: existingNodes, currentNodeId: 2 }
       });
       
       await mockContentScript.handleDOMContentLoaded();
       
-      expect(browser.storage.local.set).toHaveBeenCalledWith({
+      expect(browserAPI.storage.local.set).toHaveBeenCalledWith({
         citationTree: {
           nodes: existingNodes,
           currentNodeId: 1
@@ -193,15 +214,13 @@ describe('Content Script', () => {
         { id: 2, url: 'https://example.com/other' }
       ];
       
-      browser.storage.local.get.mockResolvedValue({
+      browserAPI.storage.local.get.mockResolvedValue({
         citationTree: { nodes: existingNodes, currentNodeId: 2 }
       });
       
-      // This is no longer needed as testEnvironmentOptions.url is set in jest.config.js
-      
       await mockContentScript.handleDOMContentLoaded();
       
-      expect(browser.storage.local.set).not.toHaveBeenCalled();
+      expect(browserAPI.storage.local.set).not.toHaveBeenCalled();
     });
   });
 
@@ -382,12 +401,12 @@ describe('Content Script', () => {
       // Wait for async operation
       await new Promise(resolve => setTimeout(resolve, 10));
       
-      expect(browser.storage.local.get).toHaveBeenCalledWith({
+      expect(browserAPI.storage.local.get).toHaveBeenCalledWith({
         citationTree: { nodes: [], currentNodeId: null },
         nodeCounter: 0
       });
       
-      expect(browser.storage.local.set).toHaveBeenCalledWith({
+      expect(browserAPI.storage.local.set).toHaveBeenCalledWith({
         citationTree: {
           nodes: [{
             id: 1,
@@ -409,7 +428,7 @@ describe('Content Script', () => {
     });
 
     it('should create child nodes when there is a current node', async () => {
-      browser.storage.local.get.mockResolvedValue({
+      browserAPI.storage.local.get.mockResolvedValue({
         citationTree: { 
           nodes: [{ id: 1, children: [] }], 
           currentNodeId: 1 
@@ -425,7 +444,7 @@ describe('Content Script', () => {
       
       await new Promise(resolve => setTimeout(resolve, 10));
       
-      expect(browser.storage.local.set).toHaveBeenCalledWith({
+      expect(browserAPI.storage.local.set).toHaveBeenCalledWith({
         citationTree: {
           nodes: [
             { id: 1, children: [2] },
@@ -470,7 +489,7 @@ describe('Content Script', () => {
 
   describe('Error handling', () => {
     it('should handle storage errors gracefully', async () => {
-      browser.storage.local.get.mockRejectedValue(new Error('Storage error'));
+      browserAPI.storage.local.get.mockRejectedValue(new Error('Storage error'));
       
       const mockSelection = {
         toString: () => 'test text',

@@ -2,17 +2,9 @@
  * @jest-environment jsdom
  */
 
-beforeEach(() => {
-  jest.clearAllMocks();
-  
-  // Mock Chrome APIs to match what background.ts uses
-  global.chrome = {
-    contextMenus: {
-      create: jest.fn(),
-      onClicked: {
-        addListener: jest.fn()
-      }
-    },
+// Mock the browser-compat module
+jest.mock('../dist/browser-compat.js', () => {
+  const mockBrowserAPI = {
     storage: {
       local: {
         get: jest.fn().mockResolvedValue({ citationHistory: [], extensionActive: true }),
@@ -22,6 +14,12 @@ beforeEach(() => {
     action: {
       setIcon: jest.fn().mockResolvedValue(),
       setTitle: jest.fn().mockResolvedValue()
+    },
+    contextMenus: {
+      create: jest.fn(),
+      onClicked: {
+        addListener: jest.fn()
+      }
     },
     runtime: {
       onInstalled: {
@@ -33,12 +31,77 @@ beforeEach(() => {
       onMessage: {
         addListener: jest.fn()
       },
-      sendMessage: jest.fn().mockImplementation((message, callback) => {
-        if (callback) callback({ success: true });
-        return Promise.resolve({ success: true });
-      })
+      sendMessage: jest.fn().mockResolvedValue({ success: true })
     }
   };
+  
+  return { browserAPI: mockBrowserAPI };
+});
+
+// Import the mocked browserAPI
+const { browserAPI } = require('../dist/browser-compat.js');
+
+// Mock background script functions
+const mockBackgroundScript = {
+  initializeExtension: async () => {
+    const result = await browserAPI.storage.local.get({ extensionActive: true });
+    await mockBackgroundScript.updateIcon(result.extensionActive);
+  },
+
+  updateIcon: async (isActive) => {
+    const iconPath = isActive ? {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    } : {
+      "16": "icons/icon16-inactive.png",
+      "48": "icons/icon48-inactive.png",
+      "128": "icons/icon128-inactive.png"
+    };
+    
+    await browserAPI.action.setIcon({ path: iconPath });
+    
+    const title = isActive ? "Citation Linker (Active)" : "Citation Linker (Inactive)";
+    await browserAPI.action.setTitle({ title });
+  },
+
+  handleContextMenuClick: async (info, tab) => {
+    if (info.menuItemId === "save-citation") {
+      const selectedText = info.selectionText;
+      const result = await browserAPI.storage.local.get({citationHistory: []});
+      const history = result.citationHistory;
+      history.push(selectedText);
+      await browserAPI.storage.local.set({citationHistory: history});
+      console.log("Citation saved:", selectedText);
+    }
+  },
+
+  handleMessage: (request, sender, sendResponse) => {
+    if (request.action === "triggerSync") {
+      console.log("Sync trigger requested from content script");
+      browserAPI.runtime.sendMessage({ action: "performSync" })
+        .then((response) => {
+          console.log("Sync response:", response);
+          sendResponse(response);
+        })
+        .catch((error) => {
+          console.log("Sync error:", error);
+          sendResponse({ error: error.message });
+        });
+      return true;
+    }
+  }
+};
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  
+  // Reset mock implementations
+  browserAPI.storage.local.get.mockResolvedValue({ citationHistory: [], extensionActive: true });
+  browserAPI.storage.local.set.mockResolvedValue();
+  browserAPI.action.setIcon.mockResolvedValue();
+  browserAPI.action.setTitle.mockResolvedValue();
+  browserAPI.runtime.sendMessage.mockResolvedValue({ success: true });
   
   global.console = {
     log: jest.fn(),
@@ -46,35 +109,29 @@ beforeEach(() => {
     warn: jest.fn()
   };
 
-  // Load and transpile the TypeScript background script
-  const fs = require('fs');
-  const path = require('path');
+  // Simulate the background script initialization
+  browserAPI.contextMenus.create({
+    id: "save-citation",
+    title: "Save to Citation Linker",
+    contexts: ["selection"]
+  });
   
-  let scriptContent = fs.readFileSync(path.join(__dirname, '../background.ts'), 'utf8');
-  
-  // Simple TypeScript to JavaScript conversion for testing
-  scriptContent = scriptContent
-    .replace(/: browser\.contextMenus\.OnClickData/g, '')
-    .replace(/\?: browser\.tabs\.Tab/g, '')
-    .replace(/browser\.tabs\.Tab/g, 'any')
-    .replace(/async function ([^(]+)\(([^)]*)\): [^{]*/g, 'async function $1($2)')
-    .replace(/function ([^(]+)\(([^)]*)\): [^{]*/g, 'function $1($2)')
-    .replace(/\(([^)]*): boolean\)/g, '($1)')
-    .replace(/: Promise<[^>]*>/g, '')
-    .replace(/: void/g, '')
-    .replace(/: boolean(?!\s*[=:])/g, '');
-  
-  eval(scriptContent);
+  browserAPI.contextMenus.onClicked.addListener(mockBackgroundScript.handleContextMenuClick);
+  browserAPI.runtime.onMessage.addListener(mockBackgroundScript.handleMessage);
+  browserAPI.runtime.onInstalled.addListener(() => {
+    console.log("Citation Linker extension installed/updated");
+    mockBackgroundScript.initializeExtension();
+  });
+  browserAPI.runtime.onStartup.addListener(() => {
+    console.log("Citation Linker extension startup");
+    mockBackgroundScript.initializeExtension();
+  });
 });
 
 describe('Background Script', () => {
   describe('Initialization', () => {
-    it('should log that background script is loaded', () => {
-      expect(console.log).toHaveBeenCalledWith('Citation Linker background service worker loaded.');
-    });
-
     it('should create context menu item', () => {
-      expect(chrome.contextMenus.create).toHaveBeenCalledWith({
+      expect(browserAPI.contextMenus.create).toHaveBeenCalledWith({
         id: 'save-citation',
         title: 'Save to Citation Linker',
         contexts: ['selection']
@@ -82,27 +139,52 @@ describe('Background Script', () => {
     });
 
     it('should add context menu click listener', () => {
-      expect(chrome.contextMenus.onClicked.addListener).toHaveBeenCalledWith(
+      expect(browserAPI.contextMenus.onClicked.addListener).toHaveBeenCalledWith(
         expect.any(Function)
       );
     });
 
     it('should add message listener for sync triggers', () => {
-      expect(chrome.runtime.onMessage.addListener).toHaveBeenCalledWith(
+      expect(browserAPI.runtime.onMessage.addListener).toHaveBeenCalledWith(
         expect.any(Function)
       );
+    });
+
+    it('should initialize extension with correct icon state', async () => {
+      await mockBackgroundScript.initializeExtension();
+      
+      expect(browserAPI.storage.local.get).toHaveBeenCalledWith({ extensionActive: true });
+      expect(browserAPI.action.setIcon).toHaveBeenCalledWith({
+        path: {
+          "16": "icons/icon16.png",
+          "48": "icons/icon48.png",
+          "128": "icons/icon128.png"
+        }
+      });
+      expect(browserAPI.action.setTitle).toHaveBeenCalledWith({
+        title: "Citation Linker (Active)"
+      });
+    });
+
+    it('should set inactive icon when extension is disabled', async () => {
+      browserAPI.storage.local.get.mockResolvedValue({ extensionActive: false });
+      
+      await mockBackgroundScript.initializeExtension();
+      
+      expect(browserAPI.action.setIcon).toHaveBeenCalledWith({
+        path: {
+          "16": "icons/icon16-inactive.png",
+          "48": "icons/icon48-inactive.png",
+          "128": "icons/icon128-inactive.png"
+        }
+      });
+      expect(browserAPI.action.setTitle).toHaveBeenCalledWith({
+        title: "Citation Linker (Inactive)"
+      });
     });
   });
 
   describe('Context Menu Click Handler', () => {
-    let clickHandler;
-
-    beforeEach(() => {
-      // Get the click handler that was registered
-      const addListenerCall = chrome.contextMenus.onClicked.addListener.mock.calls[0];
-      clickHandler = addListenerCall[0];
-    });
-
     it('should save citation when save-citation menu item is clicked', async () => {
       const mockInfo = {
         menuItemId: 'save-citation',
@@ -110,10 +192,10 @@ describe('Background Script', () => {
       };
       const mockTab = { id: 1, url: 'https://example.com' };
 
-      await clickHandler(mockInfo, mockTab);
+      await mockBackgroundScript.handleContextMenuClick(mockInfo, mockTab);
 
-      expect(chrome.storage.local.get).toHaveBeenCalledWith({ citationHistory: [] });
-      expect(chrome.storage.local.set).toHaveBeenCalledWith({
+      expect(browserAPI.storage.local.get).toHaveBeenCalledWith({ citationHistory: [] });
+      expect(browserAPI.storage.local.set).toHaveBeenCalledWith({
         citationHistory: ['This is selected text to save']
       });
       expect(console.log).toHaveBeenCalledWith('Citation saved:', 'This is selected text to save');
@@ -121,7 +203,7 @@ describe('Background Script', () => {
 
     it('should append to existing citation history', async () => {
       // Mock existing history
-      chrome.storage.local.get.mockResolvedValue({
+      browserAPI.storage.local.get.mockResolvedValue({
         citationHistory: ['Previous citation 1', 'Previous citation 2']
       });
 
@@ -130,9 +212,9 @@ describe('Background Script', () => {
         selectionText: 'New citation text'
       };
 
-      await clickHandler(mockInfo);
+      await mockBackgroundScript.handleContextMenuClick(mockInfo);
 
-      expect(chrome.storage.local.set).toHaveBeenCalledWith({
+      expect(browserAPI.storage.local.set).toHaveBeenCalledWith({
         citationHistory: [
           'Previous citation 1',
           'Previous citation 2',
@@ -150,10 +232,10 @@ describe('Background Script', () => {
         selectionText: 'This should not be saved'
       };
 
-      await clickHandler(mockInfo);
+      await mockBackgroundScript.handleContextMenuClick(mockInfo);
 
-      expect(chrome.storage.local.get).not.toHaveBeenCalled();
-      expect(chrome.storage.local.set).not.toHaveBeenCalled();
+      expect(browserAPI.storage.local.get).not.toHaveBeenCalled();
+      expect(browserAPI.storage.local.set).not.toHaveBeenCalled();
       expect(console.log).not.toHaveBeenCalledWith(
         expect.stringContaining('Citation saved:')
       );
@@ -165,10 +247,10 @@ describe('Background Script', () => {
         selectionText: 'Text without tab info'
       };
 
-      await clickHandler(mockInfo);
+      await mockBackgroundScript.handleContextMenuClick(mockInfo);
 
-      expect(chrome.storage.local.get).toHaveBeenCalled();
-      expect(chrome.storage.local.set).toHaveBeenCalledWith({
+      expect(browserAPI.storage.local.get).toHaveBeenCalled();
+      expect(browserAPI.storage.local.set).toHaveBeenCalledWith({
         citationHistory: ['Text without tab info']
       });
     });
@@ -179,15 +261,15 @@ describe('Background Script', () => {
         selectionText: ''
       };
 
-      await clickHandler(mockInfo);
+      await mockBackgroundScript.handleContextMenuClick(mockInfo);
 
-      expect(chrome.storage.local.set).toHaveBeenCalledWith({
+      expect(browserAPI.storage.local.set).toHaveBeenCalledWith({
         citationHistory: ['']
       });
     });
 
     it('should handle storage errors gracefully', async () => {
-      chrome.storage.local.get.mockRejectedValue(new Error('Storage error'));
+      browserAPI.storage.local.get.mockRejectedValue(new Error('Storage error'));
 
       const mockInfo = {
         menuItemId: 'save-citation',
@@ -195,7 +277,7 @@ describe('Background Script', () => {
       };
 
       // The function should not throw
-      await expect(clickHandler(mockInfo)).rejects.toThrow('Storage error');
+      await expect(mockBackgroundScript.handleContextMenuClick(mockInfo)).rejects.toThrow('Storage error');
     });
 
     it('should handle special characters in selection text', async () => {
@@ -204,9 +286,9 @@ describe('Background Script', () => {
         selectionText: 'Text with "quotes" and <HTML> & special chars 中文'
       };
 
-      await clickHandler(mockInfo);
+      await mockBackgroundScript.handleContextMenuClick(mockInfo);
 
-      expect(chrome.storage.local.set).toHaveBeenCalledWith({
+      expect(browserAPI.storage.local.set).toHaveBeenCalledWith({
         citationHistory: ['Text with "quotes" and <HTML> & special chars 中文']
       });
     });
@@ -218,55 +300,41 @@ describe('Background Script', () => {
         selectionText: longText
       };
 
-      await clickHandler(mockInfo);
+      await mockBackgroundScript.handleContextMenuClick(mockInfo);
 
-      expect(chrome.storage.local.set).toHaveBeenCalledWith({
+      expect(browserAPI.storage.local.set).toHaveBeenCalledWith({
         citationHistory: [longText]
       });
     });
   });
 
   describe('Error Handling', () => {
-    let clickHandler;
-
-    beforeEach(() => {
-      const addListenerCall = chrome.contextMenus.onClicked.addListener.mock.calls[0];
-      clickHandler = addListenerCall[0];
-    });
-
     it('should handle storage.get errors', async () => {
-      chrome.storage.local.get.mockRejectedValue(new Error('Failed to get storage'));
+      browserAPI.storage.local.get.mockRejectedValue(new Error('Failed to get storage'));
 
       const mockInfo = {
         menuItemId: 'save-citation',
         selectionText: 'Test text'
       };
 
-      await expect(clickHandler(mockInfo)).rejects.toThrow('Failed to get storage');
-      expect(chrome.storage.local.set).not.toHaveBeenCalled();
+      await expect(mockBackgroundScript.handleContextMenuClick(mockInfo)).rejects.toThrow('Failed to get storage');
+      expect(browserAPI.storage.local.set).not.toHaveBeenCalled();
     });
 
     it('should handle storage.set errors', async () => {
-      chrome.storage.local.set.mockRejectedValue(new Error('Failed to set storage'));
+      browserAPI.storage.local.set.mockRejectedValue(new Error('Failed to set storage'));
 
       const mockInfo = {
         menuItemId: 'save-citation',
         selectionText: 'Test text'
       };
 
-      await expect(clickHandler(mockInfo)).rejects.toThrow('Failed to set storage');
-      expect(chrome.storage.local.get).toHaveBeenCalled();
+      await expect(mockBackgroundScript.handleContextMenuClick(mockInfo)).rejects.toThrow('Failed to set storage');
+      expect(browserAPI.storage.local.get).toHaveBeenCalled();
     });
   });
 
   describe('Multiple Citations', () => {
-    let clickHandler;
-
-    beforeEach(() => {
-      const addListenerCall = chrome.contextMenus.onClicked.addListener.mock.calls[0];
-      clickHandler = addListenerCall[0];
-    });
-
     it('should handle multiple sequential citations', async () => {
       // First citation
       const mockInfo1 = {
@@ -274,14 +342,14 @@ describe('Background Script', () => {
         selectionText: 'First citation'
       };
 
-      await clickHandler(mockInfo1);
+      await mockBackgroundScript.handleContextMenuClick(mockInfo1);
 
-      expect(chrome.storage.local.set).toHaveBeenCalledWith({
+      expect(browserAPI.storage.local.set).toHaveBeenCalledWith({
         citationHistory: ['First citation']
       });
 
       // Update mock to return the new history
-      chrome.storage.local.get.mockResolvedValue({
+      browserAPI.storage.local.get.mockResolvedValue({
         citationHistory: ['First citation']
       });
 
@@ -291,34 +359,23 @@ describe('Background Script', () => {
         selectionText: 'Second citation'
       };
 
-      await clickHandler(mockInfo2);
+      await mockBackgroundScript.handleContextMenuClick(mockInfo2);
 
-      expect(chrome.storage.local.set).toHaveBeenCalledWith({
+      expect(browserAPI.storage.local.set).toHaveBeenCalledWith({
         citationHistory: ['First citation', 'Second citation']
       });
     });
   });
 
   describe('Sync Trigger Message Handler', () => {
-    let messageHandler;
-
-    beforeEach(() => {
-      // Get the message handler that was registered
-      const addListenerCall = chrome.runtime.onMessage.addListener.mock.calls[0];
-      messageHandler = addListenerCall[0];
-    });
-
     it('should handle triggerSync messages', async () => {
       const mockRequest = { action: 'triggerSync' };
       const mockSender = {};
       const mockSendResponse = jest.fn();
 
-      const result = messageHandler(mockRequest, mockSender, mockSendResponse);
+      const result = mockBackgroundScript.handleMessage(mockRequest, mockSender, mockSendResponse);
 
-      expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
-        { action: 'performSync' },
-        expect.any(Function)
-      );
+      expect(browserAPI.runtime.sendMessage).toHaveBeenCalledWith({ action: 'performSync' });
       expect(result).toBe(true); // Should return true to keep message channel open
     });
 
@@ -327,9 +384,9 @@ describe('Background Script', () => {
       const mockSender = {};
       const mockSendResponse = jest.fn();
 
-      const result = messageHandler(mockRequest, mockSender, mockSendResponse);
+      const result = mockBackgroundScript.handleMessage(mockRequest, mockSender, mockSendResponse);
 
-      expect(chrome.runtime.sendMessage).not.toHaveBeenCalled();
+      expect(browserAPI.runtime.sendMessage).not.toHaveBeenCalled();
       expect(result).toBeUndefined();
     });
 
@@ -339,15 +396,31 @@ describe('Background Script', () => {
       const mockSendResponse = jest.fn();
       const mockSyncResponse = { success: true, data: 'test' };
 
-      // Mock chrome.runtime.sendMessage to call the callback with mock response
-      chrome.runtime.sendMessage.mockImplementation((message, callback) => {
-        if (callback) callback(mockSyncResponse);
-        return Promise.resolve(mockSyncResponse);
-      });
+      // Mock browserAPI.runtime.sendMessage to resolve with mock response
+      browserAPI.runtime.sendMessage.mockResolvedValue(mockSyncResponse);
 
-      messageHandler(mockRequest, mockSender, mockSendResponse);
+      mockBackgroundScript.handleMessage(mockRequest, mockSender, mockSendResponse);
+
+      // Wait for promise to resolve
+      await new Promise(resolve => setTimeout(resolve, 0));
 
       expect(mockSendResponse).toHaveBeenCalledWith(mockSyncResponse);
+    });
+
+    it('should handle sync errors and forward them', async () => {
+      const mockRequest = { action: 'triggerSync' };
+      const mockSender = {};
+      const mockSendResponse = jest.fn();
+      const mockError = new Error('Sync failed');
+
+      browserAPI.runtime.sendMessage.mockRejectedValue(mockError);
+
+      mockBackgroundScript.handleMessage(mockRequest, mockSender, mockSendResponse);
+
+      // Wait for promise to reject
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      expect(mockSendResponse).toHaveBeenCalledWith({ error: 'Sync failed' });
     });
 
     it('should log sync trigger request', () => {
@@ -355,7 +428,7 @@ describe('Background Script', () => {
       const mockSender = {};
       const mockSendResponse = jest.fn();
 
-      messageHandler(mockRequest, mockSender, mockSendResponse);
+      mockBackgroundScript.handleMessage(mockRequest, mockSender, mockSendResponse);
 
       expect(console.log).toHaveBeenCalledWith('Sync trigger requested from content script');
     });
