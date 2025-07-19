@@ -39,7 +39,7 @@ const browserAPI = (() => {
 let saveButton: HTMLButtonElement | null = null;
 
 // Listen for storage changes to react to extension toggle
-browserAPI.storage.onChanged.addListener((changes, namespace) => {
+browserAPI.storage.onChanged.addListener((changes: any, namespace: any) => {
   if (namespace === 'local' && changes.extensionActive) {
     const isActive = changes.extensionActive.newValue;
     if (!isActive && saveButton) {

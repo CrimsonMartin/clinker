@@ -21,7 +21,7 @@ The Citation Linker browser extension is functionally complete for its core use 
 - **Context Operations**: Right-click to shift nodes, promote to root level
 
 #### 3. Firebase Cloud Sync
-- **Authentication**: Google OAuth and email/password working
+- **Authentication**: Email/password authentication only (Google OAuth removed for Firefox compatibility)
 - **Real-time Sync**: Cross-device synchronization implemented
 - **Conflict Resolution**: Last-write-wins with data repair mechanisms
 - **Offline Support**: Local-first architecture with cloud backup
@@ -126,9 +126,10 @@ The Citation Linker browser extension is functionally complete for its core use 
 1. **Chrome Web Store Submission**: Extension bundling and publishing completed ✅
 2. **Manifest V3 Compliance**: Successfully migrated from Firebase SDK to REST API ✅
 3. **Chrome Store Resubmission**: Ready for upload - no more remotely hosted code ✅
-4. **Stress Testing**: Large citation collections, multiple devices
-5. **Error Recovery**: Better Firebase connection handling
-6. **UI Polish**: Loading states, smoother animations
+4. **Cross-Browser Auth**: Removed Google OAuth for Firefox compatibility ✅
+5. **Stress Testing**: Large citation collections, multiple devices
+6. **Error Recovery**: Better Firebase connection handling
+7. **UI Polish**: Loading states, smoother animations
 
 ### Medium-term (Next 1-2 months)
 1. **Performance Optimization**: Virtual scrolling, search indexing
@@ -183,8 +184,9 @@ The Citation Linker browser extension is functionally complete for its core use 
 
 #### Authentication Strategy
 **Original**: Anonymous usage only
-**Current**: Optional Google OAuth with email fallback
-**Reason**: Cloud sync requires authentication, but kept optional for privacy
+**Evolution**: Google OAuth + email/password
+**Current**: Email/password only (removed Google OAuth for cross-browser compatibility)
+**Reason**: Chrome Identity API not available in Firefox, simplified to universal approach
 
 #### Data Sync Approach
 **Original**: Manual export/import

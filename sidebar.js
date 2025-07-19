@@ -710,8 +710,20 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 document.addEventListener('DOMContentLoaded', async () => {
+  console.log('DOMContentLoaded - Starting initialization');
+  
   // Initialize auth and sync
-  await initializeAuthAndSync();
+  try {
+    await initializeAuthAndSync();
+    console.log('Auth and sync initialized successfully');
+  } catch (error) {
+    console.error('Error initializing auth and sync:', error);
+    // Still show the login prompt even if there's an error
+    const loginPrompt = document.getElementById('loginPrompt');
+    if (loginPrompt) {
+      loginPrompt.classList.add('show');
+    }
+  }
   
   loadAndDisplayTree();
   initializeToggle();

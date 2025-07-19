@@ -1,5 +1,5 @@
 // REST-based Authentication management for Citation Linker
-// Uses Chrome Identity API + Firebase Auth REST API (Manifest V3 compliant)
+// Uses Firebase Auth REST API for email/password authentication (Manifest V3 compliant)
 
 class AuthManager {
   constructor() {
@@ -104,87 +104,6 @@ class AuthManager {
     this.authStateListeners.forEach(callback => callback(user));
   }
 
-  // Sign in with Google using Chrome Identity API
-  async signInWithGoogle() {
-    try {
-      if (typeof chrome === 'undefined' || !chrome.identity) {
-        throw new Error('Chrome Identity API not available');
-      }
-
-      // Get OAuth token from Chrome Identity API
-      const token = await new Promise((resolve, reject) => {
-        chrome.identity.getAuthToken({ interactive: true }, (token) => {
-          if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
-          } else {
-            resolve(token);
-          }
-        });
-      });
-
-      console.log('Got OAuth token from Chrome Identity API');
-
-      // Exchange OAuth token for Firebase custom token
-      const firebaseAuth = await this.exchangeOAuthTokenForFirebase(token);
-      
-      if (firebaseAuth.success) {
-        await this.setUserAuthState(firebaseAuth.user, firebaseAuth.token, firebaseAuth.expiresIn);
-        console.log('Successfully signed in with Google:', firebaseAuth.user.email);
-        return { success: true, user: firebaseAuth.user };
-      } else {
-        throw new Error(firebaseAuth.error);
-      }
-
-    } catch (error) {
-      console.error('Google sign-in error:', error);
-      return { success: false, error: error.message };
-    }
-  }
-
-  // Exchange OAuth token for Firebase authentication
-  async exchangeOAuthTokenForFirebase(oauthToken) {
-    try {
-      // Use Firebase Auth REST API to sign in with OAuth credential
-      const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${this.apiKey}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          requestUri: window.location.origin,
-          postBody: `access_token=${oauthToken}&providerId=google.com`,
-          returnSecureToken: true,
-          returnIdpCredential: true
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error?.message || 'OAuth exchange failed');
-      }
-
-      const user = {
-        uid: data.localId,
-        email: data.email,
-        displayName: data.displayName || data.email
-      };
-
-      return {
-        success: true,
-        user: user,
-        token: data.idToken,
-        expiresIn: parseInt(data.expiresIn) * 1000 // Convert to milliseconds
-      };
-
-    } catch (error) {
-      console.error('OAuth exchange error:', error);
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  }
 
   // Sign in with email and password using Firebase Auth REST API
   async signInWithEmail(email, password) {
@@ -300,20 +219,6 @@ class AuthManager {
   // Sign out
   async signOut() {
     try {
-      // Clear Chrome Identity API cached tokens if available
-      if (typeof chrome !== 'undefined' && chrome.identity && this.currentUser?.authToken) {
-        try {
-          await new Promise((resolve) => {
-            chrome.identity.removeCachedAuthToken(
-              { token: this.currentUser.authToken }, 
-              resolve
-            );
-          });
-        } catch (e) {
-          console.warn('Could not clear Chrome Identity token:', e);
-        }
-      }
-
       // Clear local auth state
       await this.clearStoredAuth();
       

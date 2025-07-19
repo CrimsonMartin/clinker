@@ -1,201 +1,102 @@
-# Active Context - Current Work Focus
+# Active Context - Current Work and Focus
 
-## Current State Overview
+## Current Task: Cross-Browser Authentication Simplification
 
-The Citation Linker browser extension is in an advanced development state with core functionality implemented. The project focuses on research workflow optimization through visual citation trees, voice annotations, and cross-device synchronization.
+### Just Completed (2025-01-18)
+1. **Removed Google OAuth** - Simplified to email/password only for Firefox compatibility
+2. **Fixed Browser Compatibility** - Created minimal browser-compat.js that works in both Chrome and Firefox
+3. **Resolved TypeScript Issues** - Added proper type declarations for browser API
 
-## Recent Context (Last Work Session)
+### Browser Compatibility Solution
+- Created minimal `browser-compat.js` that simply aliases `chrome` to `browser` when needed
+- No complex promise wrapping or API translation needed
+- Works because Chrome and Firefox APIs are largely compatible in Manifest V3
 
-### Key Areas of Focus
-1. **Critical Bug Fix**: Resolved extension button not appearing on text selection in both Chromium and Firefox
-2. **Module Import Issue**: Fixed ES6 module import problem in content script for Manifest V3 compatibility
-3. **Unit Test Updates**: Updated content script tests to reflect inline browser API implementation
-4. **Cross-Browser Testing**: Verified fix works in both Firefox and Chromium browsers
+### Key Changes Made:
+1. **browser-compat.js** - Reduced from complex ES6 module to simple 6-line IIFE
+2. **HTML files** - Load browser-compat.js first before any other scripts
+3. **TypeScript files** - Use global `browser` API without imports
+4. **Authentication** - Email/password only, no OAuth complexity
 
-### Active Patterns & Decisions
+### Why This Works:
+- Firefox: Already has `browser` defined globally
+- Chrome: Gets `browser` as alias to `chrome` via our compatibility script
+- Both browsers support the same API methods in Manifest V3
 
-#### Data Integrity Patterns
-The project heavily emphasizes data integrity through validation and repair mechanisms:
+## Current Extension State
 
+### Working Features
+- ✅ Text highlighting and citation saving
+- ✅ Tree organization with drag & drop
+- ✅ Firebase sync with email/password auth
+- ✅ Search functionality
+- ✅ Voice annotations
+- ✅ Cross-browser support (Chrome & Firefox)
+
+### Recent Issues Resolved
+- "browser is not defined" error in Chrome - FIXED
+- "Unexpected token 'export'" error - FIXED
+- Google OAuth not working in Firefox - REMOVED
+
+### Technical Stack
+- TypeScript with browser API declarations
+- Firebase REST API (no SDK)
+- Manifest V3 compliant
+- Local-first architecture
+
+## Next Steps
+
+### Immediate
+1. Test extension in both Chrome and Firefox
+2. Verify Firebase auth works in both browsers
+3. Submit to Chrome Web Store
+
+### Short-term
+1. Add Firefox-specific manifest adjustments if needed
+2. Create Firefox Add-ons listing
+3. Monitor for any browser-specific issues
+
+### Important Patterns
+
+#### Browser API Usage
+Always use `browser` API (not `chrome`):
 ```javascript
-// Tree validation pattern used throughout
-function validateAndRepairTree(tree) {
-  // Repairs orphaned nodes, invalid children arrays, broken references
-  // Returns repair report and corrected structure
-}
+// Good - works in both browsers
+browser.storage.local.get()
+browser.runtime.sendMessage()
+
+// Avoid - Chrome-specific
+chrome.storage.local.get()
 ```
 
-**Key Insight**: The system proactively detects and repairs data corruption, particularly important for tree structures where parent-child relationships can break.
+#### Authentication Flow
+Email/password only:
+- Sign up with email verification
+- Sign in with credentials
+- Password reset via email
+- No OAuth providers
 
-#### Local-First Architecture
-Critical pattern: All UI actions update local storage immediately, then sync to cloud:
+#### Script Loading Order
+1. browser-compat.js (creates global browser object)
+2. firebase-config.js (Firebase configuration)
+3. Application scripts (auth.js, sync.js, etc.)
 
-```javascript
-// Pattern used consistently
-User Action → Local Storage Update → UI Update → Firebase Sync → Other Devices
-```
+## Recent Learnings
 
-**Benefits**: Immediate UI response, offline capability, eventual consistency
+### Cross-Browser Development
+1. Keep compatibility layers minimal
+2. Use standard APIs that work in both browsers
+3. Avoid browser-specific features when possible
+4. Test in both browsers regularly
 
-#### Event-Driven Communication
-Components communicate through browser extension messaging and Firebase events:
+### Firebase Without SDK
+1. REST API works reliably in extensions
+2. No remote code violations
+3. Simpler authentication without OAuth
+4. Better for cross-browser compatibility
 
-```javascript
-// Cross-component pattern
-chrome.runtime.sendMessage({ type: 'ACTION', data: {...} });
-firebase.auth().onAuthStateChanged((user) => { /* notify all listeners */ });
-```
-
-## Current Technical Priorities
-
-### 1. Sync Reliability
-**Status**: Core implementation complete, needs stress testing
-**Focus**: Conflict resolution when multiple devices modify same data
-**Pattern**: Last-write-wins with repair mechanisms for data integrity
-
-### 2. User Experience Polish
-**Status**: Functional but needs refinement
-**Key Areas**:
-- Drag & drop visual feedback
-- Loading states during sync operations
-- Error messaging and recovery flows
-
-### 3. Performance Optimization
-**Current Concerns**:
-- Tree rendering performance with large citation collections
-- Search operations on extensive datasets
-- Memory usage in content scripts
-
-## Development Workflow Context
-
-### Current Build Process
-```bash
-npm run build:config  # Environment variable processing
-npm run build         # TypeScript compilation to dist/
-npm run start         # Development with web-ext in Firefox
-```
-
-### Testing Approach
-- **Unit Tests**: Jest with browser API mocking
-- **Integration**: Manual testing across browsers
-- **Coverage Target**: >80% for core business logic
-
-### Key Development Patterns
-
-#### TypeScript Integration
-- Strict mode enabled for type safety
-- Targets ES2020 for broad browser support
-- Compiles to `dist/` folder for extension loading
-
-#### Browser API Abstraction
-```javascript
-// Universal pattern for cross-browser compatibility
-const browser = chrome || browser;
-await browser.storage.local.set(data);
-```
-
-#### Error Handling Strategy
-- Graceful degradation (offline mode, local fallback)
-- User-facing error messages with retry options
-- Comprehensive logging for debugging
-
-## Architecture Insights
-
-### Component Relationships
-The extension follows clear separation of concerns:
-
-- **Background Script**: Event coordination, context menus
-- **Content Script**: Page interaction, text selection
-- **Sidebar**: Main UI, tree visualization, search
-- **Firebase Layer**: Authentication, data persistence
-
-### Data Flow Patterns
-1. **Citation Creation**: Content script → Background → Sidebar → Firebase
-2. **Tree Manipulation**: Sidebar → Local storage → Firebase → Other devices
-3. **Authentication**: Sidebar → Firebase → All components notified
-
-### State Management
-- **Local Storage**: Primary source of truth for immediate UI
-- **Firebase**: Authoritative source for cross-device consistency
-- **Memory**: Component-specific state (search results, UI flags)
-
-## Current Challenges & Considerations
-
-### 1. Tree Data Integrity
-**Challenge**: Parent-child relationships can become inconsistent
-**Solution**: Proactive validation and repair on load
-**Pattern**: Always validate tree structure before rendering
-
-### 2. Sync Conflicts
-**Challenge**: Multiple devices modifying same citation tree
-**Current Approach**: Last-write-wins with data repair
-**Future Enhancement**: Operational transforms for better merging
-
-### 3. Search Performance
-**Challenge**: Real-time search across large trees
-**Current Solution**: Debounced input with efficient filtering
-**Optimization Opportunity**: Indexing for faster text search
-
-## User Experience Principles
-
-### 1. Immediate Response
-UI updates happen instantly on local storage changes, sync happens in background
-
-### 2. Visual Clarity
-Tree structure makes citation relationships immediately apparent
-
-### 3. Forgiving Interface
-- Drag & drop with clear visual feedback
-- Context menus for advanced operations
-- Search with both filter and highlight modes
-
-## Next Development Areas
-
-### High Priority
-1. **Stress Testing**: Large citation collections, multiple device sync
-2. **Error Recovery**: Better handling of Firebase connection issues
-3. **Performance**: Optimize tree rendering for 1000+ citations
-
-### Medium Priority
-1. **Voice Features**: Improve speech recognition accuracy
-2. **UI Polish**: Loading states, better animations
-3. **Accessibility**: Keyboard navigation, screen reader support
-
-### Future Enhancements
-1. **PDF Support**: Annotation of PDF documents
-2. **Export Formats**: BibTeX, APA, MLA citation formats
-3. **Collaboration**: Shared research trees
-
-## Important Implementation Notes
-
-### Firebase Configuration
-- Requires environment variables in `.env` file
-- Uses Firestore for data, Auth for user management
-- Security rules ensure user data isolation
-
-### Browser Extension Constraints
-- Manifest V3: Service workers only, no persistent background
-- CSP restrictions: Limited inline scripts
-- Permission model: Explicit user consent required
-
-### Cross-Browser Support
-- Primary: Chrome (Manifest V3)
-- Secondary: Firefox (WebExtensions)
-- Target: Edge (Chromium-based)
-
-## Code Quality Standards
-
-### TypeScript Usage
-- Strict mode enabled for maximum type safety
-- Comprehensive interface definitions
-- Error handling with typed return objects
-
-### Testing Philosophy
-- Unit tests for business logic
-- Integration tests for user workflows
-- Mock browser APIs for testability
-
-### Documentation Approach
-- Memory bank for high-level architecture
-- Inline comments for complex algorithms
-- README for setup and deployment
+### Extension Architecture
+1. Service workers behave similarly in both browsers
+2. Content scripts need inline compatibility code
+3. Global browser object is the simplest solution
+4. TypeScript declarations help catch API differences

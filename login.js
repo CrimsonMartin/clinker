@@ -93,22 +93,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
   
-  // Google Sign In buttons
-  document.getElementById('googleSigninBtn').addEventListener('click', handleGoogleSignIn);
-  document.getElementById('googleSignupBtn').addEventListener('click', handleGoogleSignIn);
-  
-  async function handleGoogleSignIn() {
-    const result = await authManager.signInWithGoogle();
-    
-    if (result.success) {
-      showSuccess('Successfully signed in with Google! Redirecting...');
-      setTimeout(() => {
-        window.location.href = 'sidebar.html';
-      }, 1500);
-    } else {
-      showError('signin-email', result.error);
-    }
-  }
   
   // Forgot password
   document.getElementById('forgotPasswordBtn').addEventListener('click', async () => {
