@@ -67,8 +67,10 @@ export class SidebarController {
           // Clear the UI-only flag
           browser.storage.local.get('citationTree').then((result: any) => {
             const tree = result.citationTree;
-            delete tree.uiOnlyChange;
-            browser.storage.local.set({ citationTree: tree });
+            if (tree && tree.uiOnlyChange) {
+              delete tree.uiOnlyChange;
+              browser.storage.local.set({ citationTree: tree });
+            }
           });
         } else {
           // Full reload for structural changes

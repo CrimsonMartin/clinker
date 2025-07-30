@@ -14,7 +14,7 @@ interface SearchElements {
 }
 
 export class SearchBar {
-  private searchTimeout: number | null;
+  private searchTimeout: any;
   private elements: SearchElements;
   private initialized: boolean;
 

@@ -26,6 +26,7 @@
     "@types/chrome": "^0.0.270",
     "@types/firefox-webext-browser": "^120.0.4",
     "@types/jest": "^29.5.14",
+    "@types/node": "^24.1.0",
     "archiver": "^7.0.1",
     "chrome-webstore-upload-cli": "^3.3.2",
     "chrome-webstore-upload-keys": "^1.1.5",
@@ -37,6 +38,5 @@
     "typescript": "^5.8.3",
     "web-ext": "^8.7.1",
     "web-ext-submit": "^7.8.0"
-  },
-  "dependencies": {}
+  }
 }

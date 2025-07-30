@@ -1,0 +1,192 @@
+/**
+ * @jest-environment jsdom
+ */
+
+import { AuthStatus } from '../components/authStatus';
+
+describe('AuthStatus', () => {
+  let authStatus: AuthStatus;
+  let mockAuthManager: any;
+
+  beforeEach(() => {
+    // Clear document body
+    document.body.innerHTML = `
+      <div id="loginPrompt"></div>
+      <div id="userSection"></div>
+      <div id="userEmail"></div>
+      <button id="loginButton"></button>
+      <button id="logoutButton"></button>
+    `;
+
+    // Clear mocks
+    jest.clearAllMocks();
+
+    // Mock console
+    (global as any).console = {
+      ...(global as any).console,
+      log: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn()
+    };
+
+    // Mock authManager
+    mockAuthManager = {
+      signOut: jest.fn().mockResolvedValue({ success: true }),
+      isLoggedIn: jest.fn().mockReturnValue(true),
+      getCurrentUser: jest.fn().mockResolvedValue({ email: 'test@example.com' }),
+      onAuthStateChanged: jest.fn()
+    };
+
+    (window as any).authManager = mockAuthManager;
+
+    // Create new AuthStatus instance
+    authStatus = new AuthStatus();
+  });
+
+  describe('initialize', () => {
+    it('should initialize successfully with all elements present', () => {
+      authStatus.initialize();
+      
+      // Verify no errors were logged
+      expect(console.error).not.toHaveBeenCalled();
+    });
+
+    it('should handle missing elements gracefully', () => {
+      document.body.innerHTML = ''; // Remove all elements
+      
+      authStatus.initialize();
+      
+      expect(console.error).toHaveBeenCalledWith(
+        'Missing auth elements:', 
+        expect.arrayContaining(['loginPrompt', 'userSection', 'userEmail', 'loginButton', 'logoutButton'])
+      );
+    });
+
+    it('should setup event listeners', () => {
+      authStatus.initialize();
+      
+      const loginButton = document.getElementById('loginButton');
+      const logoutButton = document.getElementById('logoutButton');
+      
+      // Test that event listeners were added by checking if they exist
+      expect(loginButton).toBeDefined();
+      expect(logoutButton).toBeDefined();
+    });
+  });
+
+  describe('updateUI', () => {
+    beforeEach(() => {
+      authStatus.initialize();
+    });
+
+    it('should update UI for logged in user', () => {
+      const user = { email: 'test@example.com' };
+      
+      authStatus.updateUI(user);
+      
+      const loginPrompt = document.getElementById('loginPrompt');
+      const userSection = document.getElementById('userSection');
+      const userEmail = document.getElementById('userEmail');
+      
+      expect(loginPrompt?.classList.contains('show')).toBe(false);
+      expect(userSection?.classList.contains('show')).toBe(true);
+      expect(userEmail?.textContent).toBe('test@example.com');
+    });
+
+    it('should update UI for logged out user', () => {
+      authStatus.updateUI(null);
+      
+      const loginPrompt = document.getElementById('loginPrompt');
+      const userSection = document.getElementById('userSection');
+      const userEmail = document.getElementById('userEmail');
+      
+      expect(loginPrompt?.classList.contains('show')).toBe(true);
+      expect(userSection?.classList.contains('show')).toBe(false);
+      expect(userEmail?.textContent).toBe('');
+    });
+
+    it('should warn when not initialized', () => {
+      const uninitializedAuthStatus = new AuthStatus();
+      uninitializedAuthStatus.updateUI({ email: 'test@example.com' });
+      
+      expect(console.warn).toHaveBeenCalledWith('AuthStatus not initialized');
+    });
+  });
+
+  describe('showLoginPrompt', () => {
+    beforeEach(() => {
+      authStatus.initialize();
+    });
+
+    it('should add show class to login prompt', () => {
+      const loginPrompt = document.getElementById('loginPrompt');
+      loginPrompt?.classList.remove('show');
+      
+      authStatus.showLoginPrompt();
+      
+      expect(loginPrompt?.classList.contains('show')).toBe(true);
+    });
+  });
+
+  describe('hideLoginPrompt', () => {
+    beforeEach(() => {
+      authStatus.initialize();
+    });
+
+    it('should remove show class from login prompt', () => {
+      const loginPrompt = document.getElementById('loginPrompt');
+      loginPrompt?.classList.add('show');
+      
+      authStatus.hideLoginPrompt();
+      
+      expect(loginPrompt?.classList.contains('show')).toBe(false);
+    });
+  });
+
+  describe('event listeners', () => {
+    beforeEach(() => {
+      authStatus.initialize();
+    });
+
+    it('should navigate to login page when login button is clicked', () => {
+      const loginButton = document.getElementById('loginButton');
+      
+      // Mock window.location.assign
+      const mockAssign = jest.fn();
+      delete (window as any).location;
+      (window as any).location = { assign: mockAssign };
+      
+      loginButton?.dispatchEvent(new Event('click'));
+      
+      expect(mockAssign).toHaveBeenCalledWith('login.html');
+    });
+
+    it('should call signOut when logout button is clicked', async () => {
+      const logoutButton = document.getElementById('logoutButton');
+      
+      logoutButton?.dispatchEvent(new Event('click'));
+      
+      // Wait for async operation
+      await new Promise(resolve => setTimeout(resolve, 0));
+      
+      expect(mockAuthManager.signOut).toHaveBeenCalled();
+      expect(console.log).toHaveBeenCalledWith('Successfully logged out');
+    });
+
+    it('should handle logout error', async () => {
+      mockAuthManager.signOut.mockResolvedValue({ 
+        success: false, 
+        error: 'Logout failed' 
+      });
+      
+      const logoutButton = document.getElementById('logoutButton');
+      
+      logoutButton?.dispatchEvent(new Event('click'));
+      
+      // Wait for async operation
+      await new Promise(resolve => setTimeout(resolve, 0));
+      
+      expect(console.error).toHaveBeenCalledWith('Logout error:', 'Logout failed');
+    });
+  });
+});
