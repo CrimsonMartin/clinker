@@ -1,0 +1,35 @@
+/* Citation Linker - Main Styles */
+
+body {
+  width: 600px;
+  min-height: 400px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  margin: 0;
+  padding: 16px;
+  background-color: #f8fafc;
+}
+
+h1 {
+  font-size: 1.3em;
+  margin: 0 0 16px 0;
+  color: #1e293b;
+}
+
+/* Tree Container */
+.tree-container {
+  background: white;
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow-x: auto;
+  overflow-y: auto;
+  min-height: 500px;
+  max-height: calc(100vh - 100px);
+}
+
+.empty-state {
+  text-align: center;
+  color: #64748b;
+  font-style: italic;
+  padding: 32px 16px;
+}

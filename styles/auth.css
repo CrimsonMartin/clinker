@@ -1,0 +1,121 @@
+/* Citation Linker - Authentication Styles */
+
+/* Auth and sync status styles */
+.user-section {
+  background: white;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  display: none;
+}
+
+.user-section.show {
+  display: block;
+}
+
+.user-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.user-email {
+  font-size: 14px;
+  color: #334155;
+  font-weight: 500;
+}
+
+.logout-button {
+  background: none;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.logout-button:hover {
+  background: #fee2e2;
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.sync-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.sync-icon {
+  width: 16px;
+  height: 16px;
+  animation: spin 1s linear infinite;
+}
+
+.sync-icon.synced {
+  animation: none;
+  color: #10b981;
+}
+
+.sync-icon.error {
+  animation: none;
+  color: #ef4444;
+}
+
+.sync-icon.offline {
+  animation: none;
+  color: #94a3b8;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.login-prompt {
+  background: #f0f9ff;
+  border: 1px solid #3b82f6;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  text-align: center;
+  display: none;
+}
+
+.login-prompt.show {
+  display: block;
+}
+
+.login-prompt-text {
+  font-size: 13px;
+  color: #1e40af;
+  margin-bottom: 8px;
+}
+
+.login-button {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.login-button:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}

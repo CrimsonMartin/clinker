@@ -1,0 +1,89 @@
+<!-- Citation Linker - Main Content Template -->
+
+<div class="toggle-container">
+  <span class="toggle-label">
+    <h1>Citation Linker</h1>
+  </span>
+  <div style="display: flex; align-items: center; gap: 12px;">
+    <label class="toggle-switch">
+      <input type="checkbox" id="extensionToggle" checked>
+      <span class="toggle-slider"></span>
+    </label>
+    <span class="toggle-status active" id="toggleStatus">ON</span>
+    <button class="search-toggle-btn" id="searchToggleBtn" title="Search research trees">
+      &#128269;
+    </button>
+  </div>
+</div>
+
+<!-- Login prompt -->
+<div class="login-prompt" id="loginPrompt">
+  <div class="login-prompt-text">Sign in to sync your research across devices</div>
+  <button class="login-button" id="loginButton">Sign In</button>
+</div>
+
+<div class="tree-container">
+  <!-- Search Bar -->
+  <div class="search-container" id="searchContainer" style="display: none;">
+    <div class="search-header">
+      <div class="search-input-wrapper">
+        <input type="text" id="searchInput" class="search-input" placeholder="Search highlighted content and annotations..." />
+        <div class="search-controls">
+          <button id="searchPrevBtn" class="search-nav-btn" title="Previous result">&uarr;</button>
+          <button id="searchNextBtn" class="search-nav-btn" title="Next result">&darr;</button>
+          <span id="searchCounter" class="search-counter">0 of 0</span>
+          <button id="searchCloseBtn" class="search-close-btn" title="Close search">&times;</button>
+        </div>
+      </div>
+      <div class="search-options">
+        <label class="search-option">
+          <input type="checkbox" id="searchHighlighted" checked>
+          <span>Highlighted Content</span>
+        </label>
+        <label class="search-option">
+          <input type="checkbox" id="searchAnnotations" checked>
+          <span>Annotations</span>
+        </label>
+        <label class="search-option">
+          <input type="checkbox" id="searchFilterMode">
+          <span>Filter Mode</span>
+        </label>
+      </div>
+    </div>
+  </div>
+  
+  <div id="tree-root">
+    <div class="empty-state">No citations saved yet. Highlight text on any webpage to start building your research tree.</div>
+  </div>
+</div>
+
+<!-- User section -->
+<div class="user-section" id="userSection">
+  <div class="user-info">
+    <span class="user-email" id="userEmail"></span>
+    <button class="logout-button" id="logoutButton">Sign Out</button>
+  </div>
+  <div class="sync-status" id="syncStatus">
+    <svg class="sync-icon" id="syncIcon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+    </svg>
+    <span id="syncStatusText">Offline</span>
+  </div>
+</div>
+
+<!-- Buy Me a Coffee Donation Button -->
+<div class="donation-container">
+  <div class="donation-card">
+    <div class="donation-content">
+      <span class="donation-icon">&#9749;</span>
+      <div class="donation-text">
+        <div class="donation-title">Support Development</div>
+        <div class="donation-subtitle">Buy me a coffee</div>
+      </div>
+    </div>
+    <button class="donation-button" id="donationButton">
+      <span class="heart-icon">&#10084;</span>
+      Donate
+    </button>
+  </div>
+</div>

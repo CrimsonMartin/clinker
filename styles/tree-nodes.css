@@ -1,0 +1,142 @@
+/* Citation Linker - Tree Node Styles */
+
+.tree-node {
+  margin: 4px 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-left: 3px solid #e2e8f0;
+}
+
+.tree-node:hover {
+  background-color: #f1f5f9;
+  border-left-color: #6366f1;
+}
+
+.tree-node.current {
+  background-color: #ede9fe;
+  border-left-color: #6366f1;
+}
+
+.tree-node-content {
+  font-size: 13px;
+  line-height: 1.4;
+  color: #334155;
+  margin-bottom: 4px;
+}
+
+.tree-node-meta {
+  font-size: 11px;
+  color: #64748b;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tree-node-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tree-node-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.tree-node-url {
+  font-family: monospace;
+  background: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 3px;
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-children {
+  margin-left: 20px;
+  border-left: 1px dashed #cbd5e1;
+  padding-left: 12px;
+}
+
+/* Node delete button */
+.node-delete-button {
+  background: #ef4444;
+  color: white;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  margin-left: 8px;
+  min-width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+}
+
+.node-delete-button:hover {
+  background: #dc2626;
+  transform: scale(1.1);
+}
+
+/* Drag and drop styles */
+.tree-node.dragging {
+  opacity: 0.5;
+  transform: rotate(2deg);
+}
+
+.tree-node.drag-over {
+  background-color: #e0e7ff;
+  border-left-color: #6366f1;
+  border-left-width: 4px;
+}
+
+.tree-container.drag-over-background {
+  background-color: #f0f9ff;
+  border: 2px dashed #6366f1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+/* Cursor styles for draggable elements */
+.tree-node[draggable="true"] {
+  cursor: grab;
+}
+
+.tree-node[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+/* Context menu styles */
+.context-menu {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  padding: 4px 0;
+  min-width: 160px;
+  font-size: 13px;
+}
+
+.context-menu-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  color: #374151;
+  transition: background-color 0.2s ease;
+}
+
+.context-menu-item:hover {
+  background-color: #f3f4f6;
+}
+
+.context-menu-item:active {
+  background-color: #e5e7eb;
+}
