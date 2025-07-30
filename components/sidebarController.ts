@@ -1,20 +1,23 @@
-// sidebarController.js - Main controller for sidebar functionality
+// sidebarController.ts - Main controller for sidebar functionality
 
-class SidebarController {
+export class SidebarController {
+  private initialized: boolean;
+  private storageListener: ((changes: any, areaName: string) => void) | null;
+
   constructor() {
     this.initialized = false;
     this.storageListener = null;
   }
 
   // Initialize the sidebar
-  async initialize() {
+  async initialize(): Promise<void> {
     try {
       console.log('Initializing sidebar controller...');
       
       // Initialize all components
-      window.treeContainer.initialize();
-      window.searchBar.initialize();
-      window.authStatus.initialize();
+      (window as any).treeContainer.initialize();
+      (window as any).searchBar.initialize();
+      (window as any).authStatus.initialize();
       
       // Setup storage listener
       this.setupStorageListener();
@@ -26,18 +29,18 @@ class SidebarController {
       await this.loadAndDisplay();
       
       // Initialize Firebase auth if available
-      if (window.authManager) {
-        window.authManager.onAuthStateChanged((user) => {
-          window.authStatus.updateUI(user);
+      if ((window as any).authManager) {
+        (window as any).authManager.onAuthStateChanged((user: any) => {
+          (window as any).authStatus.updateUI(user);
           
-          if (user && window.syncManager) {
-            window.syncManager.startSync();
+          if (user && (window as any).syncManager) {
+            (window as any).syncManager.startSync();
           }
         });
         
         // Check initial auth state
-        const user = await window.authManager.getCurrentUser();
-        window.authStatus.updateUI(user);
+        const user = await (window as any).authManager.getCurrentUser();
+        (window as any).authStatus.updateUI(user);
       }
       
       this.initialized = true;
@@ -49,9 +52,9 @@ class SidebarController {
   }
 
   // Setup storage listener
-  setupStorageListener() {
+  private setupStorageListener(): void {
     // Listen for storage changes
-    this.storageListener = browser.storage.onChanged.addListener((changes, areaName) => {
+    this.storageListener = (changes: any, areaName: string) => {
       if (areaName === 'local' && changes.citationTree) {
         console.log('Tree data changed, reloading...');
         
@@ -62,7 +65,7 @@ class SidebarController {
           this.updateHighlighting(newValue.currentNodeId);
           
           // Clear the UI-only flag
-          browser.storage.local.get('citationTree').then(result => {
+          browser.storage.local.get('citationTree').then((result: any) => {
             const tree = result.citationTree;
             delete tree.uiOnlyChange;
             browser.storage.local.set({ citationTree: tree });
@@ -72,12 +75,14 @@ class SidebarController {
           this.loadAndDisplay();
         }
       }
-    });
+    };
+    
+    browser.storage.onChanged.addListener(this.storageListener);
   }
 
   // Setup message listener
-  setupMessageListener() {
-    browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  private setupMessageListener(): void {
+    browser.runtime.onMessage.addListener((message: any, sender: any, sendResponse: (response: any) => void) => {
       console.log('Sidebar received message:', message);
       
       switch (message.action) {
@@ -87,7 +92,7 @@ class SidebarController {
           break;
           
         case 'focusSearch':
-          window.searchBar.openSearch();
+          (window as any).searchBar.openSearch();
           sendResponse({ success: true });
           break;
           
@@ -107,12 +112,12 @@ class SidebarController {
   }
 
   // Load and display tree
-  async loadAndDisplay() {
+  async loadAndDisplay(): Promise<void> {
     try {
-      await window.treeContainer.loadAndDisplayTree();
+      await (window as any).treeContainer.loadAndDisplayTree();
       
       // Re-run search if active
-      window.searchBar.rerunSearchIfActive();
+      (window as any).searchBar.rerunSearchIfActive();
       
     } catch (error) {
       console.error('Error loading tree:', error);
@@ -120,7 +125,7 @@ class SidebarController {
   }
 
   // Update highlighting only
-  updateHighlighting(currentNodeId) {
+  private updateHighlighting(currentNodeId: number | null): void {
     // Remove previous highlighting
     document.querySelectorAll('.tree-node.current').forEach(node => {
       node.classList.remove('current');
@@ -136,14 +141,14 @@ class SidebarController {
   }
 
   // Navigate to a specific node
-  async navigateToNode(nodeId) {
+  async navigateToNode(nodeId: number): Promise<void> {
     try {
-      const tree = await window.treeService.getTree();
-      const node = window.treeService.findNode(tree.nodes, nodeId);
+      const tree = await (window as any).treeService.getTree();
+      const node = (window as any).treeService.findNode(tree.nodes, nodeId);
       
       if (node) {
         // Update current node
-        await window.treeService.setCurrentNode(nodeId);
+        await (window as any).treeService.setCurrentNode(nodeId);
         
         // Navigate to URL
         const tabs = await browser.tabs.query({ active: true, currentWindow: true });
@@ -166,21 +171,23 @@ class SidebarController {
   }
 
   // Cleanup
-  cleanup() {
+  cleanup(): void {
     if (this.storageListener) {
       browser.storage.onChanged.removeListener(this.storageListener);
     }
   }
 }
 
-// Export as singleton
-window.sidebarController = new SidebarController();
+// Export as singleton for backward compatibility
+if (typeof window !== 'undefined') {
+  (window as any).sidebarController = new SidebarController();
 
-// Auto-initialize when DOM is ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    window.sidebarController.initialize();
-  });
-} else {
-  window.sidebarController.initialize();
+  // Auto-initialize when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      (window as any).sidebarController.initialize();
+    });
+  } else {
+    (window as any).sidebarController.initialize();
+  }
 }

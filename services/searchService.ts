@@ -1,6 +1,31 @@
-// searchService.js - Search functionality and state management
+// searchService.ts - Search functionality and state management
+import { TreeNode } from '../types/treeTypes';
 
-class SearchService {
+interface SearchMatch {
+  type: 'highlight' | 'annotation';
+  text: string;
+  nodeId: number;
+  annotationIndex?: number;
+}
+
+interface SearchResult {
+  nodeId: number;
+  matches: SearchMatch[];
+  priority: number;
+}
+
+interface SearchOptions {
+  searchHighlighted: boolean;
+  searchAnnotations: boolean;
+  filterMode: boolean;
+}
+
+export class SearchService {
+  private searchResults: SearchResult[];
+  private currentSearchIndex: number;
+  private searchQuery: string;
+  private searchOptions: SearchOptions;
+
   constructor() {
     this.searchResults = [];
     this.currentSearchIndex = 0;
@@ -13,7 +38,7 @@ class SearchService {
   }
 
   // Perform search across tree nodes
-  performSearch(query, nodes, options = {}) {
+  performSearch(query: string, nodes: TreeNode[], options: Partial<SearchOptions> = {}): SearchResult[] {
     this.searchQuery = query.trim().toLowerCase();
     this.searchOptions = { ...this.searchOptions, ...options };
     
@@ -49,8 +74,8 @@ class SearchService {
   }
 
   // Find matches within a node
-  findMatches(node) {
-    const matches = [];
+  findMatches(node: TreeNode): SearchMatch[] {
+    const matches: SearchMatch[] = [];
 
     // Search in highlighted content
     if (this.searchOptions.searchHighlighted && node.text && 
@@ -80,7 +105,7 @@ class SearchService {
   }
 
   // Navigate to next search result
-  navigateToNext() {
+  navigateToNext(): SearchResult | null {
     if (this.searchResults.length === 0) return null;
     
     this.currentSearchIndex = (this.currentSearchIndex + 1) % this.searchResults.length;
@@ -88,7 +113,7 @@ class SearchService {
   }
 
   // Navigate to previous search result
-  navigateToPrevious() {
+  navigateToPrevious(): SearchResult | null {
     if (this.searchResults.length === 0) return null;
     
     this.currentSearchIndex = this.currentSearchIndex === 0 
@@ -98,13 +123,13 @@ class SearchService {
   }
 
   // Get current search result
-  getCurrentResult() {
+  getCurrentResult(): SearchResult | null {
     if (this.searchResults.length === 0) return null;
     return this.searchResults[this.currentSearchIndex];
   }
 
   // Get search counter text
-  getSearchCounter() {
+  getSearchCounter(): string {
     if (this.searchResults.length === 0) {
       return '0 of 0';
     }
@@ -112,37 +137,39 @@ class SearchService {
   }
 
   // Clear search results
-  clearSearchResults() {
+  clearSearchResults(): void {
     this.searchResults = [];
     this.currentSearchIndex = 0;
     this.searchQuery = '';
   }
 
   // Check if search has results
-  hasResults() {
+  hasResults(): boolean {
     return this.searchResults.length > 0;
   }
 
   // Get all matching node IDs (for filtering)
-  getMatchingNodeIds() {
+  getMatchingNodeIds(): Set<number> {
     return new Set(this.searchResults.map(r => r.nodeId));
   }
 
   // Update search options
-  updateOptions(options) {
+  updateOptions(options: Partial<SearchOptions>): void {
     this.searchOptions = { ...this.searchOptions, ...options };
   }
 
   // Get current search options
-  getOptions() {
+  getOptions(): SearchOptions {
     return { ...this.searchOptions };
   }
 
   // Get current search query
-  getQuery() {
+  getQuery(): string {
     return this.searchQuery;
   }
 }
 
-// Export as singleton
-window.searchService = new SearchService();
+// Export as singleton for backward compatibility
+if (typeof window !== 'undefined') {
+  (window as any).searchService = new SearchService();
+}

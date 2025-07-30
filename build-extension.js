@@ -35,6 +35,18 @@ const INCLUDE_FILES = [
   'dist/content.js',
   'dist/browser-compat.js',
   
+  // Compiled TypeScript modules
+  'dist/types/treeTypes.js',
+  'dist/utils/formatters.js',
+  'dist/services/treeService.js',
+  'dist/services/treeValidationService.js',
+  'dist/services/searchService.js',
+  'dist/components/treeNode.js',
+  'dist/components/authStatus.js',
+  'dist/components/searchBar.js',
+  'dist/components/treeContainer.js',
+  'dist/components/sidebarController.js',
+  
   // Firebase integration (REST API)
   'firebase/auth.js',
   'firebase/sync.js',

@@ -1,20 +1,23 @@
-// treeService.js - Tree data operations and management
+// treeService.ts - Tree data operations and management
+import { TreeNode, TreeData } from '../types/treeTypes';
 
-class TreeService {
+export class TreeService {
+  private storageKey: string;
+
   constructor() {
     this.storageKey = 'citationTree';
   }
 
   // Get the current tree from storage
-  async getTree() {
+  async getTree(): Promise<TreeData> {
     const result = await browser.storage.local.get({ 
-      [this.storageKey]: { nodes: [], currentNodeId: null } 
+      [this.storageKey]: { nodes: [] as TreeNode[], currentNodeId: null } 
     });
     return result[this.storageKey];
   }
 
   // Save tree to storage
-  async saveTree(tree) {
+  async saveTree(tree: TreeData): Promise<void> {
     await browser.storage.local.set({ 
       [this.storageKey]: tree,
       lastModified: new Date().toISOString()
@@ -22,15 +25,15 @@ class TreeService {
   }
 
   // Find a node by ID
-  findNode(nodes, nodeId) {
+  findNode(nodes: TreeNode[], nodeId: number): TreeNode | undefined {
     return nodes.find(node => node.id === nodeId);
   }
 
   // Get all descendants of a node
-  getDescendants(nodes, nodeId) {
-    const descendants = new Set();
+  getDescendants(nodes: TreeNode[], nodeId: number): Set<number> {
+    const descendants = new Set<number>();
     
-    const collectDescendants = (id) => {
+    const collectDescendants = (id: number) => {
       descendants.add(id);
       const node = this.findNode(nodes, id);
       if (node && node.children) {
@@ -43,7 +46,7 @@ class TreeService {
   }
 
   // Check if a node is a descendant of another
-  isDescendant(nodes, nodeId, potentialAncestorId) {
+  isDescendant(nodes: TreeNode[], nodeId: number, potentialAncestorId: number): boolean {
     const node = this.findNode(nodes, nodeId);
     if (!node || node.parentId === null) return false;
     if (node.parentId === potentialAncestorId) return true;
@@ -51,7 +54,7 @@ class TreeService {
   }
 
   // Move a node to a new parent
-  async moveNode(draggedNodeId, targetNodeId) {
+  async moveNode(draggedNodeId: number, targetNodeId: number): Promise<boolean> {
     try {
       const tree = await this.getTree();
       
@@ -101,7 +104,7 @@ class TreeService {
   }
 
   // Move a node to root level
-  async moveNodeToRoot(nodeId) {
+  async moveNodeToRoot(nodeId: number): Promise<boolean> {
     try {
       const tree = await this.getTree();
       const node = this.findNode(tree.nodes, nodeId);
@@ -130,7 +133,7 @@ class TreeService {
   }
 
   // Shift a node to its parent's level
-  async shiftNodeToParent(nodeId) {
+  async shiftNodeToParent(nodeId: number): Promise<boolean> {
     try {
       const tree = await this.getTree();
       const node = this.findNode(tree.nodes, nodeId);
@@ -177,7 +180,7 @@ class TreeService {
   }
 
   // Delete a node and all its descendants (soft delete)
-  async deleteNode(nodeId) {
+  async deleteNode(nodeId: number): Promise<boolean> {
     try {
       const tree = await this.getTree();
       const now = new Date().toISOString();
@@ -207,7 +210,7 @@ class TreeService {
   }
 
   // Update current node (for highlighting)
-  async setCurrentNode(nodeId) {
+  async setCurrentNode(nodeId: number): Promise<boolean> {
     try {
       const tree = await this.getTree();
       tree.currentNodeId = nodeId;
@@ -221,20 +224,22 @@ class TreeService {
   }
 
   // Get visible nodes (non-deleted)
-  getVisibleNodes(nodes) {
+  getVisibleNodes(nodes: TreeNode[]): TreeNode[] {
     return nodes.filter(node => !node.deleted);
   }
 
   // Get root nodes
-  getRootNodes(nodes) {
+  getRootNodes(nodes: TreeNode[]): TreeNode[] {
     return nodes.filter(node => node.parentId === null && !node.deleted);
   }
 
   // Get child nodes of a parent
-  getChildNodes(nodes, parentId) {
+  getChildNodes(nodes: TreeNode[], parentId: number | null): TreeNode[] {
     return nodes.filter(node => node.parentId === parentId && !node.deleted);
   }
 }
 
-// Export as singleton
-window.treeService = new TreeService();
+// Export as singleton for backward compatibility
+if (typeof window !== 'undefined') {
+  (window as any).treeService = new TreeService();
+}

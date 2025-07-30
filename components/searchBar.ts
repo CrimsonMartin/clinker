@@ -1,26 +1,54 @@
-// searchBar.js - Search bar component for searching through citations
+// searchBar.ts - Search bar component for searching through citations
 
-class SearchBar {
+interface SearchElements {
+  searchInput: HTMLInputElement | null;
+  searchContainer: HTMLElement | null;
+  searchToggleBtn: HTMLElement | null;
+  searchCloseBtn: HTMLElement | null;
+  searchPrevBtn: HTMLButtonElement | null;
+  searchNextBtn: HTMLButtonElement | null;
+  searchCounter: HTMLElement | null;
+  searchHighlighted: HTMLInputElement | null;
+  searchAnnotations: HTMLInputElement | null;
+  searchFilterMode: HTMLInputElement | null;
+}
+
+export class SearchBar {
+  private searchTimeout: number | null;
+  private elements: SearchElements;
+  private initialized: boolean;
+
   constructor() {
     this.searchTimeout = null;
-    this.elements = {};
+    this.elements = {
+      searchInput: null,
+      searchContainer: null,
+      searchToggleBtn: null,
+      searchCloseBtn: null,
+      searchPrevBtn: null,
+      searchNextBtn: null,
+      searchCounter: null,
+      searchHighlighted: null,
+      searchAnnotations: null,
+      searchFilterMode: null
+    };
     this.initialized = false;
   }
 
   // Initialize search bar
-  initialize() {
+  initialize(): void {
     // Get all search-related elements
     this.elements = {
-      searchInput: document.getElementById('searchInput'),
+      searchInput: document.getElementById('searchInput') as HTMLInputElement,
       searchContainer: document.getElementById('searchContainer'),
       searchToggleBtn: document.getElementById('searchToggleBtn'),
       searchCloseBtn: document.getElementById('searchCloseBtn'),
-      searchPrevBtn: document.getElementById('searchPrevBtn'),
-      searchNextBtn: document.getElementById('searchNextBtn'),
+      searchPrevBtn: document.getElementById('searchPrevBtn') as HTMLButtonElement,
+      searchNextBtn: document.getElementById('searchNextBtn') as HTMLButtonElement,
       searchCounter: document.getElementById('searchCounter'),
-      searchHighlighted: document.getElementById('searchHighlighted'),
-      searchAnnotations: document.getElementById('searchAnnotations'),
-      searchFilterMode: document.getElementById('searchFilterMode')
+      searchHighlighted: document.getElementById('searchHighlighted') as HTMLInputElement,
+      searchAnnotations: document.getElementById('searchAnnotations') as HTMLInputElement,
+      searchFilterMode: document.getElementById('searchFilterMode') as HTMLInputElement
     };
 
     // Verify all elements exist
@@ -38,10 +66,10 @@ class SearchBar {
   }
 
   // Setup event listeners
-  setupEventListeners() {
+  private setupEventListeners(): void {
     // Search toggle button
-    this.elements.searchToggleBtn.addEventListener('click', () => {
-      if (this.elements.searchContainer.style.display === 'none') {
+    this.elements.searchToggleBtn?.addEventListener('click', () => {
+      if (this.elements.searchContainer?.style.display === 'none') {
         this.openSearch();
       } else {
         this.closeSearch();
@@ -50,12 +78,12 @@ class SearchBar {
 
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && this.elements.searchContainer.style.display !== 'none') {
+      if (e.key === 'Escape' && this.elements.searchContainer?.style.display !== 'none') {
         this.closeSearch();
       }
       
       // Navigate search results with arrow keys
-      if (this.elements.searchContainer.style.display !== 'none' && window.searchService.hasResults()) {
+      if (this.elements.searchContainer?.style.display !== 'none' && (window as any).searchService.hasResults()) {
         if (e.key === 'ArrowDown' || (e.key === 'Enter' && !e.shiftKey)) {
           e.preventDefault();
           this.navigateToNextResult();
@@ -67,10 +95,12 @@ class SearchBar {
     });
 
     // Search input with debouncing
-    this.elements.searchInput.addEventListener('input', (e) => {
-      clearTimeout(this.searchTimeout);
+    this.elements.searchInput?.addEventListener('input', (e) => {
+      if (this.searchTimeout) {
+        clearTimeout(this.searchTimeout);
+      }
       this.searchTimeout = setTimeout(() => {
-        this.performSearch(e.target.value);
+        this.performSearch((e.target as HTMLInputElement).value);
       }, 300);
     });
 
@@ -80,37 +110,43 @@ class SearchBar {
       this.elements.searchAnnotations,
       this.elements.searchFilterMode
     ].forEach(checkbox => {
-      checkbox.addEventListener('change', () => {
-        if (this.elements.searchInput.value.trim()) {
+      checkbox?.addEventListener('change', () => {
+        if (this.elements.searchInput?.value.trim()) {
           this.performSearch(this.elements.searchInput.value);
         }
       });
     });
 
     // Navigation buttons
-    this.elements.searchPrevBtn.addEventListener('click', () => this.navigateToPreviousResult());
-    this.elements.searchNextBtn.addEventListener('click', () => this.navigateToNextResult());
-    this.elements.searchCloseBtn.addEventListener('click', () => this.closeSearch());
+    this.elements.searchPrevBtn?.addEventListener('click', () => this.navigateToPreviousResult());
+    this.elements.searchNextBtn?.addEventListener('click', () => this.navigateToNextResult());
+    this.elements.searchCloseBtn?.addEventListener('click', () => this.closeSearch());
   }
 
   // Open search
-  openSearch() {
-    this.elements.searchContainer.style.display = 'block';
-    this.elements.searchToggleBtn.classList.add('active');
-    this.elements.searchInput.focus();
-    this.elements.searchInput.select();
+  openSearch(): void {
+    if (this.elements.searchContainer) {
+      this.elements.searchContainer.style.display = 'block';
+    }
+    this.elements.searchToggleBtn?.classList.add('active');
+    this.elements.searchInput?.focus();
+    this.elements.searchInput?.select();
   }
 
   // Close search
-  closeSearch() {
-    this.elements.searchContainer.style.display = 'none';
-    this.elements.searchToggleBtn.classList.remove('active');
-    this.elements.searchInput.value = '';
+  closeSearch(): void {
+    if (this.elements.searchContainer) {
+      this.elements.searchContainer.style.display = 'none';
+    }
+    this.elements.searchToggleBtn?.classList.remove('active');
+    if (this.elements.searchInput) {
+      this.elements.searchInput.value = '';
+    }
     this.clearSearchResults();
   }
 
   // Perform search
-  async performSearch(query) {
+  async performSearch(query: string): Promise<void> {
     const trimmedQuery = query.trim();
     
     if (!trimmedQuery) {
@@ -120,14 +156,14 @@ class SearchBar {
 
     // Get search options
     const options = {
-      searchHighlighted: this.elements.searchHighlighted.checked,
-      searchAnnotations: this.elements.searchAnnotations.checked,
-      filterMode: this.elements.searchFilterMode.checked
+      searchHighlighted: this.elements.searchHighlighted?.checked || false,
+      searchAnnotations: this.elements.searchAnnotations?.checked || false,
+      filterMode: this.elements.searchFilterMode?.checked || false
     };
 
     // Get tree data and perform search
-    const tree = await window.treeService.getTree();
-    const results = window.searchService.performSearch(trimmedQuery, tree.nodes, options);
+    const tree = await (window as any).treeService.getTree();
+    const results = (window as any).searchService.performSearch(trimmedQuery, tree.nodes, options);
 
     // Update display
     this.updateSearchDisplay(options.filterMode);
@@ -139,7 +175,7 @@ class SearchBar {
   }
 
   // Update search display
-  updateSearchDisplay(filterMode) {
+  private updateSearchDisplay(filterMode: boolean): void {
     const allNodes = document.querySelectorAll('.tree-node');
     const allChildren = document.querySelectorAll('.tree-children');
     
@@ -153,10 +189,10 @@ class SearchBar {
 
     if (filterMode) {
       // Filter mode: hide non-matching nodes
-      const matchingNodeIds = window.searchService.getMatchingNodeIds();
+      const matchingNodeIds = (window as any).searchService.getMatchingNodeIds();
       
       allNodes.forEach(node => {
-        const nodeId = parseInt(node.dataset.nodeId);
+        const nodeId = parseInt((node as HTMLElement).dataset.nodeId || '0');
         if (!matchingNodeIds.has(nodeId)) {
           node.classList.add('search-hidden');
           
@@ -171,8 +207,8 @@ class SearchBar {
       });
     } else {
       // Highlight mode: show all nodes but highlight matches
-      const results = window.searchService.searchResults;
-      results.forEach(result => {
+      const results = (window as any).searchService.searchResults;
+      results.forEach((result: any) => {
         const nodeElement = document.querySelector(`[data-node-id="${result.nodeId}"]`);
         if (nodeElement) {
           nodeElement.classList.add('search-result');
@@ -185,35 +221,37 @@ class SearchBar {
   }
 
   // Apply text highlighting
-  applyTextHighlighting() {
-    const query = window.searchService.getQuery();
+  private applyTextHighlighting(): void {
+    const query = (window as any).searchService.getQuery();
     if (!query) return;
 
     // Remove existing highlights
     document.querySelectorAll('.search-highlight').forEach(highlight => {
       const parent = highlight.parentNode;
-      parent.replaceChild(document.createTextNode(highlight.textContent), highlight);
-      parent.normalize();
+      if (parent) {
+        parent.replaceChild(document.createTextNode(highlight.textContent || ''), highlight);
+        parent.normalize();
+      }
     });
 
-    const results = window.searchService.searchResults;
-    results.forEach(result => {
+    const results = (window as any).searchService.searchResults;
+    results.forEach((result: any) => {
       const nodeElement = document.querySelector(`[data-node-id="${result.nodeId}"]`);
       if (!nodeElement) return;
 
-      result.matches.forEach(match => {
+      result.matches.forEach((match: any) => {
         if (match.type === 'highlight') {
           // Highlight in main text content
           const contentElement = nodeElement.querySelector('.tree-node-content');
           if (contentElement) {
-            this.highlightTextInElement(contentElement, query);
+            this.highlightTextInElement(contentElement as HTMLElement, query);
           }
         } else if (match.type === 'annotation') {
           // Highlight in annotation tooltip if visible
           const tooltips = nodeElement.querySelectorAll('.annotation-text');
           tooltips.forEach(tooltip => {
-            if (tooltip.textContent.toLowerCase().includes(query)) {
-              this.highlightTextInElement(tooltip, query);
+            if (tooltip.textContent?.toLowerCase().includes(query)) {
+              this.highlightTextInElement(tooltip as HTMLElement, query);
             }
           });
         }
@@ -222,22 +260,21 @@ class SearchBar {
   }
 
   // Highlight text in element
-  highlightTextInElement(element, query) {
+  private highlightTextInElement(element: HTMLElement, query: string): void {
     const walker = document.createTreeWalker(
       element,
       NodeFilter.SHOW_TEXT,
-      null,
-      false
+      null
     );
 
-    const textNodes = [];
-    let node;
+    const textNodes: Text[] = [];
+    let node: Node | null;
     while (node = walker.nextNode()) {
-      textNodes.push(node);
+      textNodes.push(node as Text);
     }
 
     textNodes.forEach(textNode => {
-      const text = textNode.textContent;
+      const text = textNode.textContent || '';
       const lowerText = text.toLowerCase();
       const queryIndex = lowerText.indexOf(query);
       
@@ -261,13 +298,13 @@ class SearchBar {
           fragment.appendChild(document.createTextNode(afterText));
         }
         
-        textNode.parentNode.replaceChild(fragment, textNode);
+        textNode.parentNode?.replaceChild(fragment, textNode);
       }
     });
   }
 
   // Highlight current result
-  highlightCurrentResult() {
+  private highlightCurrentResult(): void {
     // Remove previous current result highlighting
     document.querySelectorAll('.current-result').forEach(el => {
       el.classList.remove('current-result');
@@ -277,7 +314,7 @@ class SearchBar {
       el.classList.remove('current');
     });
 
-    const currentResult = window.searchService.getCurrentResult();
+    const currentResult = (window as any).searchService.getCurrentResult();
     if (!currentResult) return;
 
     const nodeElement = document.querySelector(`[data-node-id="${currentResult.nodeId}"]`);
@@ -300,32 +337,38 @@ class SearchBar {
   }
 
   // Navigate to next result
-  navigateToNextResult() {
-    window.searchService.navigateToNext();
+  navigateToNextResult(): void {
+    (window as any).searchService.navigateToNext();
     this.highlightCurrentResult();
     this.updateSearchCounter();
   }
 
   // Navigate to previous result
-  navigateToPreviousResult() {
-    window.searchService.navigateToPrevious();
+  navigateToPreviousResult(): void {
+    (window as any).searchService.navigateToPrevious();
     this.highlightCurrentResult();
     this.updateSearchCounter();
   }
 
   // Update search counter
-  updateSearchCounter() {
-    const counter = window.searchService.getSearchCounter();
-    this.elements.searchCounter.textContent = counter;
+  private updateSearchCounter(): void {
+    const counter = (window as any).searchService.getSearchCounter();
+    if (this.elements.searchCounter) {
+      this.elements.searchCounter.textContent = counter;
+    }
     
-    const hasResults = window.searchService.hasResults();
-    this.elements.searchPrevBtn.disabled = !hasResults;
-    this.elements.searchNextBtn.disabled = !hasResults;
+    const hasResults = (window as any).searchService.hasResults();
+    if (this.elements.searchPrevBtn) {
+      this.elements.searchPrevBtn.disabled = !hasResults;
+    }
+    if (this.elements.searchNextBtn) {
+      this.elements.searchNextBtn.disabled = !hasResults;
+    }
   }
 
   // Clear search results
-  clearSearchResults() {
-    window.searchService.clearSearchResults();
+  clearSearchResults(): void {
+    (window as any).searchService.clearSearchResults();
     
     // Remove all search-related classes
     document.querySelectorAll('.search-result, .current-result, .search-hidden').forEach(el => {
@@ -335,23 +378,27 @@ class SearchBar {
     // Remove text highlights
     document.querySelectorAll('.search-highlight').forEach(highlight => {
       const parent = highlight.parentNode;
-      parent.replaceChild(document.createTextNode(highlight.textContent), highlight);
-      parent.normalize();
+      if (parent) {
+        parent.replaceChild(document.createTextNode(highlight.textContent || ''), highlight);
+        parent.normalize();
+      }
     });
     
     this.updateSearchCounter();
   }
 
   // Re-run search if active (for when tree updates)
-  rerunSearchIfActive() {
-    if (this.elements.searchContainer.style.display !== 'none' && 
-        this.elements.searchInput.value.trim()) {
+  rerunSearchIfActive(): void {
+    if (this.elements.searchContainer?.style.display !== 'none' && 
+        this.elements.searchInput?.value.trim()) {
       setTimeout(() => {
-        this.performSearch(this.elements.searchInput.value);
+        this.performSearch(this.elements.searchInput!.value);
       }, 100);
     }
   }
 }
 
-// Export as singleton
-window.searchBar = new SearchBar();
+// Export as singleton for backward compatibility
+if (typeof window !== 'undefined') {
+  (window as any).searchBar = new SearchBar();
+}

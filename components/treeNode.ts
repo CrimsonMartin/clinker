@@ -1,7 +1,13 @@
-// treeNode.js - Tree node component for rendering individual nodes
+// treeNode.ts - Tree node component for rendering individual nodes
+import { TreeNode as TreeNodeType } from '../types/treeTypes';
 
-class TreeNode {
-  constructor(node, isCurrentNode) {
+export class TreeNode {
+  private node: TreeNodeType;
+  private isCurrentNode: boolean;
+  private element: HTMLElement | null;
+  private draggedNodeId: number | null;
+
+  constructor(node: TreeNodeType, isCurrentNode: boolean) {
     this.node = node;
     this.isCurrentNode = isCurrentNode;
     this.element = null;
@@ -9,7 +15,7 @@ class TreeNode {
   }
 
   // Create the tree node element
-  createElement() {
+  createElement(): HTMLElement {
     this.element = document.createElement('div');
     this.element.className = `tree-node ${this.isCurrentNode ? 'current' : ''}`;
     this.element.dataset.nodeId = this.node.id.toString();
@@ -31,10 +37,10 @@ class TreeNode {
   }
 
   // Create content element with text and images
-  createContentElement() {
+  private createContentElement(): HTMLElement {
     const contentElement = document.createElement('div');
     contentElement.className = 'tree-node-content';
-    contentElement.textContent = window.formatters.truncateText(this.node.text);
+    contentElement.textContent = (window as any).formatters.truncateText(this.node.text);
     
     // Add images if they exist
     if (this.node.images && this.node.images.length > 0) {
@@ -46,11 +52,11 @@ class TreeNode {
   }
 
   // Create images container
-  createImagesContainer() {
+  private createImagesContainer(): HTMLElement {
     const imagesContainer = document.createElement('div');
     imagesContainer.className = 'tree-node-images';
     
-    this.node.images.forEach((imageData, index) => {
+    this.node.images!.forEach((imageData, index) => {
       const imgElement = document.createElement('img');
       imgElement.src = imageData;
       imgElement.className = 'tree-node-image-thumbnail';
@@ -66,7 +72,7 @@ class TreeNode {
   }
 
   // Create meta element with URL, timestamp, and buttons
-  createMetaElement() {
+  private createMetaElement(): HTMLElement {
     const metaElement = document.createElement('div');
     metaElement.className = 'tree-node-meta';
     
@@ -80,7 +86,7 @@ class TreeNode {
     urlElement.title = this.node.url;
     
     const timeElement = document.createElement('span');
-    timeElement.textContent = window.formatters.formatTimestamp(this.node.timestamp);
+    timeElement.textContent = (window as any).formatters.formatTimestamp(this.node.timestamp);
     
     infoElement.appendChild(urlElement);
     infoElement.appendChild(timeElement);
@@ -90,11 +96,11 @@ class TreeNode {
     buttonsElement.className = 'tree-node-buttons';
     
     // Add annotation button
-    const annotationButton = window.createAnnotationButton(this.node);
+    const annotationButton = (window as any).createAnnotationButton(this.node);
     buttonsElement.appendChild(annotationButton);
     
     // Add delete button
-    const deleteButton = window.createDeleteButton(this.node);
+    const deleteButton = (window as any).createDeleteButton(this.node);
     buttonsElement.appendChild(deleteButton);
     
     metaElement.appendChild(infoElement);
@@ -104,19 +110,21 @@ class TreeNode {
   }
 
   // Setup drag and drop functionality
-  setupDragAndDrop() {
+  private setupDragAndDrop(): void {
+    if (!this.element) return;
+    
     this.element.draggable = true;
     
     this.element.addEventListener('dragstart', (e) => {
-      window.currentDraggedNodeId = this.node.id;
-      e.dataTransfer.setData('text/plain', this.node.id.toString());
-      e.dataTransfer.effectAllowed = 'move';
-      this.element.classList.add('dragging');
+      (window as any).currentDraggedNodeId = this.node.id;
+      e.dataTransfer!.setData('text/plain', this.node.id.toString());
+      e.dataTransfer!.effectAllowed = 'move';
+      this.element!.classList.add('dragging');
     });
     
     this.element.addEventListener('dragend', () => {
-      this.element.classList.remove('dragging');
-      window.currentDraggedNodeId = null;
+      this.element!.classList.remove('dragging');
+      (window as any).currentDraggedNodeId = null;
       
       // Clean up any remaining drag-over classes
       document.querySelectorAll('.drag-over').forEach(el => {
@@ -136,44 +144,46 @@ class TreeNode {
       e.stopPropagation();
       
       // Only add drag-over class if we're dragging a different node
-      if (window.currentDraggedNodeId && window.currentDraggedNodeId !== this.node.id) {
-        this.element.classList.add('drag-over');
+      if ((window as any).currentDraggedNodeId && (window as any).currentDraggedNodeId !== this.node.id) {
+        this.element!.classList.add('drag-over');
       }
     });
     
     this.element.addEventListener('dragleave', (e) => {
       // Only remove drag-over if we're actually leaving the element
-      if (!this.element.contains(e.relatedTarget)) {
-        this.element.classList.remove('drag-over');
+      if (!this.element!.contains(e.relatedTarget as Node)) {
+        this.element!.classList.remove('drag-over');
       }
     });
     
     this.element.addEventListener('drop', async (e) => {
       e.preventDefault();
       e.stopPropagation();
-      this.element.classList.remove('drag-over');
+      this.element!.classList.remove('drag-over');
       
-      const draggedNodeId = parseInt(e.dataTransfer.getData('text/plain')) || window.currentDraggedNodeId;
+      const draggedNodeId = parseInt(e.dataTransfer!.getData('text/plain')) || (window as any).currentDraggedNodeId;
       const targetNodeId = this.node.id;
       
       if (draggedNodeId && draggedNodeId !== targetNodeId) {
         console.log(`Moving node ${draggedNodeId} to become child of node ${targetNodeId}`);
-        await window.treeService.moveNode(draggedNodeId, targetNodeId);
+        await (window as any).treeService.moveNode(draggedNodeId, targetNodeId);
         
         // Mark as modified for sync
-        if (window.syncInitialized && window.authManager?.isLoggedIn()) {
-          window.syncManager.markAsModified();
+        if ((window as any).syncInitialized && (window as any).authManager?.isLoggedIn()) {
+          (window as any).syncManager.markAsModified();
         }
       }
     });
   }
 
   // Setup event handlers
-  setupEventHandlers() {
+  private setupEventHandlers(): void {
+    if (!this.element) return;
+    
     // Single-click handler to update highlighting
     this.element.addEventListener('click', async () => {
       try {
-        await window.treeService.setCurrentNode(this.node.id);
+        await (window as any).treeService.setCurrentNode(this.node.id);
       } catch (error) {
         console.error('Error updating current node:', error);
       }
@@ -187,7 +197,7 @@ class TreeNode {
         console.log('Navigating to node:', this.node.id, 'URL:', this.node.url);
         
         // First update the current node
-        await window.treeService.setCurrentNode(this.node.id);
+        await (window as any).treeService.setCurrentNode(this.node.id);
         
         // Then navigate to the URL
         const tabs = await browser.tabs.query({ active: true, currentWindow: true });
@@ -208,7 +218,7 @@ class TreeNode {
   }
 
   // Show context menu
-  showContextMenu(event) {
+  private showContextMenu(event: MouseEvent): void {
     // Remove any existing context menu
     const existingMenu = document.querySelector('.context-menu');
     if (existingMenu) {
@@ -228,11 +238,11 @@ class TreeNode {
       shiftUpOption.className = 'context-menu-item';
       shiftUpOption.textContent = 'Shift out';
       shiftUpOption.addEventListener('click', async () => {
-        await window.treeService.shiftNodeToParent(this.node.id);
+        await (window as any).treeService.shiftNodeToParent(this.node.id);
         
         // Mark as modified for sync
-        if (window.syncInitialized && window.authManager?.isLoggedIn()) {
-          window.syncManager.markAsModified();
+        if ((window as any).syncInitialized && (window as any).authManager?.isLoggedIn()) {
+          (window as any).syncManager.markAsModified();
         }
         
         contextMenu.remove();
@@ -243,8 +253,8 @@ class TreeNode {
     document.body.appendChild(contextMenu);
     
     // Close context menu when clicking outside
-    const closeContextMenu = (e) => {
-      if (!contextMenu.contains(e.target)) {
+    const closeContextMenu = (e: Event) => {
+      if (!contextMenu.contains(e.target as Node)) {
         contextMenu.remove();
         document.removeEventListener('click', closeContextMenu);
       }
@@ -256,7 +266,7 @@ class TreeNode {
   }
 
   // Show image modal
-  showImageModal(imageData) {
+  private showImageModal(imageData: string): void {
     const modal = document.createElement('div');
     modal.className = 'image-modal';
     
@@ -288,5 +298,7 @@ class TreeNode {
   }
 }
 
-// Export TreeNode class
-window.TreeNode = TreeNode;
+// Export TreeNode class for backward compatibility
+if (typeof window !== 'undefined') {
+  (window as any).TreeNode = TreeNode;
+}

@@ -1,13 +1,18 @@
-// treeContainer.js - Tree container component for managing tree rendering
+// treeContainer.ts - Tree container component for managing tree rendering
+import { TreeNode as TreeNodeType } from '../types/treeTypes';
+import { TreeNode } from './treeNode';
 
-class TreeContainer {
+export class TreeContainer {
+  private treeRoot: HTMLElement | null;
+  private backgroundDropSetup: boolean;
+
   constructor() {
     this.treeRoot = null;
     this.backgroundDropSetup = false;
   }
 
   // Initialize the tree container
-  initialize() {
+  initialize(): void {
     this.treeRoot = document.getElementById('tree-root');
     if (!this.treeRoot) {
       console.error('Tree root element not found');
@@ -22,7 +27,7 @@ class TreeContainer {
   }
 
   // Load and display the tree
-  async loadAndDisplayTree() {
+  async loadAndDisplayTree(): Promise<void> {
     if (!this.treeRoot) {
       this.initialize();
     }
@@ -30,18 +35,18 @@ class TreeContainer {
     if (!this.treeRoot) return;
     
     try {
-      const tree = await window.treeService.getTree();
+      const tree = await (window as any).treeService.getTree();
       
       console.log('Loading tree with nodes:', tree.nodes);
       
       // Validate and repair tree structure before rendering
-      const repairedTree = await window.treeValidationService.repairTreeIntegrity(tree);
+      const repairedTree = await (window as any).treeValidationService.repairTreeIntegrity(tree);
       
       // Clear existing content
       this.treeRoot.innerHTML = '';
       
       // Check if tree is empty
-      const visibleNodes = window.treeService.getVisibleNodes(repairedTree.nodes);
+      const visibleNodes = (window as any).treeService.getVisibleNodes(repairedTree.nodes);
       if (!repairedTree.nodes || repairedTree.nodes.length === 0 || visibleNodes.length === 0) {
         this.showEmptyState();
         return;
@@ -58,23 +63,27 @@ class TreeContainer {
   }
 
   // Show empty state message
-  showEmptyState() {
-    this.treeRoot.innerHTML = '<div class="empty-state">No citations saved yet. Highlight text on any webpage to start building your research tree.</div>';
+  private showEmptyState(): void {
+    if (this.treeRoot) {
+      this.treeRoot.innerHTML = '<div class="empty-state">No citations saved yet. Highlight text on any webpage to start building your research tree.</div>';
+    }
   }
 
   // Show error state message
-  showErrorState() {
-    this.treeRoot.innerHTML = '<div class="empty-state">Error loading research tree.</div>';
+  private showErrorState(): void {
+    if (this.treeRoot) {
+      this.treeRoot.innerHTML = '<div class="empty-state">Error loading research tree.</div>';
+    }
   }
 
   // Render tree recursively
-  renderTree(nodes, currentNodeId, parentId = null) {
+  private renderTree(nodes: TreeNodeType[], currentNodeId: number | null, parentId: number | null = null): HTMLElement {
     const container = document.createElement('div');
     
     // Find all nodes with the specified parent
-    const childNodes = window.treeService.getChildNodes(nodes, parentId);
+    const childNodes = (window as any).treeService.getChildNodes(nodes, parentId);
     
-    childNodes.forEach(node => {
+    childNodes.forEach((node: TreeNodeType) => {
       // Ensure node has children array
       if (!node.children) {
         node.children = [];
@@ -83,7 +92,7 @@ class TreeContainer {
       const isCurrentNode = node.id === currentNodeId;
       
       // Create tree node component
-      const treeNodeComponent = new window.TreeNode(node, isCurrentNode);
+      const treeNodeComponent = new TreeNode(node, isCurrentNode);
       const nodeElement = treeNodeComponent.createElement();
       
       // Recursively render children
@@ -102,50 +111,52 @@ class TreeContainer {
   }
 
   // Setup background drop functionality
-  setupBackgroundDrop() {
+  private setupBackgroundDrop(): void {
     const treeContainer = document.querySelector('.tree-container');
     if (!treeContainer) return;
     
     // Allow dropping on the tree container background
     treeContainer.addEventListener('dragover', (e) => {
       // Check if we're dropping on background (not on a tree node)
-      const isOnNode = e.target.closest('.tree-node');
+      const isOnNode = (e.target as Element).closest('.tree-node');
       
       if (!isOnNode) {
         e.preventDefault();
         e.stopPropagation();
         
-        if (window.currentDraggedNodeId) {
+        if ((window as any).currentDraggedNodeId) {
           treeContainer.classList.add('drag-over-background');
         }
       }
     });
     
-    treeContainer.addEventListener('dragleave', (e) => {
+    treeContainer.addEventListener('dragleave', (e: Event) => {
+      const dragEvent = e as DragEvent;
       // Remove background drag-over if leaving the container
-      if (!treeContainer.contains(e.relatedTarget)) {
+      if (!treeContainer.contains(dragEvent.relatedTarget as Node)) {
         treeContainer.classList.remove('drag-over-background');
       }
     });
     
-    treeContainer.addEventListener('drop', async (e) => {
+    treeContainer.addEventListener('drop', async (e: Event) => {
+      const dragEvent = e as DragEvent;
       // Check if we're dropping on background (not on a tree node)
-      const isOnNode = e.target.closest('.tree-node');
+      const isOnNode = (dragEvent.target as Element).closest('.tree-node');
       
       if (!isOnNode) {
-        e.preventDefault();
-        e.stopPropagation();
+        dragEvent.preventDefault();
+        dragEvent.stopPropagation();
         treeContainer.classList.remove('drag-over-background');
         
-        const draggedNodeId = parseInt(e.dataTransfer.getData('text/plain')) || window.currentDraggedNodeId;
+        const draggedNodeId = parseInt(dragEvent.dataTransfer!.getData('text/plain')) || (window as any).currentDraggedNodeId;
         
         if (draggedNodeId) {
           console.log(`Moving node ${draggedNodeId} to root level`);
-          await window.treeService.moveNodeToRoot(draggedNodeId);
+          await (window as any).treeService.moveNodeToRoot(draggedNodeId);
           
           // Mark as modified for sync
-          if (window.syncInitialized && window.authManager?.isLoggedIn()) {
-            window.syncManager.markAsModified();
+          if ((window as any).syncInitialized && (window as any).authManager?.isLoggedIn()) {
+            (window as any).syncManager.markAsModified();
           }
         }
       }
@@ -153,10 +164,12 @@ class TreeContainer {
   }
 
   // Refresh the tree display
-  async refresh() {
+  async refresh(): Promise<void> {
     await this.loadAndDisplayTree();
   }
 }
 
-// Export as singleton
-window.treeContainer = new TreeContainer();
+// Export as singleton for backward compatibility
+if (typeof window !== 'undefined') {
+  (window as any).treeContainer = new TreeContainer();
+}
