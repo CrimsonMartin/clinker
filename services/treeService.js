@@ -1,0 +1,240 @@
+// treeService.js - Tree data operations and management
+
+class TreeService {
+  constructor() {
+    this.storageKey = 'citationTree';
+  }
+
+  // Get the current tree from storage
+  async getTree() {
+    const result = await browser.storage.local.get({ 
+      [this.storageKey]: { nodes: [], currentNodeId: null } 
+    });
+    return result[this.storageKey];
+  }
+
+  // Save tree to storage
+  async saveTree(tree) {
+    await browser.storage.local.set({ 
+      [this.storageKey]: tree,
+      lastModified: new Date().toISOString()
+    });
+  }
+
+  // Find a node by ID
+  findNode(nodes, nodeId) {
+    return nodes.find(node => node.id === nodeId);
+  }
+
+  // Get all descendants of a node
+  getDescendants(nodes, nodeId) {
+    const descendants = new Set();
+    
+    const collectDescendants = (id) => {
+      descendants.add(id);
+      const node = this.findNode(nodes, id);
+      if (node && node.children) {
+        node.children.forEach(childId => collectDescendants(childId));
+      }
+    };
+    
+    collectDescendants(nodeId);
+    return descendants;
+  }
+
+  // Check if a node is a descendant of another
+  isDescendant(nodes, nodeId, potentialAncestorId) {
+    const node = this.findNode(nodes, nodeId);
+    if (!node || node.parentId === null) return false;
+    if (node.parentId === potentialAncestorId) return true;
+    return this.isDescendant(nodes, node.parentId, potentialAncestorId);
+  }
+
+  // Move a node to a new parent
+  async moveNode(draggedNodeId, targetNodeId) {
+    try {
+      const tree = await this.getTree();
+      
+      const draggedNode = this.findNode(tree.nodes, draggedNodeId);
+      const targetNode = this.findNode(tree.nodes, targetNodeId);
+      
+      if (!draggedNode || !targetNode) {
+        console.error('Could not find dragged or target node');
+        return false;
+      }
+      
+      // Prevent moving a node to one of its descendants
+      if (this.isDescendant(tree.nodes, targetNodeId, draggedNodeId)) {
+        console.warn('Cannot move node to its descendant');
+        return false;
+      }
+      
+      // Remove from old parent's children
+      if (draggedNode.parentId !== null) {
+        const oldParent = this.findNode(tree.nodes, draggedNode.parentId);
+        if (oldParent) {
+          oldParent.children = oldParent.children.filter(childId => childId !== draggedNodeId);
+        }
+      }
+      
+      // Ensure target node has children array
+      if (!targetNode.children) {
+        targetNode.children = [];
+      }
+      
+      // Add to new parent's children if not already there
+      if (!targetNode.children.includes(draggedNodeId)) {
+        targetNode.children.push(draggedNodeId);
+      }
+      
+      // Update the dragged node's parentId
+      draggedNode.parentId = targetNodeId;
+      
+      console.log(`Moved node ${draggedNodeId} to parent ${targetNodeId}`);
+      await this.saveTree(tree);
+      
+      return true;
+    } catch (error) {
+      console.error('Error moving node:', error);
+      return false;
+    }
+  }
+
+  // Move a node to root level
+  async moveNodeToRoot(nodeId) {
+    try {
+      const tree = await this.getTree();
+      const node = this.findNode(tree.nodes, nodeId);
+      
+      if (!node) return false;
+      
+      // Remove from old parent's children
+      if (node.parentId !== null) {
+        const oldParent = this.findNode(tree.nodes, node.parentId);
+        if (oldParent) {
+          oldParent.children = oldParent.children.filter(childId => childId !== nodeId);
+        }
+      }
+      
+      // Set as root node
+      node.parentId = null;
+      
+      console.log(`Moved node ${nodeId} to root level`);
+      await this.saveTree(tree);
+      
+      return true;
+    } catch (error) {
+      console.error('Error moving node to root:', error);
+      return false;
+    }
+  }
+
+  // Shift a node to its parent's level
+  async shiftNodeToParent(nodeId) {
+    try {
+      const tree = await this.getTree();
+      const node = this.findNode(tree.nodes, nodeId);
+      
+      if (!node || node.parentId === null) {
+        console.log('Node has no parent to shift up to');
+        return false;
+      }
+      
+      const currentParent = this.findNode(tree.nodes, node.parentId);
+      if (!currentParent) {
+        console.error('Current parent not found');
+        return false;
+      }
+      
+      // Remove from current parent's children
+      currentParent.children = currentParent.children.filter(childId => childId !== nodeId);
+      
+      // Set the node's parent to be its grandparent
+      const grandparentId = currentParent.parentId;
+      node.parentId = grandparentId;
+      
+      // If there's a grandparent, add this node to its children
+      if (grandparentId !== null) {
+        const grandparent = this.findNode(tree.nodes, grandparentId);
+        if (grandparent) {
+          if (!grandparent.children) {
+            grandparent.children = [];
+          }
+          if (!grandparent.children.includes(nodeId)) {
+            grandparent.children.push(nodeId);
+          }
+        }
+      }
+      
+      console.log(`Shifted node ${nodeId} up to parent level`);
+      await this.saveTree(tree);
+      
+      return true;
+    } catch (error) {
+      console.error('Error shifting node to parent:', error);
+      return false;
+    }
+  }
+
+  // Delete a node and all its descendants (soft delete)
+  async deleteNode(nodeId) {
+    try {
+      const tree = await this.getTree();
+      const now = new Date().toISOString();
+      
+      // Find all nodes to soft delete
+      const nodesToDelete = this.getDescendants(tree.nodes, nodeId);
+      
+      // Mark all collected nodes as deleted
+      tree.nodes.forEach(node => {
+        if (nodesToDelete.has(node.id)) {
+          node.deleted = true;
+          node.deletedAt = now;
+        }
+      });
+      
+      // If the current node was deleted, clear it
+      if (tree.currentNodeId && nodesToDelete.has(tree.currentNodeId)) {
+        tree.currentNodeId = null;
+      }
+      
+      await this.saveTree(tree);
+      return true;
+    } catch (error) {
+      console.error('Error deleting node:', error);
+      return false;
+    }
+  }
+
+  // Update current node (for highlighting)
+  async setCurrentNode(nodeId) {
+    try {
+      const tree = await this.getTree();
+      tree.currentNodeId = nodeId;
+      tree.uiOnlyChange = true; // Flag to prevent sync
+      await this.saveTree(tree);
+      return true;
+    } catch (error) {
+      console.error('Error updating current node:', error);
+      return false;
+    }
+  }
+
+  // Get visible nodes (non-deleted)
+  getVisibleNodes(nodes) {
+    return nodes.filter(node => !node.deleted);
+  }
+
+  // Get root nodes
+  getRootNodes(nodes) {
+    return nodes.filter(node => node.parentId === null && !node.deleted);
+  }
+
+  // Get child nodes of a parent
+  getChildNodes(nodes, parentId) {
+    return nodes.filter(node => node.parentId === parentId && !node.deleted);
+  }
+}
+
+// Export as singleton
+window.treeService = new TreeService();

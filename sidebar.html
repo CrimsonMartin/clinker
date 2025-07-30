@@ -1129,9 +1129,28 @@
   <!-- Extension scripts -->
   <script defer src="firebase/auth.js"></script>
   <script defer src="firebase/sync.js"></script>
+  
+  <!-- Utility scripts -->
+  <script defer src="utils/formatters.js"></script>
+  
+  <!-- Service layer -->
+  <script defer src="services/treeService.js"></script>
+  <script defer src="services/treeValidationService.js"></script>
+  <script defer src="services/searchService.js"></script>
+  
+  <!-- UI Components -->
   <script defer src="deleteButton.js"></script>
   <script defer src="speechRecognition.js"></script>
   <script defer src="annotationButton.js"></script>
+  
+  <!-- Component layer -->
+  <script defer src="components/treeNode.js"></script>
+  <script defer src="components/treeContainer.js"></script>
+  <script defer src="components/searchBar.js"></script>
+  <script defer src="components/authStatus.js"></script>
+  <script defer src="components/sidebarController.js"></script>
+  
+  <!-- Legacy sidebar.js - to be removed after full migration -->
   <script defer src="sidebar.js"></script>
 </body>
 </html>

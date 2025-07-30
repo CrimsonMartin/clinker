@@ -1,37 +1,96 @@
 # Active Context - Current Work and Focus
 
-## Current Task: Fixed Failing NPM Tests (2025-01-18)
+## Current Task: Sidebar.js Refactoring (2025-01-30)
 
 ### Just Completed
-Successfully fixed the failing browser-compat tests that were preventing npm tests from passing. All 173 tests now pass.
+Successfully refactored the monolithic sidebar.js file into a modular component-based architecture. Created a clean separation of concerns with services, utilities, and components.
 
-### Issue and Solution
-**Problem**: Three Firefox environment tests in `__tests__/browser-compat.test.js` were failing because:
-- Jest's test setup file (`src/test-setup.js`) was pre-configuring global browser/chrome mocks
-- The browser-compat tests needed to control these globals themselves for proper testing
-- Test isolation was being broken by conflicting global state management
+### Refactoring Structure Created
 
-**Solution**: Modified the Firefox tests to:
-- Create isolated test environments instead of relying on global state
-- Use local browser mocks within each test
-- Simulate browser behavior without global dependencies
+#### Services Layer (`/services/`)
+1. **treeService.js** - Core tree data operations
+   - Tree CRUD operations
+   - Node movement and hierarchy management
+   - Current node tracking
+   - Soft delete functionality
 
-### Browser Compatibility Solution
-- Created minimal `browser-compat.js` that simply aliases `chrome` to `browser` when needed
-- No complex promise wrapping or API translation needed
-- Works because Chrome and Firefox APIs are largely compatible in Manifest V3
+2. **treeValidationService.js** - Tree integrity and repair
+   - Validates tree structure
+   - Repairs orphaned nodes
+   - Fixes parent-child relationships
+   - Handles data migration
 
-### Key Changes Made:
-1. **browser-compat.js** - Reduced from complex ES6 module to simple 6-line IIFE
-2. **HTML files** - Load browser-compat.js first before any other scripts
-3. **TypeScript files** - Use global `browser` API without imports
-4. **Authentication** - Email/password only, no OAuth complexity
-5. **Tests** - Fixed to work with Jest's test isolation
+3. **searchService.js** - Search functionality
+   - Search state management
+   - Result navigation
+   - Search options handling
+   - Filter/highlight modes
 
-### Why This Works:
-- Firefox: Already has `browser` defined globally
-- Chrome: Gets `browser` as alias to `chrome` via our compatibility script
-- Both browsers support the same API methods in Manifest V3
+#### Components Layer (`/components/`)
+1. **treeNode.js** - Individual node rendering
+   - Node UI creation
+   - Drag & drop handling
+   - Context menu
+   - Event handlers
+
+2. **treeContainer.js** - Tree container management
+   - Tree rendering orchestration
+   - Background drop zones
+   - Empty/error states
+   - Recursive tree building
+
+3. **searchBar.js** - Search UI component
+   - Search input handling
+   - Result navigation UI
+   - Search options UI
+   - Text highlighting
+
+4. **authStatus.js** - Authentication UI
+   - Login/logout UI
+   - User status display
+   - Auth state management
+
+5. **sidebarController.js** - Main orchestrator
+   - Component initialization
+   - Storage listeners
+   - Message handling
+   - Component coordination
+
+#### Utilities Layer (`/utils/`)
+1. **formatters.js** - Formatting utilities
+   - Date/time formatting
+   - Text truncation
+   - Time ago calculations
+
+### Key Improvements
+1. **Separation of Concerns** - Each module has a single, clear responsibility
+2. **Reusability** - Components can be easily reused or replaced
+3. **Testability** - Individual modules can be unit tested in isolation
+4. **Maintainability** - Easier to locate and fix issues
+5. **Scalability** - New features can be added without touching existing code
+
+### Migration Status
+- ✅ All core functionality extracted to modules
+- ✅ HTML updated with correct script loading order
+- ✅ Legacy sidebar.js still in place for gradual migration
+- ⏳ Next: Remove legacy code from sidebar.js
+- ⏳ Next: Add unit tests for each module
+
+### Module Dependencies
+```
+sidebarController
+├── treeContainer
+│   ├── treeService
+│   ├── treeValidationService
+│   └── treeNode
+│       ├── formatters
+│       ├── createAnnotationButton
+│       └── createDeleteButton
+├── searchBar
+│   └── searchService
+└── authStatus
+    └── authManager
+```
 
 ## Current Extension State
 
@@ -43,12 +102,14 @@ Successfully fixed the failing browser-compat tests that were preventing npm tes
 - ✅ Voice annotations
 - ✅ Cross-browser support (Chrome & Firefox)
 - ✅ All tests passing (173/173)
+- ✅ Modular component architecture
 
 ### Recent Issues Resolved
 - "browser is not defined" error in Chrome - FIXED
 - "Unexpected token 'export'" error - FIXED
 - Google OAuth not working in Firefox - REMOVED
 - Browser-compat tests failing - FIXED
+- Monolithic sidebar.js - REFACTORED
 
 ### Technical Stack
 - TypeScript with browser API declarations
@@ -56,73 +117,85 @@ Successfully fixed the failing browser-compat tests that were preventing npm tes
 - Manifest V3 compliant
 - Local-first architecture
 - Jest testing with full coverage
+- Component-based architecture
 
 ## Next Steps
 
 ### Immediate
-1. Extension is ready for deployment
-2. Can submit to Chrome Web Store
-3. Can submit to Firefox Add-ons
+1. Remove legacy code from sidebar.js
+2. Add comprehensive unit tests for new modules
+3. Test the refactored sidebar thoroughly
+4. Update documentation for new architecture
 
 ### Short-term
-1. Monitor for any browser-specific issues in production
-2. Add more comprehensive integration tests if needed
-3. Consider adding E2E tests with Puppeteer
+1. Consider TypeScript conversion for new modules
+2. Add JSDoc comments for better IDE support
+3. Create integration tests for component interactions
+4. Optimize bundle size if needed
 
 ### Important Patterns
 
-#### Browser API Usage
-Always use `browser` API (not `chrome`):
+#### Module Pattern
+All services and components use singleton pattern:
 ```javascript
-// Good - works in both browsers
-browser.storage.local.get()
-browser.runtime.sendMessage()
+class ServiceName {
+  constructor() {
+    // Initialize
+  }
+  // Methods
+}
 
-// Avoid - Chrome-specific
-chrome.storage.local.get()
+// Export as singleton
+window.serviceName = new ServiceName();
 ```
 
-#### Authentication Flow
-Email/password only:
-- Sign up with email verification
-- Sign in with credentials
-- Password reset via email
-- No OAuth providers
+#### Component Initialization
+Components follow consistent initialization:
+```javascript
+initialize() {
+  // Get DOM elements
+  // Verify elements exist
+  // Setup event listeners
+  // Set initialized flag
+}
+```
 
-#### Script Loading Order
-1. browser-compat.js (creates global browser object)
-2. firebase-config.js (Firebase configuration)
-3. Application scripts (auth.js, sync.js, etc.)
-
-#### Testing Best Practices
-1. Create isolated test environments
-2. Don't rely on global state in tests
-3. Mock browser APIs locally within tests
-4. Use Jest's built-in isolation features
+#### Event Handling
+Consistent event handling pattern:
+```javascript
+setupEventListeners() {
+  // DOM events
+  // Browser API events
+  // Custom events
+}
+```
 
 ## Recent Learnings
 
-### Cross-Browser Development
-1. Keep compatibility layers minimal
-2. Use standard APIs that work in both browsers
-3. Avoid browser-specific features when possible
-4. Test in both browsers regularly
+### Refactoring Best Practices
+1. Start with clear module boundaries
+2. Extract services before UI components
+3. Keep legacy code during transition
+4. Test each module in isolation
+5. Document dependencies clearly
 
-### Jest Testing
-1. Be aware of test setup files and their global effects
-2. Create isolated test environments when testing global objects
-3. Use local mocks instead of global ones when possible
-4. Understand Jest's test isolation mechanisms
+### Component Architecture
+1. Services handle data and business logic
+2. Components handle UI and user interaction
+3. Controllers orchestrate components
+4. Utilities provide shared functionality
+5. Clear separation improves maintainability
 
-### Firebase Without SDK
-1. REST API works reliably in extensions
-2. No remote code violations
-3. Simpler authentication without OAuth
-4. Better for cross-browser compatibility
+### Browser Extension Architecture
+1. Global window objects work well for singletons
+2. Script loading order matters
+3. Storage listeners enable reactive updates
+4. Message passing connects components
+5. Modular structure aids debugging
 
-### Extension Architecture
-1. Service workers behave similarly in both browsers
-2. Content scripts need inline compatibility code
-3. Global browser object is the simplest solution
-4. TypeScript declarations help catch API differences
-5. Comprehensive testing ensures reliability
+### Code Organization
+1. Group by feature/responsibility
+2. Keep files focused and small
+3. Use descriptive names
+4. Maintain consistent patterns
+5. Document public interfaces
