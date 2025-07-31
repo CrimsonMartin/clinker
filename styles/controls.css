@@ -110,3 +110,34 @@
 .search-toggle-btn.active:hover {
   background: #4f46e5;
 }
+
+/* Sync status icon animation */
+.sync-icon {
+  width: 16px;
+  height: 16px;
+  animation: spin 1s linear infinite;
+}
+
+.sync-icon.synced {
+  animation: none;
+  color: #10b981;
+}
+
+.sync-icon.error {
+  animation: none;
+  color: #ef4444;
+}
+
+.sync-icon.offline {
+  animation: none;
+  color: #94a3b8;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

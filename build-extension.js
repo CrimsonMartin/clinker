@@ -22,6 +22,16 @@ const INCLUDE_FILES = [
   'sidebar.html',
   'login.html',
   
+  // CSS Styles
+  'styles/main.css',
+  'styles/tree-nodes.css',
+  'styles/annotations.css',
+  'styles/modals.css',
+  'styles/controls.css',
+  'styles/auth.css',
+  'styles/search.css',
+  'styles/donation.css',
+  
   // JavaScript files (non-TypeScript sources)
   'sidebar.js',
   'login.js',

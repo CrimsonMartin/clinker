@@ -64,6 +64,29 @@
   padding-left: 12px;
 }
 
+/* Image thumbnails */
+.tree-node-images {
+  margin-top: 8px;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.tree-node-image-thumbnail {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid #e2e8f0;
+  transition: transform 0.2s ease;
+}
+
+.tree-node-image-thumbnail:hover {
+  transform: scale(1.1);
+  border-color: #6366f1;
+}
+
 /* Node delete button */
 .node-delete-button {
   background: #ef4444;
@@ -100,12 +123,6 @@
   border-left-width: 4px;
 }
 
-.tree-container.drag-over-background {
-  background-color: #f0f9ff;
-  border: 2px dashed #6366f1;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 0 0 3px rgba(99, 102, 241, 0.1);
-}
-
 /* Cursor styles for draggable elements */
 .tree-node[draggable="true"] {
   cursor: grab;
@@ -113,30 +130,4 @@
 
 .tree-node[draggable="true"]:active {
   cursor: grabbing;
-}
-
-/* Context menu styles */
-.context-menu {
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  padding: 4px 0;
-  min-width: 160px;
-  font-size: 13px;
-}
-
-.context-menu-item {
-  padding: 8px 12px;
-  cursor: pointer;
-  color: #374151;
-  transition: background-color 0.2s ease;
-}
-
-.context-menu-item:hover {
-  background-color: #f3f4f6;
-}
-
-.context-menu-item:active {
-  background-color: #e5e7eb;
 }
