@@ -1,6 +1,49 @@
 # Active Context - Current Work and Focus
 
-## Current Task: Delete Button UI Refresh Fix Complete (2025-01-31)
+## Current Task: Tab Sync Fix Complete (2025-01-31)
+
+### Just Completed
+Fixed the critical sync issue where links added to non-general tabs weren't getting synced to the cloud! The problem was that the sync system was designed for the old storage format but the new tab system stores data differently.
+
+#### Tab Sync Fix Details:
+- **Root Cause**: SyncManager only looked at old `citationTree` storage key, but new tab system uses `tabsData` structure
+- **Missing Integration**: TreeService wasn't triggering sync when saving to tabs
+- **Data Format Mismatch**: Cloud storage needed to understand tab structure with metadata
+
+#### Changes Made:
+1. **Updated SyncManager** (`firebase/sync.js`):
+   - Added `convertTabsDataToSyncFormat()` to combine all tabs into one tree for cloud storage
+   - Added `convertSyncFormatToTabsData()` to restore tab structure when downloading from cloud
+   - Modified `performSync()` to detect and handle new tab format
+   - Updated `saveToLocal()` to convert cloud data back to tab format
+   - Enhanced `uploadToCloud()` to include tab metadata
+   - Fixed `markAsModified()` to update active tab's timestamp
+
+2. **Enhanced TreeService** (`services/treeService.ts`):
+   - Added sync triggering in `saveTree()` method for both tab and legacy formats
+   - Integrated with SyncManager to mark data as modified after saves
+   - Added check for `uiOnlyChange` flag to prevent unnecessary syncs
+
+3. **Tab Metadata Preservation**:
+   - Cloud storage now includes `tabsMetadata` with active tab ID and tab titles
+   - Proper restoration of tab names and active state when syncing down
+   - Maintains tab structure integrity across devices
+
+#### Technical Implementation:
+- **Backward Compatibility**: Still supports old storage format for existing users
+- **Data Conversion**: Seamless conversion between tab format and sync format
+- **Node Tracking**: Each node gets `tabId` property to track which tab it belongs to
+- **Sync Efficiency**: Only triggers sync for actual data changes, not UI-only updates
+
+#### Final Results:
+- **Before**: Only General tab links synced to cloud, other tabs ignored
+- **After**: All tabs sync properly with full metadata preservation
+- **Cross-Device**: Tab structure and content now syncs correctly between devices
+- **Data Safety**: No data loss during conversion, maintains all existing functionality
+- **Performance**: Efficient sync with proper change detection
+
+### Previous Task: Delete Button UI Refresh Fix Complete (2025-01-31)
+## Previous Task: Delete Button UI Refresh Fix Complete (2025-01-31)
 
 ### Just Completed
 Fixed the delete button issue where citation links weren't disappearing from the UI after deletion! The problem was that while the delete functionality was correctly setting the `deleted` field to `true` and saving to storage, the tree UI wasn't refreshing to hide the deleted nodes.

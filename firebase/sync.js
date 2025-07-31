@@ -104,12 +104,24 @@ class SyncManager {
     this.notifySyncListeners({ status: 'syncing' });
 
     try {
-      // Get local data (don't default lastModified to current time)
-      const localData = await this.getStorageData({
-        citationTree: { nodes: [], currentNodeId: null },
-        nodeCounter: 0,
-        lastModified: undefined // Include lastModified in the request
-      });
+      // Get local data - check for new tab format first, then fall back to old format
+      let localData;
+      const tabsData = await this.getStorageData(['tabsData']);
+      
+      if (tabsData.tabsData) {
+        // New tab format - convert to sync format
+        console.log('Using new tab format for sync');
+        localData = this.convertTabsDataToSyncFormat(tabsData.tabsData);
+      } else {
+        // Old format fallback
+        console.log('Using old format for sync fallback');
+        const oldData = await this.getStorageData({
+          citationTree: { nodes: [], currentNodeId: null },
+          nodeCounter: 0,
+          lastModified: undefined
+        });
+        localData = oldData;
+      }
 
       // Get cloud data
       const cloudData = await this.getCloudData(user.uid);
@@ -383,6 +395,11 @@ class SyncManager {
         userEmail: userEmail
       };
 
+      // Include tab metadata if available
+      if (localData.tabsMetadata) {
+        dataToUpload.tabsMetadata = localData.tabsMetadata;
+      }
+
       // Sanitize data to remove any undefined values
       const sanitizedData = this.sanitizeData(dataToUpload);
 
@@ -393,6 +410,7 @@ class SyncManager {
       }
 
       console.log('Uploading data to cloud via REST API...');
+      console.log(`Uploading ${sanitizedData.citationTree?.nodes?.length || 0} nodes across ${sanitizedData.tabsMetadata?.tabCount || 1} tabs`);
 
       const response = await fetch(
         `https://firestore.googleapis.com/v1/projects/${this.projectId}/databases/(default)/documents/users/${userId}`,
@@ -427,18 +445,39 @@ class SyncManager {
       // Validate and repair tree structure before saving
       const validatedTree = this.validateAndRepairTreeStructure(cloudData.citationTree);
       
-      // Add fromSync flag to prevent triggering another sync
-      const dataToSave = {
-        citationTree: { 
-          ...validatedTree, 
-          fromSync: true 
-        },
-        nodeCounter: cloudData.nodeCounter,
-        lastModified: cloudData.lastModified
-      };
+      // Check if we're using the new tab format locally
+      const existingTabsData = await this.getStorageData(['tabsData']);
       
-      await this.setStorageData(dataToSave);
-      console.log('Cloud data validated and saved to local storage');
+      if (existingTabsData.tabsData) {
+        // Convert cloud data back to tab format
+        console.log('Converting cloud data to tab format for local storage');
+        const tabsData = this.convertSyncFormatToTabsData({
+          ...cloudData,
+          citationTree: validatedTree
+        });
+        
+        // Add fromSync flag to prevent triggering another sync
+        tabsData.fromSync = true;
+        
+        await this.setStorageData({ 
+          tabsData: tabsData,
+          lastModified: cloudData.lastModified
+        });
+        console.log('Cloud data converted to tab format and saved to local storage');
+      } else {
+        // Use old format for backward compatibility
+        const dataToSave = {
+          citationTree: { 
+            ...validatedTree, 
+            fromSync: true 
+          },
+          nodeCounter: cloudData.nodeCounter,
+          lastModified: cloudData.lastModified
+        };
+        
+        await this.setStorageData(dataToSave);
+        console.log('Cloud data saved to local storage in old format');
+      }
     } catch (error) {
       console.error('Error saving to local storage:', error);
       throw error;
@@ -513,16 +552,162 @@ class SyncManager {
     return tree;
   }
 
+  // Convert tabs data to sync format (combines all tabs into one tree)
+  convertTabsDataToSyncFormat(tabsData) {
+    const allNodes = [];
+    let maxNodeId = 0;
+    let globalCurrentNodeId = null;
+    let lastModified = null;
+
+    // Combine nodes from all tabs
+    tabsData.tabs.forEach(tab => {
+      if (tab.treeData && tab.treeData.nodes) {
+        tab.treeData.nodes.forEach(node => {
+          // Ensure node has tabId for tracking
+          if (!node.tabId) {
+            node.tabId = tab.id;
+          }
+          allNodes.push(node);
+          
+          // Track highest node ID
+          if (node.id > maxNodeId) {
+            maxNodeId = node.id;
+          }
+        });
+        
+        // Use the active tab's current node as global current node
+        if (tab.id === tabsData.activeTabId && tab.treeData.currentNodeId) {
+          globalCurrentNodeId = tab.treeData.currentNodeId;
+        }
+        
+        // Use the most recent lastModified timestamp
+        if (tab.lastModified) {
+          if (!lastModified || new Date(tab.lastModified) > new Date(lastModified)) {
+            lastModified = tab.lastModified;
+          }
+        }
+      }
+    });
+
+    console.log(`Converted ${tabsData.tabs.length} tabs to sync format: ${allNodes.length} total nodes`);
+
+    return {
+      citationTree: {
+        nodes: allNodes,
+        currentNodeId: globalCurrentNodeId
+      },
+      nodeCounter: maxNodeId,
+      lastModified: lastModified || new Date().toISOString(),
+      // Include tab metadata for cloud storage
+      tabsMetadata: {
+        activeTabId: tabsData.activeTabId,
+        tabCount: tabsData.tabs.length,
+        tabTitles: tabsData.tabs.map(tab => ({ id: tab.id, title: tab.title }))
+      }
+    };
+  }
+
+  // Convert sync format back to tabs data
+  convertSyncFormatToTabsData(syncData) {
+    const tabsMap = new Map();
+    
+    // Initialize with a General tab if no nodes exist
+    if (!syncData.citationTree || !syncData.citationTree.nodes || syncData.citationTree.nodes.length === 0) {
+      return {
+        tabs: [{
+          id: 'general-tab',
+          title: 'General',
+          url: '',
+          isActive: true,
+          treeData: { nodes: [], currentNodeId: null },
+          lastModified: syncData.lastModified || new Date().toISOString()
+        }],
+        activeTabId: 'general-tab'
+      };
+    }
+
+    // Group nodes by tabId
+    syncData.citationTree.nodes.forEach(node => {
+      const tabId = node.tabId || 'general-tab';
+      
+      if (!tabsMap.has(tabId)) {
+        tabsMap.set(tabId, {
+          id: tabId,
+          title: tabId === 'general-tab' ? 'General' : `Tab ${tabId}`,
+          url: '',
+          isActive: false,
+          treeData: { nodes: [], currentNodeId: null },
+          lastModified: syncData.lastModified || new Date().toISOString()
+        });
+      }
+      
+      tabsMap.get(tabId).treeData.nodes.push(node);
+    });
+
+    // Convert map to array
+    const tabs = Array.from(tabsMap.values());
+    
+    // Determine active tab
+    let activeTabId = 'general-tab';
+    if (syncData.tabsMetadata && syncData.tabsMetadata.activeTabId) {
+      activeTabId = syncData.tabsMetadata.activeTabId;
+    } else if (tabs.length > 0) {
+      activeTabId = tabs[0].id;
+    }
+    
+    // Set active tab and current node
+    tabs.forEach(tab => {
+      tab.isActive = tab.id === activeTabId;
+      if (tab.isActive && syncData.citationTree.currentNodeId) {
+        // Check if the current node belongs to this tab
+        const hasCurrentNode = tab.treeData.nodes.some(node => node.id === syncData.citationTree.currentNodeId);
+        if (hasCurrentNode) {
+          tab.treeData.currentNodeId = syncData.citationTree.currentNodeId;
+        }
+      }
+    });
+
+    // Restore tab titles from metadata if available
+    if (syncData.tabsMetadata && syncData.tabsMetadata.tabTitles) {
+      syncData.tabsMetadata.tabTitles.forEach(tabInfo => {
+        const tab = tabs.find(t => t.id === tabInfo.id);
+        if (tab) {
+          tab.title = tabInfo.title;
+        }
+      });
+    }
+
+    console.log(`Converted sync format to ${tabs.length} tabs`);
+
+    return {
+      tabs: tabs,
+      activeTabId: activeTabId
+    };
+  }
+
   // Mark data as modified (will sync on next 30-second interval)
   async markAsModified() {
     const now = new Date().toISOString();
     
-    // Only update the timestamp, don't modify citationTree to avoid triggering storage listener
-    await this.setStorageData({ 
-      lastModified: now
-    });
+    // Check if we're using the new tab format
+    const tabsData = await this.getStorageData(['tabsData']);
+    if (tabsData.tabsData) {
+      // Update the active tab's lastModified timestamp
+      const activeTabId = tabsData.tabsData.activeTabId;
+      const activeTab = tabsData.tabsData.tabs.find(tab => tab.id === activeTabId);
+      if (activeTab) {
+        activeTab.lastModified = now;
+        await this.setStorageData({ tabsData: tabsData.tabsData });
+        console.log(`Tab ${activeTabId} marked as modified at:`, now);
+      }
+    } else {
+      // Fallback to old format
+      await this.setStorageData({ 
+        lastModified: now
+      });
+      console.log('Data marked as modified at:', now);
+    }
     
-    console.log('Data marked as modified at:', now);
     // Data will be synced on the next scheduled 30-second interval
   }
 

@@ -102,6 +102,11 @@ class TreeService {
         if (activeTabId) {
           console.log(`Saving tree to active tab: ${activeTabId}`);
           await tabService.updateTabTree(activeTabId, tree);
+          
+          // Mark data as modified for sync (only if not a UI-only change)
+          if (!tree.uiOnlyChange && typeof (window as any).syncManager !== 'undefined') {
+            await (window as any).syncManager.markAsModified();
+          }
           return;
         }
       } catch (error) {
@@ -115,6 +120,11 @@ class TreeService {
       [this.storageKey]: tree,
       lastModified: new Date().toISOString()
     });
+    
+    // Mark data as modified for sync (only if not a UI-only change)
+    if (!tree.uiOnlyChange && typeof (window as any).syncManager !== 'undefined') {
+      await (window as any).syncManager.markAsModified();
+    }
   }
 
   // Find a node by ID
