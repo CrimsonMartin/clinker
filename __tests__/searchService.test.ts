@@ -13,23 +13,23 @@ describe('SearchService', () => {
   });
 
   describe('performSearch', () => {
-    it('should return empty array for empty query', () => {
+    it('should return empty array for empty query', async () => {
       const nodes: TreeNode[] = [];
-      const results = searchService.performSearch('', nodes);
+      const results = await searchService.performSearch('', nodes);
       
       expect(results).toEqual([]);
       expect(searchService.hasResults()).toBe(false);
     });
 
-    it('should return empty array for whitespace-only query', () => {
+    it('should return empty array for whitespace-only query', async () => {
       const nodes: TreeNode[] = [];
-      const results = searchService.performSearch('   ', nodes);
+      const results = await searchService.performSearch('   ', nodes);
       
       expect(results).toEqual([]);
       expect(searchService.hasResults()).toBe(false);
     });
 
-    it('should find matches in node text', () => {
+    it('should find matches in node text', async () => {
       const nodes: TreeNode[] = [
         {
           id: 1,
@@ -41,7 +41,7 @@ describe('SearchService', () => {
         }
       ];
       
-      const results = searchService.performSearch('test', nodes);
+      const results = await searchService.performSearch('test', nodes);
       
       expect(results).toHaveLength(1);
       expect(results[0].nodeId).toBe(1);
@@ -51,7 +51,7 @@ describe('SearchService', () => {
       expect(searchService.hasResults()).toBe(true);
     });
 
-    it('should find matches in node annotations', () => {
+    it('should find matches in node annotations', async () => {
       const nodes: TreeNode[] = [
         {
           id: 1,
@@ -69,7 +69,7 @@ describe('SearchService', () => {
         }
       ];
       
-      const results = searchService.performSearch('annotation', nodes, { searchAnnotations: true });
+      const results = await searchService.performSearch('annotation', nodes, { searchAnnotations: true });
       
       expect(results).toHaveLength(1);
       expect(results[0].nodeId).toBe(1);
@@ -78,7 +78,7 @@ describe('SearchService', () => {
       expect(results[0].matches[0].text).toBe('This is a test annotation');
     });
 
-    it('should prioritize highlighted content over annotations', () => {
+    it('should prioritize highlighted content over annotations', async () => {
       const nodes: TreeNode[] = [
         {
           id: 1,
@@ -96,13 +96,13 @@ describe('SearchService', () => {
         }
       ];
       
-      const results = searchService.performSearch('test', nodes, { searchAnnotations: true });
+      const results = await searchService.performSearch('test', nodes, { searchAnnotations: true });
       
       expect(results).toHaveLength(1);
       expect(results[0].priority).toBe(1); // Highlighted content has priority 1
     });
 
-    it('should exclude deleted nodes from search', () => {
+    it('should exclude deleted nodes from search', async () => {
       const nodes: TreeNode[] = [
         {
           id: 1,
@@ -124,13 +124,13 @@ describe('SearchService', () => {
         }
       ];
       
-      const results = searchService.performSearch('test', nodes);
+      const results = await searchService.performSearch('test', nodes);
       
       expect(results).toHaveLength(1);
       expect(results[0].nodeId).toBe(2);
     });
 
-    it('should handle case-insensitive search', () => {
+    it('should handle case-insensitive search', async () => {
       const nodes: TreeNode[] = [
         {
           id: 1,
@@ -142,7 +142,7 @@ describe('SearchService', () => {
         }
       ];
       
-      const results = searchService.performSearch('test', nodes);
+      const results = await searchService.performSearch('test', nodes);
       
       expect(results).toHaveLength(1);
       expect(results[0].nodeId).toBe(1);
@@ -252,7 +252,7 @@ describe('SearchService', () => {
   describe('navigation', () => {
     let testNodes: TreeNode[];
 
-    beforeEach(() => {
+    beforeEach(async () => {
       testNodes = [
         {
           id: 1,
@@ -280,53 +280,53 @@ describe('SearchService', () => {
         }
       ];
       
-      searchService.performSearch('test', testNodes);
+      await searchService.performSearch('test', testNodes);
     });
 
     describe('navigateToNext', () => {
-      it('should navigate to next result', () => {
+      it('should navigate to next result', async () => {
         const firstResult = searchService.getCurrentResult();
         expect(firstResult?.nodeId).toBe(1);
         
-        const secondResult = searchService.navigateToNext();
+        const secondResult = await searchService.navigateToNext();
         expect(secondResult?.nodeId).toBe(2);
         
-        const thirdResult = searchService.navigateToNext();
+        const thirdResult = await searchService.navigateToNext();
         expect(thirdResult?.nodeId).toBe(3);
         
         // Should wrap around to first result
-        const fourthResult = searchService.navigateToNext();
+        const fourthResult = await searchService.navigateToNext();
         expect(fourthResult?.nodeId).toBe(1);
       });
 
-      it('should return null when no results', () => {
+      it('should return null when no results', async () => {
         searchService.clearSearchResults();
-        const result = searchService.navigateToNext();
+        const result = await searchService.navigateToNext();
         expect(result).toBeNull();
       });
     });
 
     describe('navigateToPrevious', () => {
-      it('should navigate to previous result', () => {
+      it('should navigate to previous result', async () => {
         // Start at first result
         expect(searchService.getCurrentResult()?.nodeId).toBe(1);
         
         // Go to last result (wraps around)
-        const lastResult = searchService.navigateToPrevious();
+        const lastResult = await searchService.navigateToPrevious();
         expect(lastResult?.nodeId).toBe(3);
         
         // Go back to second result
-        const secondResult = searchService.navigateToPrevious();
+        const secondResult = await searchService.navigateToPrevious();
         expect(secondResult?.nodeId).toBe(2);
         
         // Go back to first result
-        const firstResult = searchService.navigateToPrevious();
+        const firstResult = await searchService.navigateToPrevious();
         expect(firstResult?.nodeId).toBe(1);
       });
 
-      it('should return null when no results', () => {
+      it('should return null when no results', async () => {
         searchService.clearSearchResults();
-        const result = searchService.navigateToPrevious();
+        const result = await searchService.navigateToPrevious();
         expect(result).toBeNull();
       });
     });
@@ -337,7 +337,7 @@ describe('SearchService', () => {
       expect(searchService.getSearchCounter()).toBe('0 of 0');
     });
 
-    it('should return correct counter when results exist', () => {
+    it('should return correct counter when results exist', async () => {
       const nodes: TreeNode[] = [
         {
           id: 1,
@@ -349,26 +349,26 @@ describe('SearchService', () => {
         }
       ];
       
-      searchService.performSearch('test', nodes);
+      await searchService.performSearch('test', nodes);
       expect(searchService.getSearchCounter()).toBe('1 of 1');
     });
 
-    it('should update counter during navigation', () => {
+    it('should update counter during navigation', async () => {
       const nodes: TreeNode[] = [
         { id: 1, text: 'First test', url: 'https://example.com/1', timestamp: '2023-01-01T00:00:00.000Z', parentId: null, children: [] },
         { id: 2, text: 'Second test', url: 'https://example.com/2', timestamp: '2023-01-01T00:00:00.000Z', parentId: null, children: [] }
       ];
       
-      searchService.performSearch('test', nodes);
+      await searchService.performSearch('test', nodes);
       expect(searchService.getSearchCounter()).toBe('1 of 2');
       
-      searchService.navigateToNext();
+      await searchService.navigateToNext();
       expect(searchService.getSearchCounter()).toBe('2 of 2');
     });
   });
 
   describe('clearSearchResults', () => {
-    it('should clear all search results and reset state', () => {
+    it('should clear all search results and reset state', async () => {
       const nodes: TreeNode[] = [
         {
           id: 1,
@@ -380,7 +380,7 @@ describe('SearchService', () => {
         }
       ];
       
-      searchService.performSearch('test', nodes);
+      await searchService.performSearch('test', nodes);
       expect(searchService.hasResults()).toBe(true);
       
       searchService.clearSearchResults();
@@ -391,14 +391,14 @@ describe('SearchService', () => {
   });
 
   describe('getMatchingNodeIds', () => {
-    it('should return set of matching node IDs', () => {
+    it('should return set of matching node IDs', async () => {
       const nodes: TreeNode[] = [
         { id: 1, text: 'Match one', url: 'https://example.com/1', timestamp: '2023-01-01T00:00:00.000Z', parentId: null, children: [] },
         { id: 2, text: 'No result', url: 'https://example.com/2', timestamp: '2023-01-01T00:00:00.000Z', parentId: null, children: [] },
         { id: 3, text: 'Match two', url: 'https://example.com/3', timestamp: '2023-01-01T00:00:00.000Z', parentId: null, children: [] }
       ];
       
-      searchService.performSearch('match', nodes);
+      await searchService.performSearch('match', nodes);
       const matchingIds = searchService.getMatchingNodeIds();
       
       expect(matchingIds).toBeInstanceOf(Set);
@@ -442,9 +442,9 @@ describe('SearchService', () => {
   });
 
   describe('getQuery', () => {
-    it('should return current search query', () => {
+    it('should return current search query', async () => {
       const nodes: TreeNode[] = [];
-      searchService.performSearch('test query', nodes);
+      await searchService.performSearch('test query', nodes);
       
       expect(searchService.getQuery()).toBe('test query');
     });

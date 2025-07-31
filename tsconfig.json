@@ -1,9 +1,8 @@
 {
   "compilerOptions": {
     "target": "es2020",
-    "module": "esnext",
+    "module": "none",
     "lib": ["es2020", "dom"],
-    "moduleResolution": "node",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -17,6 +16,11 @@
   ],
   "exclude": [
     "node_modules",
-    "dist"
+    "dist",
+    "__tests__",
+    "components/treeContainer.ts",
+    "components/treeNode.ts",
+    "services/treeService.ts",
+    "services/treeValidationService.ts"
   ]
 }

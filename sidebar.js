@@ -725,6 +725,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
   
+  // Initialize tabs system
+  try {
+    if (window.CitationLinker && window.CitationLinker.tabService) {
+      await window.CitationLinker.tabService.initialize();
+      console.log('Tab service initialized successfully');
+      
+      // Initialize tab bar UI
+      if (window.CitationLinker.tabBar) {
+        await window.CitationLinker.tabBar.initialize();
+        console.log('Tab bar initialized successfully');
+      }
+    }
+  } catch (error) {
+    console.error('Error initializing tabs:', error);
+  }
+  
   loadAndDisplayTree();
   initializeToggle();
   initializeSearch();

@@ -8,16 +8,37 @@ export class TreeService {
     this.storageKey = 'citationTree';
   }
 
-  // Get the current tree from storage
+  // Get the current tree from storage (now uses active tab)
   async getTree(): Promise<TreeData> {
+    // Check if we have the new tab system
+    const tabService = (window as any).tabService;
+    if (tabService) {
+      const activeTab = await tabService.getActiveTab();
+      if (activeTab) {
+        return activeTab.treeData;
+      }
+    }
+    
+    // Fallback to old storage format for backward compatibility
     const result = await browser.storage.local.get({ 
       [this.storageKey]: { nodes: [] as TreeNode[], currentNodeId: null } 
     });
     return result[this.storageKey];
   }
 
-  // Save tree to storage
+  // Save tree to storage (now updates active tab)
   async saveTree(tree: TreeData): Promise<void> {
+    // Check if we have the new tab system
+    const tabService = (window as any).tabService;
+    if (tabService) {
+      const activeTabId = await tabService.getActiveTabId();
+      if (activeTabId) {
+        await tabService.updateTabTree(activeTabId, tree);
+        return;
+      }
+    }
+    
+    // Fallback to old storage format for backward compatibility
     await browser.storage.local.set({ 
       [this.storageKey]: tree,
       lastModified: new Date().toISOString()

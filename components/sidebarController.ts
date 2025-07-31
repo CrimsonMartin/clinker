@@ -14,10 +14,20 @@ export class SidebarController {
     try {
       console.log('Initializing sidebar controller...');
       
+      // Initialize tab service first
+      if ((window as any).tabService) {
+        await (window as any).tabService.initialize();
+      }
+      
       // Initialize all components
       (window as any).treeContainer.initialize();
       (window as any).searchBar.initialize();
       (window as any).authStatus.initialize();
+      
+      // Initialize tab bar
+      if ((window as any).tabBar) {
+        await (window as any).tabBar.initialize();
+      }
       
       // Setup storage listener
       this.setupStorageListener();
@@ -55,26 +65,38 @@ export class SidebarController {
   private setupStorageListener(): void {
     // Listen for storage changes
     this.storageListener = (changes: any, areaName: string) => {
-      if (areaName === 'local' && changes.citationTree) {
-        console.log('Tree data changed, reloading...');
-        
-        // Check if this is a UI-only change (like highlighting)
-        const newValue = changes.citationTree.newValue;
-        if (newValue && newValue.uiOnlyChange) {
-          // Just update highlighting without full reload
-          this.updateHighlighting(newValue.currentNodeId);
-          
-          // Clear the UI-only flag
-          browser.storage.local.get('citationTree').then((result: any) => {
-            const tree = result.citationTree;
-            if (tree && tree.uiOnlyChange) {
-              delete tree.uiOnlyChange;
-              browser.storage.local.set({ citationTree: tree });
-            }
-          });
-        } else {
-          // Full reload for structural changes
+      if (areaName === 'local') {
+        // Handle tab changes
+        if (changes.tabsData) {
+          console.log('Tabs data changed, reloading...');
+          if ((window as any).tabBar) {
+            (window as any).tabBar.refresh();
+          }
           this.loadAndDisplay();
+        }
+        
+        // Handle legacy tree changes (for backward compatibility)
+        if (changes.citationTree) {
+          console.log('Tree data changed, reloading...');
+          
+          // Check if this is a UI-only change (like highlighting)
+          const newValue = changes.citationTree.newValue;
+          if (newValue && newValue.uiOnlyChange) {
+            // Just update highlighting without full reload
+            this.updateHighlighting(newValue.currentNodeId);
+            
+            // Clear the UI-only flag
+            browser.storage.local.get('citationTree').then((result: any) => {
+              const tree = result.citationTree;
+              if (tree && tree.uiOnlyChange) {
+                delete tree.uiOnlyChange;
+                browser.storage.local.set({ citationTree: tree });
+              }
+            });
+          } else {
+            // Full reload for structural changes
+            this.loadAndDisplay();
+          }
         }
       }
     };

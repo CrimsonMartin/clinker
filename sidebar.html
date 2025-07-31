@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="styles/controls.css">
   <link rel="stylesheet" href="styles/auth.css">
   <link rel="stylesheet" href="styles/search.css">
+  <link rel="stylesheet" href="styles/tabs.css">
   <link rel="stylesheet" href="styles/donation.css">
 </head>
 <body>
@@ -62,9 +63,16 @@
             <input type="checkbox" id="searchFilterMode">
             <span>Filter Mode</span>
           </label>
+          <label class="search-option">
+            <input type="checkbox" id="searchAllTabs">
+            <span>Search All Tabs</span>
+          </label>
         </div>
       </div>
     </div>
+    
+    <!-- Tab Bar -->
+    <div id="tab-bar-container"></div>
     
     <div id="tree-root">
       <div class="empty-state">No citations saved yet. Highlight text on any webpage to start building your research tree.</div>
@@ -113,12 +121,13 @@
   <script defer src="firebase/sync.js"></script>
   
   <!-- Utility scripts -->
-  <script defer src="utils/formatters.js"></script>
+  <script defer src="dist/utils/formatters.js"></script>
   
   <!-- Service layer -->
-  <script defer src="services/treeService.js"></script>
-  <script defer src="services/treeValidationService.js"></script>
-  <script defer src="services/searchService.js"></script>
+  <script defer src="dist/services/tabService.js"></script>
+  <script defer src="dist/services/treeService.js"></script>
+  <script defer src="dist/services/treeValidationService.js"></script>
+  <script defer src="dist/services/searchService.js"></script>
   
   <!-- UI Components -->
   <script defer src="deleteButton.js"></script>
@@ -126,11 +135,12 @@
   <script defer src="annotationButton.js"></script>
   
   <!-- Component layer -->
-  <script defer src="components/treeNode.js"></script>
-  <script defer src="components/treeContainer.js"></script>
-  <script defer src="components/searchBar.js"></script>
-  <script defer src="components/authStatus.js"></script>
-  <script defer src="components/sidebarController.js"></script>
+  <script defer src="dist/components/treeNode.js"></script>
+  <script defer src="dist/components/treeContainer.js"></script>
+  <script defer src="dist/components/searchBar.js"></script>
+  <script defer src="dist/components/tabBar.js"></script>
+  <script defer src="dist/components/authStatus.js"></script>
+  <script defer src="dist/components/sidebarController.js"></script>
   
   <!-- Legacy sidebar.js - to be removed after full migration -->
   <script defer src="sidebar.js"></script>

@@ -1,5 +1,9 @@
 // searchService.ts - Search functionality and state management
-import { TreeNode } from '../types/treeTypes';
+
+// Initialize global namespace if it doesn't exist
+if (typeof window !== 'undefined') {
+  (window as any).CitationLinker = (window as any).CitationLinker || {};
+}
 
 interface SearchMatch {
   type: 'highlight' | 'annotation';
@@ -12,15 +16,18 @@ interface SearchResult {
   nodeId: number;
   matches: SearchMatch[];
   priority: number;
+  tabId?: string;
+  tabName?: string;
 }
 
 interface SearchOptions {
   searchHighlighted: boolean;
   searchAnnotations: boolean;
   filterMode: boolean;
+  searchAllTabs: boolean;
 }
 
-export class SearchService {
+class SearchService {
   private searchResults: SearchResult[];
   private currentSearchIndex: number;
   private searchQuery: string;
@@ -33,12 +40,13 @@ export class SearchService {
     this.searchOptions = {
       searchHighlighted: true,
       searchAnnotations: true,
-      filterMode: false
+      filterMode: false,
+      searchAllTabs: false
     };
   }
 
   // Perform search across tree nodes
-  performSearch(query: string, nodes: TreeNode[], options: Partial<SearchOptions> = {}): SearchResult[] {
+  async performSearch(query: string, nodes: CitationLinker.TreeNode[], options: Partial<SearchOptions> = {}): Promise<SearchResult[]> {
     this.searchQuery = query.trim().toLowerCase();
     this.searchOptions = { ...this.searchOptions, ...options };
     
@@ -49,19 +57,43 @@ export class SearchService {
 
     this.searchResults = [];
 
-    // Search through nodes, excluding deleted nodes
-    nodes.forEach(node => {
-      if (!node.deleted) {
-        const matches = this.findMatches(node);
-        if (matches.length > 0) {
-          this.searchResults.push({
-            nodeId: node.id,
-            matches: matches,
-            priority: matches.some(m => m.type === 'highlight') ? 1 : 2
-          });
-        }
+    // If searching all tabs, get all tabs and search through them
+    if (this.searchOptions.searchAllTabs && (window as any).CitationLinker.tabService) {
+      const tabService = (window as any).CitationLinker.tabService;
+      const tabsData = await tabService.getTabs();
+      
+      for (const tab of tabsData.tabs) {
+        // Search through nodes in each tab
+        tab.treeData.nodes.forEach((node: CitationLinker.TreeNode) => {
+          if (!node.deleted) {
+            const matches = this.findMatches(node);
+            if (matches.length > 0) {
+              this.searchResults.push({
+                nodeId: node.id,
+                matches: matches,
+                priority: matches.some(m => m.type === 'highlight') ? 1 : 2,
+                tabId: tab.id,
+                tabName: tab.title
+              });
+            }
+          }
+        });
       }
-    });
+    } else {
+      // Search only in current tab (provided nodes)
+      nodes.forEach(node => {
+        if (!node.deleted) {
+          const matches = this.findMatches(node);
+          if (matches.length > 0) {
+            this.searchResults.push({
+              nodeId: node.id,
+              matches: matches,
+              priority: matches.some(m => m.type === 'highlight') ? 1 : 2
+            });
+          }
+        }
+      });
+    }
 
     // Sort results by priority (highlighted content first, then annotations)
     this.searchResults.sort((a, b) => a.priority - b.priority);
@@ -74,7 +106,7 @@ export class SearchService {
   }
 
   // Find matches within a node
-  findMatches(node: TreeNode): SearchMatch[] {
+  findMatches(node: CitationLinker.TreeNode): SearchMatch[] {
     const matches: SearchMatch[] = [];
 
     // Search in highlighted content
@@ -89,7 +121,7 @@ export class SearchService {
 
     // Search in annotations
     if (this.searchOptions.searchAnnotations && node.annotations) {
-      node.annotations.forEach((annotation, index) => {
+      node.annotations.forEach((annotation: any, index: number) => {
         if (annotation.text.toLowerCase().includes(this.searchQuery)) {
           matches.push({
             type: 'annotation',
@@ -105,21 +137,39 @@ export class SearchService {
   }
 
   // Navigate to next search result
-  navigateToNext(): SearchResult | null {
+  async navigateToNext(): Promise<SearchResult | null> {
     if (this.searchResults.length === 0) return null;
     
     this.currentSearchIndex = (this.currentSearchIndex + 1) % this.searchResults.length;
-    return this.getCurrentResult();
+    const result = this.getCurrentResult();
+    
+    // If result is from a different tab, switch to it
+    if (result && result.tabId && (window as any).CitationLinker.tabService) {
+      await (window as any).CitationLinker.tabService.setActiveTab(result.tabId);
+      // Wait a bit for the tab to load
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+    return result;
   }
 
   // Navigate to previous search result
-  navigateToPrevious(): SearchResult | null {
+  async navigateToPrevious(): Promise<SearchResult | null> {
     if (this.searchResults.length === 0) return null;
     
     this.currentSearchIndex = this.currentSearchIndex === 0 
       ? this.searchResults.length - 1 
       : this.currentSearchIndex - 1;
-    return this.getCurrentResult();
+    const result = this.getCurrentResult();
+    
+    // If result is from a different tab, switch to it
+    if (result && result.tabId && (window as any).CitationLinker.tabService) {
+      await (window as any).CitationLinker.tabService.setActiveTab(result.tabId);
+      // Wait a bit for the tab to load
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+    return result;
   }
 
   // Get current search result
@@ -169,7 +219,11 @@ export class SearchService {
   }
 }
 
-// Export as singleton for backward compatibility
+// Attach to global namespace
 if (typeof window !== 'undefined') {
-  (window as any).searchService = new SearchService();
+  (window as any).CitationLinker.SearchService = SearchService;
+  (window as any).CitationLinker.searchService = new SearchService();
+  
+  // Export as singleton for backward compatibility
+  (window as any).searchService = (window as any).CitationLinker.searchService;
 }

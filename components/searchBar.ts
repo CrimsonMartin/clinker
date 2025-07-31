@@ -11,6 +11,7 @@ interface SearchElements {
   searchHighlighted: HTMLInputElement | null;
   searchAnnotations: HTMLInputElement | null;
   searchFilterMode: HTMLInputElement | null;
+  searchAllTabs: HTMLInputElement | null;
 }
 
 export class SearchBar {
@@ -30,7 +31,8 @@ export class SearchBar {
       searchCounter: null,
       searchHighlighted: null,
       searchAnnotations: null,
-      searchFilterMode: null
+      searchFilterMode: null,
+      searchAllTabs: null
     };
     this.initialized = false;
   }
@@ -48,7 +50,8 @@ export class SearchBar {
       searchCounter: document.getElementById('searchCounter'),
       searchHighlighted: document.getElementById('searchHighlighted') as HTMLInputElement,
       searchAnnotations: document.getElementById('searchAnnotations') as HTMLInputElement,
-      searchFilterMode: document.getElementById('searchFilterMode') as HTMLInputElement
+      searchFilterMode: document.getElementById('searchFilterMode') as HTMLInputElement,
+      searchAllTabs: document.getElementById('searchAllTabs') as HTMLInputElement
     };
 
     // Verify all elements exist
@@ -108,7 +111,8 @@ export class SearchBar {
     [
       this.elements.searchHighlighted,
       this.elements.searchAnnotations,
-      this.elements.searchFilterMode
+      this.elements.searchFilterMode,
+      this.elements.searchAllTabs
     ].forEach(checkbox => {
       checkbox?.addEventListener('change', () => {
         if (this.elements.searchInput?.value.trim()) {
@@ -158,12 +162,13 @@ export class SearchBar {
     const options = {
       searchHighlighted: this.elements.searchHighlighted?.checked || false,
       searchAnnotations: this.elements.searchAnnotations?.checked || false,
-      filterMode: this.elements.searchFilterMode?.checked || false
+      filterMode: this.elements.searchFilterMode?.checked || false,
+      searchAllTabs: this.elements.searchAllTabs?.checked || false
     };
 
     // Get tree data and perform search
     const tree = await (window as any).treeService.getTree();
-    const results = (window as any).searchService.performSearch(trimmedQuery, tree.nodes, options);
+    const results = await (window as any).searchService.performSearch(trimmedQuery, tree.nodes, options);
 
     // Update display
     this.updateSearchDisplay(options.filterMode);
@@ -337,15 +342,15 @@ export class SearchBar {
   }
 
   // Navigate to next result
-  navigateToNextResult(): void {
-    (window as any).searchService.navigateToNext();
+  async navigateToNextResult(): Promise<void> {
+    await (window as any).searchService.navigateToNext();
     this.highlightCurrentResult();
     this.updateSearchCounter();
   }
 
   // Navigate to previous result
-  navigateToPreviousResult(): void {
-    (window as any).searchService.navigateToPrevious();
+  async navigateToPreviousResult(): Promise<void> {
+    await (window as any).searchService.navigateToPrevious();
     this.highlightCurrentResult();
     this.updateSearchCounter();
   }

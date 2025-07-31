@@ -115,8 +115,20 @@ export class TreeNode {
     
     this.element.draggable = true;
     
-    this.element.addEventListener('dragstart', (e) => {
+    this.element.addEventListener('dragstart', async (e) => {
       (window as any).currentDraggedNodeId = this.node.id;
+      
+      // Store drag state with source tab info
+      const tabService = (window as any).tabService;
+      if (tabService) {
+        const activeTabId = await tabService.getActiveTabId();
+        (window as any).currentDragState = {
+          nodeId: this.node.id,
+          sourceTabId: activeTabId,
+          nodeData: this.node
+        };
+      }
+      
       e.dataTransfer!.setData('text/plain', this.node.id.toString());
       e.dataTransfer!.effectAllowed = 'move';
       this.element!.classList.add('dragging');
@@ -125,6 +137,7 @@ export class TreeNode {
     this.element.addEventListener('dragend', () => {
       this.element!.classList.remove('dragging');
       (window as any).currentDraggedNodeId = null;
+      (window as any).currentDragState = null;
       
       // Clean up any remaining drag-over classes
       document.querySelectorAll('.drag-over').forEach(el => {

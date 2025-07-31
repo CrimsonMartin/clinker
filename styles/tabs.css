@@ -1,0 +1,153 @@
+/* Tab Bar Styles */
+
+.tabs-container {
+  display: flex;
+  align-items: center;
+  background: white;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 8px 12px;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f1f5f9;
+}
+
+.tabs-container::-webkit-scrollbar {
+  height: 6px;
+}
+
+.tabs-container::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+.tabs-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.tabs-wrapper {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+}
+
+.tab {
+  padding: 6px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #64748b;
+  background: #f1f5f9;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  user-select: none;
+  position: relative;
+  min-width: 80px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.tab.active {
+  background: #6366f1;
+  color: white;
+  font-weight: 600;
+}
+
+.tab:hover:not(.active) {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.tab.dragging {
+  opacity: 0.5;
+  cursor: grabbing;
+}
+
+.tab.drag-over {
+  background: #ddd6fe;
+  border: 2px dashed #6366f1;
+  transform: scale(1.02);
+  transition: all 0.2s ease;
+}
+
+.tab.drag-over::after {
+  content: '+';
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #6366f1;
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.tab-label {
+  display: inline-block;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-rename-input {
+  background: white;
+  border: 1px solid #6366f1;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1e293b;
+  outline: none;
+  font-family: inherit;
+}
+
+.tab-add-button {
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #6366f1;
+  background: transparent;
+  border: 1px dashed #cbd5e1;
+  transition: all 0.2s ease;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.tab-add-button:hover {
+  background: #f0f9ff;
+  border-color: #6366f1;
+}
+
+.tab-add-button:active {
+  transform: scale(0.95);
+}
+
+/* Tab context menu specific styles */
+.tab-context-menu {
+  min-width: 120px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .tabs-container {
+    padding: 6px 8px;
+    gap: 6px;
+  }
+  
+  .tab {
+    padding: 4px 12px;
+    font-size: 12px;
+    min-width: 60px;
+  }
+  
+  .tab-label {
+    max-width: 100px;
+  }
+  
+  .tab-add-button {
+    padding: 4px 8px;
+    font-size: 14px;
+  }
+}

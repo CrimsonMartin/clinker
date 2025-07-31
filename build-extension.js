@@ -30,6 +30,7 @@ const INCLUDE_FILES = [
   'styles/controls.css',
   'styles/auth.css',
   'styles/search.css',
+  'styles/tabs.css',
   'styles/donation.css',
   
   // JavaScript files (non-TypeScript sources)
@@ -47,15 +48,18 @@ const INCLUDE_FILES = [
   
   // Compiled TypeScript modules
   'dist/types/treeTypes.js',
+  'dist/types/tabTypes.js',
   'dist/utils/formatters.js',
   'dist/services/treeService.js',
   'dist/services/treeValidationService.js',
   'dist/services/searchService.js',
+  'dist/services/tabService.js',
   'dist/components/treeNode.js',
   'dist/components/authStatus.js',
   'dist/components/searchBar.js',
   'dist/components/treeContainer.js',
   'dist/components/sidebarController.js',
+  'dist/components/tabBar.js',
   
   // Firebase integration (REST API)
   'firebase/auth.js',
