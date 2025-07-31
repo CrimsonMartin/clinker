@@ -1,7 +1,25 @@
 // treeNode.ts - Tree node component for rendering individual nodes
-import { TreeNode as TreeNodeType } from '../types/treeTypes';
 
-export class TreeNode {
+// Type definitions (copied from types/treeTypes.ts to avoid import issues)
+interface TreeNodeType {
+  id: number;
+  text: string;
+  url: string;
+  timestamp: string;
+  parentId: number | null;
+  children: number[];
+  deleted?: boolean;
+  deletedAt?: string;
+  annotations?: Array<{
+    id: string;
+    text: string;
+    timestamp: string;
+    audioUrl?: string;
+  }>;
+  images?: string[];
+}
+
+class TreeNode {
   private node: TreeNodeType;
   private isCurrentNode: boolean;
   private element: HTMLElement | null;

@@ -1,8 +1,25 @@
 // treeContainer.ts - Tree container component for managing tree rendering
-import { TreeNode as TreeNodeType } from '../types/treeTypes';
-import { TreeNode } from './treeNode';
 
-export class TreeContainer {
+// Type definitions (copied from types/treeTypes.ts to avoid import issues)
+interface TreeNodeType {
+  id: number;
+  text: string;
+  url: string;
+  timestamp: string;
+  parentId: number | null;
+  children: number[];
+  deleted?: boolean;
+  deletedAt?: string;
+  annotations?: Array<{
+    id: string;
+    text: string;
+    timestamp: string;
+    audioUrl?: string;
+  }>;
+  images?: string[];
+}
+
+class TreeContainer {
   private treeRoot: HTMLElement | null;
   private backgroundDropSetup: boolean;
 
@@ -24,6 +41,9 @@ export class TreeContainer {
       this.setupBackgroundDrop();
       this.backgroundDropSetup = true;
     }
+    
+    // Listen for tab changes to refresh tree
+    this.setupTabChangeListener();
   }
 
   // Load and display the tree
@@ -35,18 +55,31 @@ export class TreeContainer {
     if (!this.treeRoot) return;
     
     try {
-      const tree = await (window as any).treeService.getTree();
+      // Get tree service - use the global namespace version for consistency
+      const treeService = (window as any).CitationLinker?.treeService || (window as any).treeService;
+      const treeValidationService = (window as any).CitationLinker?.treeValidationService || (window as any).treeValidationService;
       
-      console.log('Loading tree with nodes:', tree.nodes);
+      if (!treeService) {
+        console.error('TreeService not available');
+        this.showErrorState();
+        return;
+      }
+      
+      const tree = await treeService.getTree();
+      
+      console.log('TreeContainer: Loading tree with nodes:', tree.nodes?.length || 0);
       
       // Validate and repair tree structure before rendering
-      const repairedTree = await (window as any).treeValidationService.repairTreeIntegrity(tree);
+      let repairedTree = tree;
+      if (treeValidationService) {
+        repairedTree = await treeValidationService.repairTreeIntegrity(tree);
+      }
       
       // Clear existing content
       this.treeRoot.innerHTML = '';
       
       // Check if tree is empty
-      const visibleNodes = (window as any).treeService.getVisibleNodes(repairedTree.nodes);
+      const visibleNodes = treeService.getVisibleNodes(repairedTree.nodes || []);
       if (!repairedTree.nodes || repairedTree.nodes.length === 0 || visibleNodes.length === 0) {
         this.showEmptyState();
         return;
@@ -92,19 +125,25 @@ export class TreeContainer {
       const isCurrentNode = node.id === currentNodeId;
       
       // Create tree node component
-      const treeNodeComponent = new TreeNode(node, isCurrentNode);
-      const nodeElement = treeNodeComponent.createElement();
-      
-      // Recursively render children
-      if (node.children && node.children.length > 0) {
-        const childrenContainer = document.createElement('div');
-        childrenContainer.className = 'tree-children';
-        const childrenElements = this.renderTree(nodes, currentNodeId, node.id);
-        childrenContainer.appendChild(childrenElements);
-        nodeElement.appendChild(childrenContainer);
+      const TreeNodeClass = (window as any).CitationLinker?.TreeNode || (window as any).TreeNode;
+      if (TreeNodeClass) {
+        const treeNodeComponent = new TreeNodeClass(node, isCurrentNode);
+        const nodeElement = treeNodeComponent.createElement();
+        
+        // Recursively render children
+        if (node.children && node.children.length > 0) {
+          const childrenContainer = document.createElement('div');
+          childrenContainer.className = 'tree-children';
+          const childrenElements = this.renderTree(nodes, currentNodeId, node.id);
+          childrenContainer.appendChild(childrenElements);
+          nodeElement.appendChild(childrenContainer);
+        }
+        
+        container.appendChild(nodeElement);
+      } else {
+        console.error('TreeNode component not available');
       }
       
-      container.appendChild(nodeElement);
     });
     
     return container;
@@ -163,13 +202,35 @@ export class TreeContainer {
     });
   }
 
+  // Setup tab change listener
+  private setupTabChangeListener(): void {
+    // Listen for storage changes that indicate tab switches
+    if (typeof browser !== 'undefined' && browser.storage) {
+      browser.storage.onChanged.addListener((changes: any, areaName: string) => {
+        if (areaName === 'local' && changes.tabsData) {
+          console.log('TreeContainer: Tab data changed, refreshing tree');
+          this.refresh();
+        }
+      });
+    }
+  }
+
   // Refresh the tree display
   async refresh(): Promise<void> {
+    console.log('TreeContainer: Refreshing tree display');
     await this.loadAndDisplayTree();
   }
 }
 
 // Export as singleton for backward compatibility
 if (typeof window !== 'undefined') {
-  (window as any).treeContainer = new TreeContainer();
+  // Initialize global namespace if it doesn't exist
+  (window as any).CitationLinker = (window as any).CitationLinker || {};
+  
+  // Create singleton instance
+  const treeContainerInstance = new TreeContainer();
+  
+  // Attach to both namespaces for compatibility
+  (window as any).CitationLinker.treeContainer = treeContainerInstance;
+  (window as any).treeContainer = treeContainerInstance; // Legacy support
 }

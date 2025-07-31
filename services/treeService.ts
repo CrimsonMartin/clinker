@@ -1,7 +1,31 @@
 // treeService.ts - Tree data operations and management
-import { TreeNode, TreeData } from '../types/treeTypes';
 
-export class TreeService {
+// Type definitions (copied from types/treeTypes.ts to avoid import issues)
+interface TreeNode {
+  id: number;
+  text: string;
+  url: string;
+  timestamp: string;
+  parentId: number | null;
+  children: number[];
+  deleted?: boolean;
+  deletedAt?: string;
+  annotations?: Array<{
+    id: string;
+    text: string;
+    timestamp: string;
+    audioUrl?: string;
+  }>;
+  images?: string[];
+}
+
+interface TreeData {
+  nodes: TreeNode[];
+  currentNodeId: number | null;
+  uiOnlyChange?: boolean;
+}
+
+class TreeService {
   private storageKey: string;
 
   constructor() {
@@ -11,15 +35,21 @@ export class TreeService {
   // Get the current tree from storage (now uses active tab)
   async getTree(): Promise<TreeData> {
     // Check if we have the new tab system
-    const tabService = (window as any).tabService;
+    const tabService = (window as any).CitationLinker?.tabService;
     if (tabService) {
-      const activeTab = await tabService.getActiveTab();
-      if (activeTab) {
-        return activeTab.treeData;
+      try {
+        const activeTab = await tabService.getActiveTab();
+        if (activeTab && activeTab.treeData) {
+          console.log(`Loading tree for active tab: ${activeTab.title} (${activeTab.id})`);
+          return activeTab.treeData;
+        }
+      } catch (error) {
+        console.error('Error getting active tab tree data:', error);
       }
     }
     
     // Fallback to old storage format for backward compatibility
+    console.log('Falling back to old storage format');
     const result = await browser.storage.local.get({ 
       [this.storageKey]: { nodes: [] as TreeNode[], currentNodeId: null } 
     });
@@ -29,16 +59,22 @@ export class TreeService {
   // Save tree to storage (now updates active tab)
   async saveTree(tree: TreeData): Promise<void> {
     // Check if we have the new tab system
-    const tabService = (window as any).tabService;
+    const tabService = (window as any).CitationLinker?.tabService;
     if (tabService) {
-      const activeTabId = await tabService.getActiveTabId();
-      if (activeTabId) {
-        await tabService.updateTabTree(activeTabId, tree);
-        return;
+      try {
+        const activeTabId = await tabService.getActiveTabId();
+        if (activeTabId) {
+          console.log(`Saving tree to active tab: ${activeTabId}`);
+          await tabService.updateTabTree(activeTabId, tree);
+          return;
+        }
+      } catch (error) {
+        console.error('Error saving tree to active tab:', error);
       }
     }
     
     // Fallback to old storage format for backward compatibility
+    console.log('Falling back to old storage format for save');
     await browser.storage.local.set({ 
       [this.storageKey]: tree,
       lastModified: new Date().toISOString()
@@ -262,5 +298,13 @@ export class TreeService {
 
 // Export as singleton for backward compatibility
 if (typeof window !== 'undefined') {
-  (window as any).treeService = new TreeService();
+  // Initialize global namespace if it doesn't exist
+  (window as any).CitationLinker = (window as any).CitationLinker || {};
+  
+  // Create singleton instance
+  const treeServiceInstance = new TreeService();
+  
+  // Attach to both namespaces for compatibility
+  (window as any).CitationLinker.treeService = treeServiceInstance;
+  (window as any).treeService = treeServiceInstance; // Legacy support
 }

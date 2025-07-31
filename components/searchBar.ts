@@ -14,7 +14,7 @@ interface SearchElements {
   searchAllTabs: HTMLInputElement | null;
 }
 
-export class SearchBar {
+class SearchBar {
   private searchTimeout: any;
   private elements: SearchElements;
   private initialized: boolean;

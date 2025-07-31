@@ -1,8 +1,53 @@
 # Active Context - Current Work and Focus
 
-## Current Task: Unit Test Fixes Complete (2025-01-31)
+## Current Task: Tab Filtering Implementation Complete (2025-01-31)
 
 ### Just Completed
+Successfully implemented tab-specific filtering for link trees! Each tab now shows only its own link trees instead of all tabs showing the same content. The issue was that the TreeService wasn't properly integrated with the TabService, causing all tabs to display the same tree data.
+
+#### Tab Filtering Fix Details:
+- **Root Cause**: TreeService was not properly using TabService to get active tab data
+- **Global Namespace Issues**: Inconsistent use of CitationLinker namespace vs legacy global variables
+- **Component Initialization**: Tab service needed to initialize before tree operations
+- **Storage Listeners**: TreeContainer needed proper tab change detection
+
+#### Changes Made:
+1. **Fixed TreeService Integration** (`services/treeService.ts`):
+   - Updated `getTree()` and `saveTree()` methods to properly use TabService
+   - Added proper error handling and logging for tab operations
+   - Fixed global namespace references to use `CitationLinker.tabService`
+   - Added fallback support for legacy storage format
+
+2. **Enhanced TreeContainer** (`components/treeContainer.ts`):
+   - Added tab change listener to automatically refresh when tabs switch
+   - Improved service resolution with namespace fallbacks
+   - Added proper logging for debugging tab-specific tree loading
+   - Fixed global namespace exports for consistency
+
+3. **Updated TabBar Component** (`components/tabBar.ts`):
+   - Enhanced tab click handling with better error checking
+   - Added comprehensive logging for tab switching operations
+   - Improved tree refresh logic to work with both new and legacy systems
+   - Fixed namespace references for reliable component communication
+
+4. **Fixed SidebarController** (`components/sidebarController.ts`):
+   - Updated initialization order to ensure TabService loads first
+   - Added proper namespace fallbacks for all component references
+   - Improved storage change handling for tab-specific updates
+   - Enhanced error handling and logging throughout
+
+5. **Global Namespace Consistency**:
+   - All services now export to both `CitationLinker.*` and legacy global variables
+   - Consistent fallback patterns: `CitationLinker?.service || legacyService`
+   - Proper singleton initialization with namespace registration
+
+#### Test Results:
+- **Before**: All tabs showed the same tree data (no filtering)
+- **After**: Each tab shows only its own link trees (proper isolation)
+- **Backward Compatibility**: Legacy storage format still supported
+- **Build Status**: TypeScript compilation successful, all components updated
+
+### Previous Work: Unit Test Fixes Complete
 Successfully fixed all failing unit tests! All 18 test suites now pass with 335 total tests passing. The issues were related to TypeScript import/export compatibility and test setup problems.
 
 #### Test Fix Details:

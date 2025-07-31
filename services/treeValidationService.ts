@@ -1,5 +1,34 @@
 // treeValidationService.ts - Tree validation and repair functionality
-import { TreeNode, TreeData, TreeRepairResult } from '../types/treeTypes';
+
+// Type definitions (copied from types/treeTypes.ts to avoid import issues)
+interface TreeNode {
+  id: number;
+  text: string;
+  url: string;
+  timestamp: string;
+  parentId: number | null;
+  children: number[];
+  deleted?: boolean;
+  deletedAt?: string;
+  annotations?: Array<{
+    id: string;
+    text: string;
+    timestamp: string;
+    audioUrl?: string;
+  }>;
+  images?: string[];
+}
+
+interface TreeData {
+  nodes: TreeNode[];
+  currentNodeId: number | null;
+  uiOnlyChange?: boolean;
+}
+
+interface TreeRepairResult extends TreeData {
+  repaired: boolean;
+  repairs: RepairRecord[];
+}
 
 interface RepairRecord {
   type: string;
@@ -11,7 +40,7 @@ interface RepairRecord {
   addedChildren?: number[];
 }
 
-export class TreeValidationService {
+class TreeValidationService {
   private repairs: RepairRecord[];
 
   constructor() {

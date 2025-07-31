@@ -1,7 +1,7 @@
 // formatters.ts - Formatting utility functions
 
 // Format timestamp to readable date/time
-export function formatTimestamp(timestamp: string | number | Date): string {
+function formatTimestamp(timestamp: string | number | Date): string {
   const date = new Date(timestamp);
   return date.toLocaleString('en-US', {
     month: 'short',
@@ -12,12 +12,12 @@ export function formatTimestamp(timestamp: string | number | Date): string {
 }
 
 // Truncate text to specified length
-export function truncateText(text: string, maxLength: number = 100): string {
+function truncateText(text: string, maxLength: number = 100): string {
   return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
 }
 
 // Get time ago string (e.g., "5m ago", "2h ago")
-export function getTimeAgo(date: string | number | Date): string {
+function getTimeAgo(date: string | number | Date): string {
   const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);
   
   if (seconds < 60) return 'just now';

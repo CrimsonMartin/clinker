@@ -100,19 +100,27 @@ class TabBar {
   // Handle tab click
   private async handleTabClick(tabId: string): Promise<void> {
     const tabService = (window as any).CitationLinker.tabService;
+    if (!tabService) {
+      console.error('TabService not available');
+      return;
+    }
+    
+    console.log(`TabBar: Switching to tab ${tabId}`);
     await tabService.setActiveTab(tabId);
     await this.render();
     
-    // Trigger tree reload
-    const treeContainer = (window as any).CitationLinker.treeContainer;
-    if (treeContainer && treeContainer.refresh) {
-      await treeContainer.refresh();
+    // Trigger tree reload - try both new and legacy tree containers
+    const newTreeContainer = (window as any).CitationLinker?.treeContainer || (window as any).treeContainer;
+    if (newTreeContainer && newTreeContainer.refresh) {
+      console.log('TabBar: Refreshing new tree container');
+      await newTreeContainer.refresh();
     }
     
     // Also trigger the legacy tree reload if it exists
     if (typeof (window as any).loadTree === 'function') {
+      console.log('TabBar: Triggering legacy tree reload');
       const activeTab = await tabService.getActiveTab();
-      if (activeTab) {
+      if (activeTab && activeTab.treeData) {
         (window as any).loadTree(activeTab.treeData.nodes);
       }
     }
@@ -302,17 +310,21 @@ class TabBar {
 
   // Helper method to refresh tree
   private async refreshTree(): Promise<void> {
-    const treeContainer = (window as any).CitationLinker.treeContainer;
+    const treeContainer = (window as any).CitationLinker?.treeContainer || (window as any).treeContainer;
     if (treeContainer && treeContainer.refresh) {
+      console.log('TabBar: Refreshing tree after tab operation');
       await treeContainer.refresh();
     }
     
     // Also trigger the legacy tree reload if it exists
     if (typeof (window as any).loadTree === 'function') {
       const tabService = (window as any).CitationLinker.tabService;
-      const activeTab = await tabService.getActiveTab();
-      if (activeTab) {
-        (window as any).loadTree(activeTab.treeData.nodes);
+      if (tabService) {
+        const activeTab = await tabService.getActiveTab();
+        if (activeTab && activeTab.treeData) {
+          console.log('TabBar: Triggering legacy tree reload');
+          (window as any).loadTree(activeTab.treeData.nodes);
+        }
       }
     }
   }

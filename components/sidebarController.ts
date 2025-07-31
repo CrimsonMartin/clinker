@@ -1,6 +1,6 @@
 // sidebarController.ts - Main controller for sidebar functionality
 
-export class SidebarController {
+class SidebarController {
   private initialized: boolean;
   private storageListener: ((changes: any, areaName: string) => void) | null;
 
@@ -14,19 +14,42 @@ export class SidebarController {
     try {
       console.log('Initializing sidebar controller...');
       
-      // Initialize tab service first
-      if ((window as any).tabService) {
-        await (window as any).tabService.initialize();
+      // Initialize tab service first - this is critical for tab filtering
+      const tabService = (window as any).CitationLinker?.tabService || (window as any).tabService;
+      if (tabService) {
+        console.log('Initializing tab service...');
+        await tabService.initialize();
+      } else {
+        console.error('Tab service not found!');
       }
       
-      // Initialize all components
-      (window as any).treeContainer.initialize();
-      (window as any).searchBar.initialize();
-      (window as any).authStatus.initialize();
+      // Initialize all components with proper namespace fallbacks
+      const treeContainer = (window as any).CitationLinker?.treeContainer || (window as any).treeContainer;
+      const searchBar = (window as any).CitationLinker?.searchBar || (window as any).searchBar;
+      const authStatus = (window as any).CitationLinker?.authStatus || (window as any).authStatus;
+      const tabBar = (window as any).CitationLinker?.tabBar || (window as any).tabBar;
       
-      // Initialize tab bar
-      if ((window as any).tabBar) {
-        await (window as any).tabBar.initialize();
+      if (treeContainer) {
+        console.log('Initializing tree container...');
+        treeContainer.initialize();
+      }
+      
+      if (searchBar) {
+        console.log('Initializing search bar...');
+        searchBar.initialize();
+      }
+      
+      if (authStatus) {
+        console.log('Initializing auth status...');
+        authStatus.initialize();
+      }
+      
+      // Initialize tab bar - this is critical for tab switching
+      if (tabBar) {
+        console.log('Initializing tab bar...');
+        await tabBar.initialize();
+      } else {
+        console.error('Tab bar not found!');
       }
       
       // Setup storage listener
@@ -41,7 +64,9 @@ export class SidebarController {
       // Initialize Firebase auth if available
       if ((window as any).authManager) {
         (window as any).authManager.onAuthStateChanged((user: any) => {
-          (window as any).authStatus.updateUI(user);
+          if (authStatus) {
+            authStatus.updateUI(user);
+          }
           
           if (user && (window as any).syncManager) {
             (window as any).syncManager.startSync();
@@ -50,7 +75,9 @@ export class SidebarController {
         
         // Check initial auth state
         const user = await (window as any).authManager.getCurrentUser();
-        (window as any).authStatus.updateUI(user);
+        if (authStatus) {
+          authStatus.updateUI(user);
+        }
       }
       
       this.initialized = true;
@@ -66,18 +93,19 @@ export class SidebarController {
     // Listen for storage changes
     this.storageListener = (changes: any, areaName: string) => {
       if (areaName === 'local') {
-        // Handle tab changes
+        // Handle tab changes - this is critical for tab filtering
         if (changes.tabsData) {
-          console.log('Tabs data changed, reloading...');
-          if ((window as any).tabBar) {
-            (window as any).tabBar.refresh();
+          console.log('SidebarController: Tabs data changed, refreshing components...');
+          const tabBar = (window as any).CitationLinker?.tabBar || (window as any).tabBar;
+          if (tabBar) {
+            tabBar.refresh();
           }
-          this.loadAndDisplay();
+          // Don't call loadAndDisplay here as TreeContainer will handle it via its own listener
         }
         
         // Handle legacy tree changes (for backward compatibility)
         if (changes.citationTree) {
-          console.log('Tree data changed, reloading...');
+          console.log('SidebarController: Legacy tree data changed, reloading...');
           
           // Check if this is a UI-only change (like highlighting)
           const newValue = changes.citationTree.newValue;
@@ -138,10 +166,17 @@ export class SidebarController {
   // Load and display tree
   async loadAndDisplay(): Promise<void> {
     try {
-      await (window as any).treeContainer.loadAndDisplayTree();
+      const treeContainer = (window as any).CitationLinker?.treeContainer || (window as any).treeContainer;
+      const searchBar = (window as any).CitationLinker?.searchBar || (window as any).searchBar;
+      
+      if (treeContainer) {
+        await treeContainer.loadAndDisplayTree();
+      }
       
       // Re-run search if active
-      (window as any).searchBar.rerunSearchIfActive();
+      if (searchBar && searchBar.rerunSearchIfActive) {
+        searchBar.rerunSearchIfActive();
+      }
       
     } catch (error) {
       console.error('Error loading tree:', error);
@@ -167,12 +202,18 @@ export class SidebarController {
   // Navigate to a specific node
   async navigateToNode(nodeId: number): Promise<void> {
     try {
-      const tree = await (window as any).treeService.getTree();
-      const node = (window as any).treeService.findNode(tree.nodes, nodeId);
+      const treeService = (window as any).CitationLinker?.treeService || (window as any).treeService;
+      if (!treeService) {
+        console.error('TreeService not available for navigation');
+        return;
+      }
+      
+      const tree = await treeService.getTree();
+      const node = treeService.findNode(tree.nodes, nodeId);
       
       if (node) {
         // Update current node
-        await (window as any).treeService.setCurrentNode(nodeId);
+        await treeService.setCurrentNode(nodeId);
         
         // Navigate to URL
         const tabs = await browser.tabs.query({ active: true, currentWindow: true });
@@ -204,14 +245,22 @@ export class SidebarController {
 
 // Export as singleton for backward compatibility
 if (typeof window !== 'undefined') {
-  (window as any).sidebarController = new SidebarController();
+  // Initialize global namespace if it doesn't exist
+  (window as any).CitationLinker = (window as any).CitationLinker || {};
+  
+  // Create singleton instance
+  const sidebarControllerInstance = new SidebarController();
+  
+  // Attach to both namespaces for compatibility
+  (window as any).CitationLinker.sidebarController = sidebarControllerInstance;
+  (window as any).sidebarController = sidebarControllerInstance; // Legacy support
 
   // Auto-initialize when DOM is ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
-      (window as any).sidebarController.initialize();
+      sidebarControllerInstance.initialize();
     });
   } else {
-    (window as any).sidebarController.initialize();
+    sidebarControllerInstance.initialize();
   }
 }

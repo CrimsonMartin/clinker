@@ -13,7 +13,7 @@ interface User {
   uid?: string;
 }
 
-export class AuthStatus {
+class AuthStatus {
   private elements: AuthElements;
   private initialized: boolean;
 

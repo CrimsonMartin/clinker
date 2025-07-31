@@ -4,11 +4,13 @@
     "module": "none",
     "lib": ["es2020", "dom"],
     "strict": true,
-    "esModuleInterop": true,
+    "esModuleInterop": false,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "outDir": "./dist",
     "rootDir": "./",
+    "moduleResolution": "classic",
+    "noEmitOnError": false,
     "types": ["chrome", "firefox-webext-browser", "jest", "node"]
   },
   "include": [
@@ -17,10 +19,6 @@
   "exclude": [
     "node_modules",
     "dist",
-    "__tests__",
-    "components/treeContainer.ts",
-    "components/treeNode.ts",
-    "services/treeService.ts",
-    "services/treeValidationService.ts"
+    "__tests__"
   ]
 }
