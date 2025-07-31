@@ -17,6 +17,7 @@ interface TreeNode {
     audioUrl?: string;
   }>;
   images?: string[];
+  tabId?: string;
 }
 
 interface TreeData {
@@ -41,6 +42,41 @@ class TreeService {
         const activeTab = await tabService.getActiveTab();
         if (activeTab && activeTab.treeData) {
           console.log(`Loading tree for active tab: ${activeTab.title} (${activeTab.id})`);
+          
+          // If this is the General tab, also check for legacy citations
+          if (activeTab.id === 'general-tab') {
+            const legacyResult = await browser.storage.local.get(this.storageKey);
+            if (legacyResult[this.storageKey] && legacyResult[this.storageKey].nodes) {
+              const legacyData = legacyResult[this.storageKey];
+              console.log(`Found ${legacyData.nodes.length} legacy citations, merging with General tab`);
+              
+              // Filter legacy nodes that don't have a tabId (or have general-tab tabId)
+              const legacyNodes = legacyData.nodes.filter((node: TreeNode) => 
+                !node.tabId || node.tabId === 'general-tab'
+              );
+              
+              // Assign tabId to legacy nodes
+              legacyNodes.forEach((node: TreeNode) => {
+                if (!node.tabId) {
+                  node.tabId = 'general-tab';
+                }
+              });
+              
+              // Merge with tab's existing nodes, avoiding duplicates
+              const existingNodeIds = new Set(activeTab.treeData.nodes.map((n: TreeNode) => n.id));
+              const newLegacyNodes = legacyNodes.filter((node: TreeNode) => !existingNodeIds.has(node.id));
+              
+              if (newLegacyNodes.length > 0) {
+                console.log(`Adding ${newLegacyNodes.length} legacy nodes to General tab`);
+                return {
+                  nodes: [...activeTab.treeData.nodes, ...newLegacyNodes],
+                  currentNodeId: activeTab.treeData.currentNodeId || legacyData.currentNodeId,
+                  uiOnlyChange: activeTab.treeData.uiOnlyChange
+                };
+              }
+            }
+          }
+          
           return activeTab.treeData;
         }
       } catch (error) {

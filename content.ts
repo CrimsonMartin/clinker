@@ -58,14 +58,38 @@ window.addEventListener('beforeunload', async () => {
 
 // When page loads, check if we should update the current node
 document.addEventListener('DOMContentLoaded', async () => {
-  const result = await browserAPI.storage.local.get({ citationTree: { nodes: [], currentNodeId: null } });
-  const tree = result.citationTree;
-  
-  // Find if current URL matches any existing node
-  const currentNode = tree.nodes.find((node: any) => node.url === window.location.href);
-  if (currentNode) {
-    tree.currentNodeId = currentNode.id;
-    await browserAPI.storage.local.set({ citationTree: tree });
+  try {
+    // Check if we have the new tab system
+    const tabsResult = await browserAPI.storage.local.get('tabsData');
+    if (tabsResult.tabsData && tabsResult.tabsData.activeTabId) {
+      // Use the new tab system
+      const tabsData = tabsResult.tabsData;
+      const activeTab = tabsData.tabs.find((tab: any) => tab.id === tabsData.activeTabId);
+      
+      if (activeTab) {
+        // Find if current URL matches any existing node in the active tab
+        const currentNode = activeTab.treeData.nodes.find((node: any) => node.url === window.location.href);
+        if (currentNode) {
+          activeTab.treeData.currentNodeId = currentNode.id;
+          await browserAPI.storage.local.set({ tabsData: tabsData });
+          console.log(`Set current node to ${currentNode.id} in tab ${activeTab.title}`);
+        }
+      }
+    } else {
+      // Fallback to old storage format
+      const result = await browserAPI.storage.local.get({ citationTree: { nodes: [], currentNodeId: null } });
+      const tree = result.citationTree;
+      
+      // Find if current URL matches any existing node
+      const currentNode = tree.nodes.find((node: any) => node.url === window.location.href);
+      if (currentNode) {
+        tree.currentNodeId = currentNode.id;
+        await browserAPI.storage.local.set({ citationTree: tree });
+        console.log(`Set current node to ${currentNode.id} in legacy storage`);
+      }
+    }
+  } catch (error) {
+    console.error('Error setting current node on page load:', error);
   }
 });
 
@@ -165,6 +189,17 @@ document.addEventListener('mouseup', async (event) => {
             }
           }
 
+          // Get current active tab ID for new nodes
+          let activeTabId = 'general-tab'; // Default fallback
+          try {
+            const tabsResult = await browserAPI.storage.local.get('tabsData');
+            if (tabsResult.tabsData && tabsResult.tabsData.activeTabId) {
+              activeTabId = tabsResult.tabsData.activeTabId;
+            }
+          } catch (error) {
+            console.warn('Could not get active tab ID, using general-tab:', error);
+          }
+
           // Create new node
           const newNode = {
             id: nodeCounter + 1,
@@ -175,28 +210,87 @@ document.addEventListener('mouseup', async (event) => {
             parentId: tree.currentNodeId,
             children: [],
             images: images.length > 0 ? images : undefined,
-            annotations: []
+            annotations: [],
+            tabId: activeTabId
           };
           
           console.log('Creating new node:', newNode.id, 'URL:', newNode.url, 'Parent:', newNode.parentId);
           
-          // Add to parent's children if there is a parent
-          if (tree.currentNodeId !== null) {
-            const parentNode = tree.nodes.find((n: any) => n.id === tree.currentNodeId);
-            if (parentNode) {
-              parentNode.children.push(newNode.id);
+          // Save the new node using the tab system
+          try {
+            // Check if we have the new tab system
+            const tabsResult = await browserAPI.storage.local.get('tabsData');
+            if (tabsResult.tabsData && tabsResult.tabsData.activeTabId) {
+              // Use the new tab system
+              const tabsData = tabsResult.tabsData;
+              const activeTab = tabsData.tabs.find((tab: any) => tab.id === tabsData.activeTabId);
+              
+              if (activeTab) {
+                // Add to parent's children if there is a parent
+                if (activeTab.treeData.currentNodeId !== null) {
+                  const parentNode = activeTab.treeData.nodes.find((n: any) => n.id === activeTab.treeData.currentNodeId);
+                  if (parentNode) {
+                    parentNode.children.push(newNode.id);
+                  }
+                }
+                
+                // Add new node to active tab's tree
+                activeTab.treeData.nodes.push(newNode);
+                activeTab.treeData.currentNodeId = newNode.id;
+                activeTab.lastModified = Date.now();
+                
+                // Save updated tabs data
+                await browserAPI.storage.local.set({ 
+                  tabsData: tabsData,
+                  nodeCounter: nodeCounter + 1,
+                  lastModified: new Date().toISOString()
+                });
+                
+                console.log(`Citation saved to tab: ${activeTab.title} (${activeTab.id})`);
+              } else {
+                console.error('Active tab not found');
+              }
+            } else {
+              // Fallback to old storage format
+              console.log('Using legacy storage format for new citation');
+              
+              // Add to parent's children if there is a parent
+              if (tree.currentNodeId !== null) {
+                const parentNode = tree.nodes.find((n: any) => n.id === tree.currentNodeId);
+                if (parentNode) {
+                  parentNode.children.push(newNode.id);
+                }
+              }
+              
+              // Add new node to tree
+              tree.nodes.push(newNode);
+              tree.currentNodeId = newNode.id;
+              
+              await browserAPI.storage.local.set({ 
+                citationTree: tree,
+                nodeCounter: nodeCounter + 1,
+                lastModified: new Date().toISOString()
+              });
             }
+          } catch (error) {
+            console.error('Error saving citation:', error);
+            // Fallback to old storage format on error
+            if (tree.currentNodeId !== null) {
+              const parentNode = tree.nodes.find((n: any) => n.id === tree.currentNodeId);
+              if (parentNode) {
+                parentNode.children.push(newNode.id);
+              }
+            }
+            
+            tree.nodes.push(newNode);
+            tree.currentNodeId = newNode.id;
+            
+            await browserAPI.storage.local.set({ 
+              citationTree: tree,
+              nodeCounter: nodeCounter + 1,
+              lastModified: new Date().toISOString()
+            });
           }
-          
-          // Add new node to tree
-          tree.nodes.push(newNode);
-          tree.currentNodeId = newNode.id;
-          
-          await browserAPI.storage.local.set({ 
-            citationTree: tree,
-            nodeCounter: nodeCounter + 1,
-            lastModified: new Date().toISOString()
-          });
           
           console.log('Citation saved to tree:', selectedText);
           

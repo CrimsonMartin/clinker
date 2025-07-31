@@ -14,6 +14,7 @@ declare global {
       deletedAt?: string;
       annotations?: Annotation[];
       images?: string[];
+      tabId?: string;
     }
 
     interface Annotation {
@@ -51,6 +52,7 @@ export interface TreeNode {
   deletedAt?: string;
   annotations?: Annotation[];
   images?: string[];
+  tabId?: string;
 }
 
 export interface Annotation {
