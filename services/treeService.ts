@@ -278,10 +278,10 @@ class TreeService {
       const tree = await this.getTree();
       const now = new Date().toISOString();
       
-      // Find all nodes to soft delete
+      // Find all nodes to soft delete (the node and all its descendants)
       const nodesToDelete = this.getDescendants(tree.nodes, nodeId);
       
-      // Mark all collected nodes as deleted
+      // Mark all collected nodes as deleted (soft delete)
       tree.nodes.forEach(node => {
         if (nodesToDelete.has(node.id)) {
           node.deleted = true;
@@ -289,12 +289,13 @@ class TreeService {
         }
       });
       
-      // If the current node was deleted, clear it
+      // If the current node was deleted, clear the current node
       if (tree.currentNodeId && nodesToDelete.has(tree.currentNodeId)) {
         tree.currentNodeId = null;
       }
       
       await this.saveTree(tree);
+      console.log(`Successfully deleted node ${nodeId} and ${nodesToDelete.size - 1} descendants`);
       return true;
     } catch (error) {
       console.error('Error deleting node:', error);

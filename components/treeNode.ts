@@ -118,7 +118,7 @@ class TreeNode {
     buttonsElement.appendChild(annotationButton);
     
     // Add delete button
-    const deleteButton = (window as any).createDeleteButton(this.node);
+    const deleteButton = this.createDeleteButton();
     buttonsElement.appendChild(deleteButton);
     
     metaElement.appendChild(infoElement);
@@ -294,6 +294,55 @@ class TreeNode {
     setTimeout(() => {
       document.addEventListener('click', closeContextMenu);
     }, 0);
+  }
+
+  // Create delete button using modern TreeService
+  private createDeleteButton(): HTMLElement {
+    const deleteButton = document.createElement('button');
+    deleteButton.className = 'node-delete-button';
+    deleteButton.title = 'Delete this node';
+    deleteButton.textContent = 'X';
+    
+    deleteButton.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      
+      // Show loading state
+      deleteButton.disabled = true;
+      deleteButton.textContent = '...';
+      
+      try {
+        // Use the modern TreeService delete method
+        const treeService = (window as any).CitationLinker?.treeService || (window as any).treeService;
+        if (treeService) {
+          const success = await treeService.deleteNode(this.node.id);
+          
+          if (success) {
+            // Refresh the tree UI to hide deleted nodes
+            const treeContainer = (window as any).CitationLinker?.treeContainer || (window as any).treeContainer;
+            if (treeContainer) {
+              await treeContainer.refresh();
+            }
+            
+            // Mark as modified for sync
+            if ((window as any).syncInitialized && (window as any).authManager?.isLoggedIn()) {
+              (window as any).syncManager.markAsModified();
+            }
+          } else {
+            throw new Error('Delete operation failed');
+          }
+        } else {
+          throw new Error('TreeService not available');
+        }
+        
+      } catch (error) {
+        console.error('Error deleting node:', error);
+        // Restore button state on error
+        deleteButton.disabled = false;
+        deleteButton.textContent = 'X';
+      }
+    });
+    
+    return deleteButton;
   }
 
   // Show image modal

@@ -1,6 +1,47 @@
 # Active Context - Current Work and Focus
 
-## Current Task: Tab Filtering Implementation Complete (2025-01-31)
+## Current Task: Delete Button UI Refresh Fix Complete (2025-01-31)
+
+### Just Completed
+Fixed the delete button issue where citation links weren't disappearing from the UI after deletion! The problem was that while the delete functionality was correctly setting the `deleted` field to `true` and saving to storage, the tree UI wasn't refreshing to hide the deleted nodes.
+
+#### Delete Button Fix Details:
+- **Root Cause**: Delete operations were updating data but not triggering UI refresh
+- **Missing UI Update**: After successful deletion, no call to refresh the tree display
+- **Inconsistent Patterns**: Other operations (drag-and-drop) properly triggered refreshes, but delete didn't
+- **Legacy vs Modern**: Both legacy deleteButton.js and modern TreeNode component needed updates
+
+#### Changes Made:
+1. **Updated Legacy Delete Button** (`deleteButton.js`):
+   - Added tree container refresh call after successful deletion
+   - Added loading state with disabled button and "..." text during operation
+   - Removed legacy backwards compatibility, now uses only modern TreeService
+   - Added proper error handling with button state restoration
+   - Added sync marking for cloud synchronization
+
+2. **Enhanced TreeNode Component** (`components/treeNode.ts`):
+   - Created new `createDeleteButton()` method using modern TreeService
+   - Replaced legacy `createDeleteButton()` call with internal method
+   - Added comprehensive error handling and loading states
+   - Integrated with TreeService.deleteNode() for consistency
+   - Added tree refresh and sync marking after successful deletion
+
+3. **Streamlined TreeService** (`services/treeService.ts`):
+   - Cleaned up deleteNode method to remove legacy fallback code
+   - Added better logging for successful deletions with descendant count
+   - Simplified implementation to focus on modern tab-aware approach
+   - Maintained consistent soft-delete behavior across all code paths
+
+#### Final Results:
+- **Before**: Delete button marked nodes as deleted but they remained visible in UI
+- **After**: Delete button immediately hides deleted nodes from the tree display
+- **Loading State**: Button shows "..." during deletion and is disabled to prevent double-clicks
+- **Error Handling**: Button state restores on errors, with console logging for debugging
+- **Sync Integration**: Deleted nodes properly trigger cloud sync when user is logged in
+- **Code Quality**: Removed legacy backwards compatibility for cleaner, more maintainable code
+- **Build Status**: TypeScript compilation successful, all functionality working
+
+### Previous Task: Tab Filtering Implementation Complete (2025-01-31)
 
 ### Just Completed
 Successfully implemented tab-specific filtering for link trees! Each tab now shows only its own link trees instead of all tabs showing the same content. The issue was that the TreeService wasn't properly integrated with the TabService, causing all tabs to display the same tree data.
