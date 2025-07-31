@@ -22,6 +22,7 @@ describe('SearchBar', () => {
       <input id="searchHighlighted" type="checkbox" checked />
       <input id="searchAnnotations" type="checkbox" checked />
       <input id="searchFilterMode" type="checkbox" />
+      <input id="searchAllTabs" type="checkbox" />
     `;
 
     // Clear mocks
@@ -154,7 +155,8 @@ describe('SearchBar', () => {
       expect(mockSearchService.performSearch).toHaveBeenCalledWith('test', [], {
         searchHighlighted: true,
         searchAnnotations: true,
-        filterMode: false
+        filterMode: false,
+        searchAllTabs: false
       });
     });
 
@@ -321,7 +323,7 @@ describe('SearchBar', () => {
       expect(searchContainer.style.display).toBe('none');
     });
 
-    it('should handle search input with debouncing', () => {
+    it('should handle search input with debouncing', async () => {
       const searchInput = document.getElementById('searchInput') as HTMLInputElement;
       searchInput.value = 'test';
       
@@ -335,6 +337,9 @@ describe('SearchBar', () => {
       // Fast forward timers to trigger debounced function
       jest.advanceTimersByTime(300);
       
+      // Wait for any pending promises
+      await Promise.resolve();
+      
       // Should have called getTree after debounce
       expect(mockTreeService.getTree).toHaveBeenCalled();
     });
@@ -343,6 +348,10 @@ describe('SearchBar', () => {
       const searchContainer = document.getElementById('searchContainer') as HTMLElement;
       searchContainer.style.display = 'block';
       mockSearchService.hasResults.mockReturnValue(true);
+      
+      // Clear previous calls
+      mockSearchService.navigateToNext.mockClear();
+      mockSearchService.navigateToPrevious.mockClear();
       
       const downEvent = new KeyboardEvent('keydown', { key: 'ArrowDown' });
       const upEvent = new KeyboardEvent('keydown', { key: 'ArrowUp' });

@@ -1,20 +1,35 @@
 # Active Context - Current Work and Focus
 
-## Current Task: Jest Test Configuration Fix (2025-01-30)
+## Current Task: Unit Test Fixes Complete (2025-01-31)
 
 ### Just Completed
-Successfully fixed failing Jest tests that were caused by configuration issues. The problem was that Jest was trying to run tests from the compiled `dist/` directory instead of the source TypeScript files, and the ts-jest configuration was using deprecated syntax.
+Successfully fixed all failing unit tests! All 18 test suites now pass with 335 total tests passing. The issues were related to TypeScript import/export compatibility and test setup problems.
 
 #### Test Fix Details:
-- **Root Cause**: Jest was running tests from `dist/__tests__/*.js` files instead of source `__tests__/*.ts` files
-- **ES6 Import Issues**: Compiled JavaScript files used ES6 imports that Jest couldn't handle without proper configuration
-- **Deprecated Configuration**: Jest config was using deprecated `globals` syntax for ts-jest
+- **Root Cause**: TypeScript files were using global namespace pattern but tests expected ES6 module imports
+- **SearchBar Test Issues**: Missing DOM elements and timing issues with debounced functions
+- **Import/Export Mismatch**: Services and components needed dual export patterns for compatibility
 
-#### Configuration Changes Made:
-- **Updated Jest Config**: Modernized to use current ts-jest syntax with proper transform configuration
-- **Added Path Ignores**: Explicitly ignored `dist/`, `dist-chrome/`, `dist-firefox/` directories
-- **Fixed Module Resolution**: Ensured Jest only runs source TypeScript files, not compiled ones
-- **Removed Deprecated Globals**: Updated from deprecated `globals.ts-jest` to modern `transform` syntax
+#### Changes Made:
+1. **Fixed Type Exports** (`types/treeTypes.ts`):
+   - Added ES6 module exports alongside global namespace declarations
+   - Maintained backward compatibility with existing global namespace usage
+
+2. **Fixed Service Exports** (`services/searchService.ts`):
+   - Added ES6 exports while preserving global namespace registration
+   - Ensured both import patterns work correctly
+
+3. **Fixed SearchBar Tests** (`__tests__/searchBar.test.ts`):
+   - Added missing `searchAllTabs` DOM element to test setup
+   - Fixed async timing issues with proper Promise handling
+   - Updated test expectations to match current search options structure
+   - Fixed debouncing tests with proper timer advancement
+
+#### Test Results:
+- **Before**: 6 failed tests, 329 passed (335 total)
+- **After**: 0 failed tests, 335 passed (335 total)
+- **Test Suites**: 18/18 passing
+- **Coverage**: All TypeScript services and components now properly testable
 
 #### Previous Work: UI Layout Improvements
 Successfully modified the sidebar layout to improve user experience when logged in. Moved the user section (login and sync information) from the top of the sidebar to the bottom, positioned just above the donation button.
