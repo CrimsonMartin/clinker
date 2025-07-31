@@ -6,29 +6,40 @@ module.exports = {
   },
   setupFilesAfterEnv: ['<rootDir>/src/test-setup.js'],
   testMatch: [
-    '**/__tests__/**/*.(js|ts)',
-    '**/*.(test|spec).(js|ts)'
+    '<rootDir>/__tests__/**/*.(js|ts)',
+    '<rootDir>/**/*.(test|spec).(js|ts)'
+  ],
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '/dist/',
+    '/dist-chrome/',
+    '/dist-firefox/',
+    '/coverage/'
   ],
   moduleFileExtensions: ['ts', 'js', 'json'],
   transform: {
-    '^.+\\.(ts|tsx)$': 'ts-jest',
-    '^.+\\.(js|jsx)$': 'babel-jest'
+    '^.+\\.(ts|tsx)$': ['ts-jest', {
+      useESM: false,
+      tsconfig: {
+        module: 'commonjs'
+      }
+    }]
   },
   collectCoverageFrom: [
     '*.{js,ts}',
+    'components/**/*.{js,ts}',
+    'services/**/*.{js,ts}',
     '!jest.config.js',
     '!coverage/**',
     '!node_modules/**',
-    '!dist/**'
+    '!dist/**',
+    '!dist-chrome/**',
+    '!dist-firefox/**'
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
-  globals: {
-    'ts-jest': {
-      useESM: true
-    }
-  },
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1'
-  }
+  },
+  roots: ['<rootDir>/__tests__', '<rootDir>/components', '<rootDir>/services']
 };

@@ -1,8 +1,22 @@
 # Active Context - Current Work and Focus
 
-## Current Task: UI Layout Improvements (2025-01-30)
+## Current Task: Jest Test Configuration Fix (2025-01-30)
 
 ### Just Completed
+Successfully fixed failing Jest tests that were caused by configuration issues. The problem was that Jest was trying to run tests from the compiled `dist/` directory instead of the source TypeScript files, and the ts-jest configuration was using deprecated syntax.
+
+#### Test Fix Details:
+- **Root Cause**: Jest was running tests from `dist/__tests__/*.js` files instead of source `__tests__/*.ts` files
+- **ES6 Import Issues**: Compiled JavaScript files used ES6 imports that Jest couldn't handle without proper configuration
+- **Deprecated Configuration**: Jest config was using deprecated `globals` syntax for ts-jest
+
+#### Configuration Changes Made:
+- **Updated Jest Config**: Modernized to use current ts-jest syntax with proper transform configuration
+- **Added Path Ignores**: Explicitly ignored `dist/`, `dist-chrome/`, `dist-firefox/` directories
+- **Fixed Module Resolution**: Ensured Jest only runs source TypeScript files, not compiled ones
+- **Removed Deprecated Globals**: Updated from deprecated `globals.ts-jest` to modern `transform` syntax
+
+#### Previous Work: UI Layout Improvements
 Successfully modified the sidebar layout to improve user experience when logged in. Moved the user section (login and sync information) from the top of the sidebar to the bottom, positioned just above the donation button.
 
 #### Layout Changes Made:
