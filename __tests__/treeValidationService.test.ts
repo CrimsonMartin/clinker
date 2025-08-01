@@ -3,7 +3,37 @@
  */
 
 import { TreeValidationService } from '../services/treeValidationService';
-import { TreeNode, TreeData, TreeRepairResult } from '../types/treeTypes';
+
+// Define types inline to avoid import conflicts
+interface TreeNode {
+  id: number;
+  text: string;
+  url: string;
+  timestamp: string;
+  parentId: number | null;
+  children: number[];
+  deleted?: boolean;
+  deletedAt?: string;
+  annotations?: Array<{
+    id: string;
+    text: string;
+    timestamp: string;
+    audioUrl?: string;
+  }>;
+  images?: string[];
+}
+
+interface TreeData {
+  nodes: TreeNode[];
+  currentNodeId: number | null;
+}
+
+interface TreeRepairResult {
+  nodes: TreeNode[];
+  currentNodeId: number | null;
+  repaired: boolean;
+  repairs: string[];
+}
 
 describe('TreeValidationService', () => {
   let treeValidationService: TreeValidationService;

@@ -407,3 +407,6 @@ class SearchBar {
 if (typeof window !== 'undefined') {
   (window as any).searchBar = new SearchBar();
 }
+
+// ES6 module exports for testing
+export { SearchBar, SearchElements };

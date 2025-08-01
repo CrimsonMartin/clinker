@@ -355,3 +355,6 @@ if (typeof window !== 'undefined') {
   (window as any).CitationLinker.treeService = treeServiceInstance;
   (window as any).treeService = treeServiceInstance; // Legacy support
 }
+
+// ES6 module exports for testing
+export { TreeService, TreeNode, TreeData };

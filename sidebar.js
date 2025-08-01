@@ -117,8 +117,165 @@ function truncateText(text, maxLength = 100) {
   return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
 }
 
-// Tree rendering is now handled by the modular components
-// The legacy tree functions have been removed
+// Legacy tree functions for backward compatibility with tests
+function createTreeNodeElement(node, isCurrent) {
+  const element = document.createElement('div');
+  element.className = `tree-node ${isCurrent ? 'current' : ''}`;
+  element.dataset.nodeId = node.id.toString();
+  element.draggable = true;
+  
+  // Create content
+  const contentElement = document.createElement('div');
+  contentElement.className = 'tree-node-content';
+  contentElement.textContent = node.text;
+  element.appendChild(contentElement);
+  
+  // Create meta
+  const metaElement = document.createElement('div');
+  metaElement.className = 'tree-node-meta';
+  
+  const urlElement = document.createElement('span');
+  urlElement.className = 'tree-node-url';
+  urlElement.textContent = new URL(node.url).hostname;
+  urlElement.title = node.url;
+  
+  const timeElement = document.createElement('span');
+  timeElement.textContent = formatTimestamp(node.timestamp);
+  
+  metaElement.appendChild(urlElement);
+  metaElement.appendChild(timeElement);
+  element.appendChild(metaElement);
+  
+  // Add images if they exist
+  if (node.images && node.images.length > 0) {
+    const imagesContainer = document.createElement('div');
+    imagesContainer.className = 'tree-node-images';
+    
+    node.images.forEach((imageData, index) => {
+      const imgElement = document.createElement('img');
+      imgElement.src = imageData;
+      imgElement.className = 'tree-node-image-thumbnail';
+      imgElement.alt = `Image ${index + 1}`;
+      imagesContainer.appendChild(imgElement);
+    });
+    
+    element.appendChild(imagesContainer);
+  }
+  
+  // Add buttons
+  const deleteButton = createDeleteButton(node);
+  const annotationButton = createAnnotationButton(node);
+  element.appendChild(deleteButton);
+  element.appendChild(annotationButton);
+  
+  // Setup drag events
+  element.addEventListener('dragstart', (e) => {
+    e.dataTransfer.setData('text/plain', node.id.toString());
+    e.dataTransfer.effectAllowed = 'move';
+    element.classList.add('dragging');
+    window.currentDraggedNodeId = node.id;
+  });
+  
+  element.addEventListener('dragend', () => {
+    element.classList.remove('dragging');
+    window.currentDraggedNodeId = null;
+  });
+  
+  // Setup navigation
+  element.addEventListener('dblclick', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+    if (tabs[0] && tabs[0].id) {
+      await browser.tabs.update(tabs[0].id, { url: node.url });
+    }
+    
+    await browser.storage.local.set({
+      citationTree: { ...await browser.storage.local.get('citationTree'), currentNodeId: node.id }
+    });
+  });
+  
+  return element;
+}
+
+function renderTree(nodes, currentNodeId, parentId = null) {
+  const container = document.createElement('div');
+  
+  const childNodes = nodes.filter(node => node.parentId === parentId && !node.deleted);
+  
+  childNodes.forEach(node => {
+    const isCurrentNode = node.id === currentNodeId;
+    const nodeElement = createTreeNodeElement(node, isCurrentNode);
+    
+    // Recursively render children
+    if (node.children && node.children.length > 0) {
+      const childrenContainer = document.createElement('div');
+      childrenContainer.className = 'tree-children';
+      const childrenElements = renderTree(nodes, currentNodeId, node.id);
+      childrenContainer.appendChild(childrenElements);
+      nodeElement.appendChild(childrenContainer);
+    }
+    
+    container.appendChild(nodeElement);
+  });
+  
+  return container;
+}
+
+async function loadAndDisplayTree() {
+  const treeRoot = document.getElementById('tree-root');
+  if (!treeRoot) return;
+  
+  try {
+    const result = await browser.storage.local.get({ citationTree: { nodes: [], currentNodeId: null } });
+    const tree = result.citationTree;
+    
+    treeRoot.innerHTML = '';
+    
+    if (!tree.nodes || tree.nodes.length === 0) {
+      treeRoot.innerHTML = '<div class="empty-state">No citations saved yet. Highlight text on any webpage to start building your research tree.</div>';
+      return;
+    }
+    
+    const treeElements = renderTree(tree.nodes, tree.currentNodeId);
+    treeRoot.appendChild(treeElements);
+    
+  } catch (error) {
+    console.error('Error loading tree:', error);
+    treeRoot.innerHTML = '<div class="empty-state">Error loading research tree.</div>';
+  }
+}
+
+async function moveNodeToRoot(nodeId) {
+  try {
+    const result = await browser.storage.local.get({ citationTree: { nodes: [], currentNodeId: null } });
+    const tree = result.citationTree;
+    
+    const node = tree.nodes.find(n => n.id === nodeId);
+    if (!node) return;
+    
+    // Remove from old parent's children
+    if (node.parentId !== null) {
+      const oldParent = tree.nodes.find(n => n.id === node.parentId);
+      if (oldParent) {
+        oldParent.children = oldParent.children.filter(childId => childId !== nodeId);
+      }
+    }
+    
+    // Set as root node
+    node.parentId = null;
+    
+    await browser.storage.local.set({ citationTree: tree });
+    
+    // Mark as modified for sync
+    if (syncInitialized) {
+      await syncManager.markAsModified();
+    }
+  } catch (error) {
+    console.error('Error moving node to root:', error);
+  }
+}
 
 // Toggle functionality
 async function initializeToggle() {

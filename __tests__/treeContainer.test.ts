@@ -33,6 +33,10 @@ describe('TreeContainer', () => {
         local: {
           get: jest.fn().mockResolvedValue({}),
           set: jest.fn().mockResolvedValue(undefined)
+        },
+        onChanged: {
+          addListener: jest.fn(),
+          removeListener: jest.fn()
         }
       },
       tabs: {
@@ -232,6 +236,21 @@ describe('TreeContainer', () => {
         }
         return [];
       });
+
+      // Mock TreeNode constructor to return a mock element
+      const mockTreeNodeElement = document.createElement('div');
+      mockTreeNodeElement.className = 'tree-node';
+      mockTreeNodeElement.textContent = 'Mock Node';
+      
+      // Mock the TreeNode class to return a new element each time
+      (global as any).TreeNode = jest.fn().mockImplementation(() => ({
+        createElement: jest.fn().mockImplementation(() => {
+          const element = document.createElement('div');
+          element.className = 'tree-node';
+          element.textContent = 'Mock Node';
+          return element;
+        })
+      }));
       
       const renderTree = (treeContainer as any)['renderTree'].bind(treeContainer);
       const container = renderTree(mockNodes, 1, null);

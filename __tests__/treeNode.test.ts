@@ -3,7 +3,25 @@
  */
 
 import { TreeNode } from '../components/treeNode';
-import { TreeNode as TreeNodeType } from '../types/treeTypes';
+
+// Define the TreeNodeType interface inline to avoid import conflicts
+interface TreeNodeType {
+  id: number;
+  text: string;
+  url: string;
+  timestamp: string;
+  parentId: number | null;
+  children: number[];
+  deleted?: boolean;
+  deletedAt?: string;
+  annotations?: Array<{
+    id: string;
+    text: string;
+    timestamp: string;
+    audioUrl?: string;
+  }>;
+  images?: string[];
+}
 
 describe('TreeNode', () => {
   let mockFormatters: any;
@@ -33,6 +51,10 @@ describe('TreeNode', () => {
         local: {
           get: jest.fn().mockResolvedValue({}),
           set: jest.fn().mockResolvedValue(undefined)
+        },
+        onChanged: {
+          addListener: jest.fn(),
+          removeListener: jest.fn()
         }
       },
       tabs: {
@@ -185,10 +207,16 @@ describe('TreeNode', () => {
       };
 
       const treeNode = new TreeNode(node, false);
-      treeNode.createElement();
+      const element = treeNode.createElement();
 
+      // Check that annotation button was created via global function
       expect(mockCreateAnnotationButton).toHaveBeenCalledWith(node);
-      expect(mockCreateDeleteButton).toHaveBeenCalledWith(node);
+      
+      // Check that delete button was created (TreeNode creates its own delete button)
+      const deleteButton = element.querySelector('.node-delete-button') as HTMLElement;
+      expect(deleteButton).not.toBeNull();
+      expect(deleteButton?.textContent).toBe('X');
+      expect(deleteButton?.title).toBe('Delete this node');
     });
   });
 

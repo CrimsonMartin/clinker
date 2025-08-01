@@ -3,7 +3,30 @@
  */
 
 import { TreeService } from '../services/treeService';
-import { TreeNode, TreeData } from '../types/treeTypes';
+
+// Define types inline to avoid import conflicts
+interface TreeNode {
+  id: number;
+  text: string;
+  url: string;
+  timestamp: string;
+  parentId: number | null;
+  children: number[];
+  deleted?: boolean;
+  deletedAt?: string;
+  annotations?: Array<{
+    id: string;
+    text: string;
+    timestamp: string;
+    audioUrl?: string;
+  }>;
+  images?: string[];
+}
+
+interface TreeData {
+  nodes: TreeNode[];
+  currentNodeId: number | null;
+}
 
 describe('TreeService', () => {
   let treeService: TreeService;
