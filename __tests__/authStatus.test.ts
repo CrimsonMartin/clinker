@@ -2,10 +2,14 @@
  * @jest-environment jsdom
  */
 
-import { AuthStatus } from '../components/authStatus';
+// Load component file that creates window.authStatus singleton
+require('../components/authStatus');
+
+// Extract class constructor from the singleton instance
+const AuthStatusClass = (global as any).window.authStatus.constructor;
 
 describe('AuthStatus', () => {
-  let authStatus: AuthStatus;
+  let authStatus: any;
   let mockAuthManager: any;
 
   beforeEach(() => {
@@ -40,7 +44,7 @@ describe('AuthStatus', () => {
     (window as any).authManager = mockAuthManager;
 
     // Create new AuthStatus instance
-    authStatus = new AuthStatus();
+    authStatus = new AuthStatusClass();
   });
 
   describe('initialize', () => {
@@ -106,7 +110,7 @@ describe('AuthStatus', () => {
     });
 
     it('should warn when not initialized', () => {
-      const uninitializedAuthStatus = new AuthStatus();
+      const uninitializedAuthStatus = new AuthStatusClass();
       uninitializedAuthStatus.updateUI({ email: 'test@example.com' });
       
       expect(console.warn).toHaveBeenCalledWith('AuthStatus not initialized');

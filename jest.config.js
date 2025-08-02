@@ -4,7 +4,10 @@ module.exports = {
   testEnvironmentOptions: {
     url: 'https://example.com/test'
   },
-  setupFilesAfterEnv: ['<rootDir>/src/test-setup.js'],
+  setupFilesAfterEnv: [
+    '<rootDir>/src/test-setup.js',
+    '<rootDir>/src/global-namespace-setup.js'
+  ],
   testMatch: [
     '<rootDir>/__tests__/**/*.(js|ts)',
     '<rootDir>/**/*.(test|spec).(js|ts)'

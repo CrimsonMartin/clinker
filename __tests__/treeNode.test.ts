@@ -2,26 +2,14 @@
  * @jest-environment jsdom
  */
 
-import { TreeNode } from '../components/treeNode';
+// Import types using ES6 exports (these work in tests)
+import { TreeNode as TreeNodeType } from '../types/treeTypes';
 
-// Define the TreeNodeType interface inline to avoid import conflicts
-interface TreeNodeType {
-  id: number;
-  text: string;
-  url: string;
-  timestamp: string;
-  parentId: number | null;
-  children: number[];
-  deleted?: boolean;
-  deletedAt?: string;
-  annotations?: Array<{
-    id: string;
-    text: string;
-    timestamp: string;
-    audioUrl?: string;
-  }>;
-  images?: string[];
-}
+// Load component file that creates window.TreeNode
+require('../components/treeNode');
+
+// Extract class from window object
+const TreeNodeClass = (global as any).window.TreeNode;
 
 describe('TreeNode', () => {
   let mockFormatters: any;
@@ -107,7 +95,7 @@ describe('TreeNode', () => {
         children: []
       };
 
-      const treeNode = new TreeNode(node, false);
+      const treeNode = new TreeNodeClass(node, false);
       const element = treeNode.createElement();
 
       expect(element).toBeInstanceOf(HTMLElement);
@@ -126,7 +114,7 @@ describe('TreeNode', () => {
         children: []
       };
 
-      const treeNode = new TreeNode(node, true);
+      const treeNode = new TreeNodeClass(node, true);
       const element = treeNode.createElement();
 
       expect(element.className).toBe('tree-node current');
@@ -144,7 +132,7 @@ describe('TreeNode', () => {
 
       mockFormatters.truncateText.mockReturnValue('Very long text...');
 
-      const treeNode = new TreeNode(node, false);
+      const treeNode = new TreeNodeClass(node, false);
       const element = treeNode.createElement();
       const contentElement = element.querySelector('.tree-node-content');
 
@@ -163,7 +151,7 @@ describe('TreeNode', () => {
         images: ['data:image/png;base64,test1', 'data:image/png;base64,test2']
       };
 
-      const treeNode = new TreeNode(node, false);
+      const treeNode = new TreeNodeClass(node, false);
       const element = treeNode.createElement();
       const imagesContainer = element.querySelector('.tree-node-images');
       const imageElements = element.querySelectorAll('.tree-node-image-thumbnail');
@@ -186,7 +174,7 @@ describe('TreeNode', () => {
 
       mockFormatters.formatTimestamp.mockReturnValue('Jan 1, 12:00 PM');
 
-      const treeNode = new TreeNode(node, false);
+      const treeNode = new TreeNodeClass(node, false);
       const element = treeNode.createElement();
       const urlElement = element.querySelector('.tree-node-url');
       const timeElement = element.querySelector('.tree-node-info span:last-child');
@@ -206,7 +194,7 @@ describe('TreeNode', () => {
         children: []
       };
 
-      const treeNode = new TreeNode(node, false);
+      const treeNode = new TreeNodeClass(node, false);
       const element = treeNode.createElement();
 
       // Check that annotation button was created via global function
@@ -222,7 +210,7 @@ describe('TreeNode', () => {
 
   describe('drag and drop', () => {
     let node: TreeNodeType;
-    let treeNode: TreeNode;
+    let treeNode: any;
     let element: HTMLElement;
 
     beforeEach(() => {
@@ -235,7 +223,7 @@ describe('TreeNode', () => {
         children: []
       };
 
-      treeNode = new TreeNode(node, false);
+      treeNode = new TreeNodeClass(node, false);
       element = treeNode.createElement();
       document.body.appendChild(element);
     });
@@ -310,7 +298,7 @@ describe('TreeNode', () => {
 
   describe('event handlers', () => {
     let node: TreeNodeType;
-    let treeNode: TreeNode;
+    let treeNode: any;
     let element: HTMLElement;
 
     beforeEach(() => {
@@ -323,7 +311,7 @@ describe('TreeNode', () => {
         children: []
       };
 
-      treeNode = new TreeNode(node, false);
+      treeNode = new TreeNodeClass(node, false);
       element = treeNode.createElement();
       document.body.appendChild(element);
     });
@@ -372,7 +360,7 @@ describe('TreeNode', () => {
         children: []
       };
 
-      const treeNode = new TreeNode(node, false);
+      const treeNode = new TreeNodeClass(node, false);
       const element = treeNode.createElement();
       document.body.appendChild(element);
 
@@ -399,7 +387,7 @@ describe('TreeNode', () => {
         children: []
       };
 
-      const treeNode = new TreeNode(node, false);
+      const treeNode = new TreeNodeClass(node, false);
       const element = treeNode.createElement();
       document.body.appendChild(element);
 
@@ -426,7 +414,7 @@ describe('TreeNode', () => {
         children: []
       };
 
-      const treeNode = new TreeNode(node, false);
+      const treeNode = new TreeNodeClass(node, false);
       const element = treeNode.createElement();
       document.body.appendChild(element);
 
@@ -459,7 +447,7 @@ describe('TreeNode', () => {
         images: ['data:image/png;base64,test']
       };
 
-      const treeNode = new TreeNode(node, false);
+      const treeNode = new TreeNodeClass(node, false);
       const element = treeNode.createElement();
       document.body.appendChild(element);
 
@@ -484,7 +472,7 @@ describe('TreeNode', () => {
         images: ['data:image/png;base64,test']
       };
 
-      const treeNode = new TreeNode(node, false);
+      const treeNode = new TreeNodeClass(node, false);
       const element = treeNode.createElement();
       document.body.appendChild(element);
 
@@ -509,7 +497,7 @@ describe('TreeNode', () => {
         images: ['data:image/png;base64,test']
       };
 
-      const treeNode = new TreeNode(node, false);
+      const treeNode = new TreeNodeClass(node, false);
       const element = treeNode.createElement();
       document.body.appendChild(element);
 

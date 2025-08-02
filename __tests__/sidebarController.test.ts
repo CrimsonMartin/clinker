@@ -2,10 +2,14 @@
  * @jest-environment jsdom
  */
 
-import { SidebarController } from '../components/sidebarController';
+// Load component file that creates window.sidebarController
+require('../components/sidebarController');
+
+// Extract class from window object
+const SidebarControllerClass = (global as any).window.CitationLinker?.sidebarController?.constructor || (global as any).window.sidebarController?.constructor;
 
 describe('SidebarController', () => {
-  let sidebarController: SidebarController;
+  let sidebarController: any;
   let mockTreeContainer: any;
   let mockSearchBar: any;
   let mockAuthStatus: any;
@@ -99,7 +103,7 @@ describe('SidebarController', () => {
     (window as any).treeService = mockTreeService;
 
     // Create new SidebarController instance
-    sidebarController = new SidebarController();
+    sidebarController = new SidebarControllerClass();
   });
 
   describe('initialize', () => {

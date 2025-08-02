@@ -2,37 +2,20 @@
  * @jest-environment jsdom
  */
 
-import { TreeService } from '../services/treeService';
+// Import types using ES6 exports (these work in tests)
+import { TreeNode, TreeData } from '../types/treeTypes';
 
-// Define types inline to avoid import conflicts
-interface TreeNode {
-  id: number;
-  text: string;
-  url: string;
-  timestamp: string;
-  parentId: number | null;
-  children: number[];
-  deleted?: boolean;
-  deletedAt?: string;
-  annotations?: Array<{
-    id: string;
-    text: string;
-    timestamp: string;
-    audioUrl?: string;
-  }>;
-  images?: string[];
-}
+// Load service file that creates window.treeService
+require('../services/treeService');
 
-interface TreeData {
-  nodes: TreeNode[];
-  currentNodeId: number | null;
-}
+// Extract class from window object
+const TreeServiceClass = (global as any).window.CitationLinker?.treeService?.constructor || (global as any).window.treeService?.constructor;
 
 describe('TreeService', () => {
-  let treeService: TreeService;
+  let treeService: any;
 
   beforeEach(() => {
-    treeService = new TreeService();
+    treeService = new TreeServiceClass();
     
     // Mock browser storage
     (global as any).browser = {

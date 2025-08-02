@@ -2,10 +2,14 @@
  * @jest-environment jsdom
  */
 
-import { TreeContainer } from '../components/treeContainer';
+// Load component file that creates window.treeContainer
+require('../components/treeContainer');
+
+// Extract class from window object
+const TreeContainerClass = (global as any).window.CitationLinker?.treeContainer?.constructor || (global as any).window.treeContainer?.constructor;
 
 describe('TreeContainer', () => {
-  let treeContainer: TreeContainer;
+  let treeContainer: any;
   let mockTreeService: any;
   let mockTreeValidationService: any;
 
@@ -89,7 +93,7 @@ describe('TreeContainer', () => {
     (window as any).createDeleteButton = mockCreateDeleteButton;
 
     // Create new TreeContainer instance
-    treeContainer = new TreeContainer();
+    treeContainer = new TreeContainerClass();
   });
 
   describe('initialize', () => {

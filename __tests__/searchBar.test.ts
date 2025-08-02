@@ -2,10 +2,14 @@
  * @jest-environment jsdom
  */
 
-import { SearchBar } from '../components/searchBar';
+// Load component file that creates window.searchBar singleton
+require('../components/searchBar');
+
+// Extract class constructor from the singleton instance
+const SearchBarClass = (global as any).window.searchBar.constructor;
 
 describe('SearchBar', () => {
-  let searchBar: SearchBar;
+  let searchBar: any;
   let mockSearchService: any;
   let mockTreeService: any;
 
@@ -59,7 +63,7 @@ describe('SearchBar', () => {
     (window as any).treeService = mockTreeService;
 
     // Create new SearchBar instance
-    searchBar = new SearchBar();
+    searchBar = new SearchBarClass();
   });
 
   describe('initialize', () => {

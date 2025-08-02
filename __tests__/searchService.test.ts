@@ -2,11 +2,17 @@
  * @jest-environment jsdom
  */
 
-import { SearchService } from '../services/searchService';
+// Import types using ES6 exports (these work in tests)
 import { TreeNode } from '../types/treeTypes';
 
+// Load service file that populates global namespace
+require('../services/searchService');
+
+// Extract class from global namespace
+const SearchService = (global as any).CitationLinker.SearchService;
+
 describe('SearchService', () => {
-  let searchService: SearchService;
+  let searchService: any;
 
   beforeEach(() => {
     searchService = new SearchService();
