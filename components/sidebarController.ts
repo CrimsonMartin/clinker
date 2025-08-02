@@ -264,6 +264,3 @@ if (typeof window !== 'undefined') {
     sidebarControllerInstance.initialize();
   }
 }
-
-// ES6 module exports for testing
-export { SidebarController };

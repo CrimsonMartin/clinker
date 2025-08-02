@@ -382,6 +382,3 @@ class TreeNode {
 if (typeof window !== 'undefined') {
   (window as any).TreeNode = TreeNode;
 }
-
-// ES6 module exports for testing
-export { TreeNode };

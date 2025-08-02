@@ -227,6 +227,3 @@ if (typeof window !== 'undefined') {
   // Export as singleton for backward compatibility
   (window as any).searchService = (window as any).CitationLinker.searchService;
 }
-
-// ES6 module exports for testing
-export { SearchService, SearchMatch, SearchResult, SearchOptions };

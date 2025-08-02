@@ -234,6 +234,3 @@ if (typeof window !== 'undefined') {
   (window as any).CitationLinker.treeContainer = treeContainerInstance;
   (window as any).treeContainer = treeContainerInstance; // Legacy support
 }
-
-// ES6 module exports for testing
-export { TreeContainer };

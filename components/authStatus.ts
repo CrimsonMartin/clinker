@@ -110,5 +110,3 @@ if (typeof window !== 'undefined') {
   (window as any).authStatus = new AuthStatus();
 }
 
-// ES6 module exports for testing
-export { AuthStatus, AuthElements, User };

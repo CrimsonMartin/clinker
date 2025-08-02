@@ -269,6 +269,3 @@ class TreeValidationService {
 if (typeof window !== 'undefined') {
   (window as any).treeValidationService = new TreeValidationService();
 }
-
-// ES6 module exports for testing
-export { TreeValidationService, TreeRepairResult, RepairRecord };
