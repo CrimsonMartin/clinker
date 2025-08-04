@@ -215,6 +215,12 @@ class TreeNode {
     this.element.addEventListener('click', async () => {
       try {
         await (window as any).treeService.setCurrentNode(this.node.id);
+        
+        // Immediately refresh the tree UI to show the new highlighting
+        const treeContainer = (window as any).CitationLinker?.treeContainer || (window as any).treeContainer;
+        if (treeContainer) {
+          await treeContainer.refresh();
+        }
       } catch (error) {
         console.error('Error updating current node:', error);
       }

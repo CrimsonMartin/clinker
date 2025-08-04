@@ -221,18 +221,10 @@ class TreeValidationService {
       return true;
     }
     
-    if (currentNode.deleted) {
-      console.log(`Current node ${tree.currentNodeId} is deleted, clearing currentNodeId`);
-      tree.currentNodeId = null;
-      
-      this.repairs.push({
-        type: 'cleared_deleted_current_node',
-        invalidNodeId: tree.currentNodeId
-      });
-      
-      return true;
-    }
-
+    // Note: We no longer clear currentNodeId for soft-deleted nodes
+    // The UI layer should handle whether to display deleted nodes
+    // This allows users to maintain their selection even on soft-deleted nodes
+    
     return false;
   }
 

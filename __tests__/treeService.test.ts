@@ -433,8 +433,7 @@ describe('TreeService', () => {
       expect(result).toBe(true);
       expect(browser.storage.local.set).toHaveBeenCalledWith({
         citationTree: expect.objectContaining({
-          currentNodeId: 1,
-          uiOnlyChange: true
+          currentNodeId: 1
         }),
         lastModified: expect.any(String)
       });

@@ -658,11 +658,13 @@ class SyncManager {
     // Set active tab and current node
     tabs.forEach(tab => {
       tab.isActive = tab.id === activeTabId;
-      if (tab.isActive && syncData.citationTree.currentNodeId) {
-        // Check if the current node belongs to this tab
+      
+      // Check if the current node belongs to this tab (regardless of which tab is active)
+      if (syncData.citationTree.currentNodeId) {
         const hasCurrentNode = tab.treeData.nodes.some(node => node.id === syncData.citationTree.currentNodeId);
         if (hasCurrentNode) {
           tab.treeData.currentNodeId = syncData.citationTree.currentNodeId;
+          console.log(`Assigned currentNodeId ${syncData.citationTree.currentNodeId} to tab ${tab.id}`);
         }
       }
     });

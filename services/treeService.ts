@@ -318,7 +318,6 @@ class TreeService {
     try {
       const tree = await this.getTree();
       tree.currentNodeId = nodeId;
-      tree.uiOnlyChange = true; // Flag to prevent sync
       await this.saveTree(tree);
       return true;
     } catch (error) {
@@ -366,4 +365,3 @@ if (typeof window !== 'undefined') {
   (window as any).CitationLinker.treeService = treeServiceInstance;
   (window as any).treeService = treeServiceInstance; // Legacy support
 }
-

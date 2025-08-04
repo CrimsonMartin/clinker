@@ -119,7 +119,7 @@ class TreeContainer {
   private renderTree(nodes: TreeNodeType[], currentNodeId: number | null, parentId: number | null = null): HTMLElement {
     const container = document.createElement('div');
     
-    console.log('getting nodes for parentId:', parentId);
+    console.log('getting nodes for parentId:', parentId, 'current selected node is ', currentNodeId);
     // Find all nodes with the specified parent
     const childNodes = (window as any).treeService.getChildNodes(nodes, parentId);
 
@@ -213,12 +213,20 @@ class TreeContainer {
 
   // Setup tab change listener
   private setupTabChangeListener(): void {
-    // Listen for storage changes that indicate tab switches
+    // Listen for storage changes that indicate tab switches or sync updates
     if (typeof browser !== 'undefined' && browser.storage) {
       browser.storage.onChanged.addListener((changes: any, areaName: string) => {
-        if (areaName === 'local' && changes.tabsData) {
-          console.log('TreeContainer: Tab data changed, refreshing tree');
-          this.refresh();
+        if (areaName === 'local') {
+          // Refresh on tab data changes (tab switches)
+          if (changes.tabsData) {
+            console.log('TreeContainer: Tab data changed, refreshing tree');
+            this.refresh();
+          }
+          // Refresh on legacy tree data changes (sync updates in old format)
+          else if (changes.citationTree) {
+            console.log('TreeContainer: Citation tree data changed (sync), refreshing tree');
+            this.refresh();
+          }
         }
       });
     }
