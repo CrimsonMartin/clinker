@@ -222,19 +222,19 @@ describe('TreeValidationService', () => {
       expect(console.log).toHaveBeenCalledWith('Current node 999 doesn\'t exist, clearing currentNodeId');
     });
 
-    it('should clear deleted current node ID', () => {
+    it('should NOT clear deleted current node ID (UI handles deleted nodes)', () => {
       const tree: TreeData = {
         nodes: [
-          { id: 1, text: 'Deleted node', url: 'https://example.com/1', timestamp: '2023-01-01', parentId: null, children: [], deleted: true, deletedAt: '2023-01-02' }
+          { id: 1, text: 'Test', url: 'https://example.com', timestamp: '2023-01-01', parentId: null, children: [], deleted: true, deletedAt: '2023-01-02' }
         ],
         currentNodeId: 1
       };
-      
+
       const modified = treeValidationService['validateCurrentNodeId'](tree);
-      
-      expect(modified).toBe(true);
-      expect(tree.currentNodeId).toBeNull();
-      expect(console.log).toHaveBeenCalledWith('Current node 1 is deleted, clearing currentNodeId');
+
+      expect(modified).toBe(false);
+      expect(tree.currentNodeId).toBe(1); // Should remain unchanged
+      // No console.log should be called for deleted nodes
     });
 
     it('should not modify valid current node ID', () => {
