@@ -338,8 +338,19 @@ class TreeService {
   }
 
   // Get child nodes of a parent
-  getChildNodes(nodes: TreeNode[], parentId: number | null): TreeNode[] {
-    return nodes.filter(node => node.parentId === parentId && !node.deleted);
+  getChildNodes(nodes: TreeNode[], parentId?: number | null): TreeNode[] {
+
+
+    if (parentId === undefined) {
+      return this.getVisibleNodes(nodes);
+    }
+    if (parentId === null){
+       return nodes.filter(node => node.parentId === parentId && !node.deleted);
+    }
+    else{
+      return nodes.filter(node => node.parentId === parentId && !node.deleted);
+    }
+
   }
 }
 

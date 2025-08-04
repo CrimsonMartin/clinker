@@ -74,19 +74,25 @@ class TreeContainer {
       if (treeValidationService) {
         repairedTree = await treeValidationService.repairTreeIntegrity(tree);
       }
+
+      console.log('after repair, tree container now has :', repairedTree.nodes?.length || 0);
       
       // Clear existing content
       this.treeRoot.innerHTML = '';
-      
-      // Check if tree is empty
-      const visibleNodes = treeService.getVisibleNodes(repairedTree.nodes || []);
-      if (!repairedTree.nodes || repairedTree.nodes.length === 0 || visibleNodes.length === 0) {
+
+      if (!repairedTree.nodes || repairedTree.nodes.length === 0) {
+
+        console.log('Tree is empty, showing empty state');
         this.showEmptyState();
         return;
       }
       
+      console.log('TreeContainer: Rendering tree with nodes:', repairedTree.nodes.length);
+
       // Render the tree starting from root nodes
       const treeElements = this.renderTree(repairedTree.nodes, repairedTree.currentNodeId);
+
+      
       this.treeRoot.appendChild(treeElements);
       
     } catch (error) {
@@ -113,8 +119,11 @@ class TreeContainer {
   private renderTree(nodes: TreeNodeType[], currentNodeId: number | null, parentId: number | null = null): HTMLElement {
     const container = document.createElement('div');
     
+    console.log('getting nodes for parentId:', parentId);
     // Find all nodes with the specified parent
     const childNodes = (window as any).treeService.getChildNodes(nodes, parentId);
+
+    console.log('found child nodes:', childNodes.length, 'for parentId:', parentId);
     
     childNodes.forEach((node: TreeNodeType) => {
       // Ensure node has children array
