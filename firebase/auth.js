@@ -230,6 +230,9 @@ class AuthManager {
       }
 
       console.log('Successfully signed out');
+
+      await this.clearUserData();
+
       return { success: true };
 
     } catch (error) {
@@ -247,6 +250,37 @@ class AuthManager {
       authToken: null,
       tokenExpiry: null
     });
+  }
+
+  // Clear all user-specific citation data
+  async clearUserData() {
+    try {
+      // Get current extension settings to preserve them
+      const currentSettings = await this.getStorageData(['extensionActive']);
+      
+      // Clear all user-specific data while preserving system settings
+      const dataToSet = {
+        // Reset citation data (legacy format)
+        citationTree: { nodes: [], currentNodeId: null },
+        
+        // Reset tab data (new format)
+        tabsData: null,
+        
+        // Reset counters and timestamps
+        nodeCounter: 0,
+        lastModified: null,
+        
+        // Preserve extension settings
+        extensionActive: currentSettings.extensionActive !== undefined ? currentSettings.extensionActive : true
+      };
+
+      await this.setStorageData(dataToSet);
+      console.log('Successfully cleared user data');
+      
+    } catch (error) {
+      console.error('Error clearing user data:', error);
+      // Don't throw error - logout should still succeed even if data clearing fails
+    }
   }
 
   // Get current user
@@ -323,4 +357,11 @@ const authManager = new AuthManager();
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { authManager };
+}
+
+// Also export to global scope for browser usage
+if (typeof window !== 'undefined') {
+  window.authManager = authManager;
+} else if (typeof global !== 'undefined') {
+  global.authManager = authManager;
 }
