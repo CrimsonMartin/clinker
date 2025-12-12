@@ -41,7 +41,7 @@ Citation Linker is a powerful browser extension that helps researchers, students
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/your-username/citation-linker.git
+   git clone https://github.com/crimsonmartin/citation-linker.git
    cd citation-linker
    ```
 
@@ -211,9 +211,8 @@ This project is licensed under the ISC License - see the [LICENSE](LICENSE) file
 ## 🆘 Support
 
 ### Getting Help
-- **Issues**: [GitHub Issues](https://github.com/your-username/citation-linker/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-username/citation-linker/discussions)
-- **Email**: support@citationlinker.com
+- **Issues**: [GitHub Issues](https://github.com/crimsonmartin/citation-linker/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/crimsonmartin/citation-linker/discussions)
 
 ### Common Issues
 - **Firebase errors**: Check configuration in `firebase/firebase-config.js`
