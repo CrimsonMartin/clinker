@@ -25,6 +25,9 @@
         <span class="toggle-slider"></span>
       </label>
       <span class="toggle-status active" id="toggleStatus">ON</span>
+      <button class="search-toggle-btn" id="searchToggleBtn" title="Search research trees">
+        &#128269;
+      </button>
     </div>
   </div>
   
@@ -35,8 +38,8 @@
   </div>
   
   <div class="tree-container">
-    <!-- Search Bar - Always visible -->
-    <div class="search-container" id="searchContainer">
+    <!-- Search Bar - Toggle visible -->
+    <div class="search-container" id="searchContainer" style="display: none;">
       <div class="search-header">
         <div class="search-input-wrapper">
           <input type="text" id="searchInput" class="search-input" placeholder="Search citations..." />

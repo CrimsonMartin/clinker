@@ -14,10 +14,11 @@ describe('SearchBar', () => {
   let mockTreeService: any;
 
   beforeEach(() => {
-    // Clear document body - search bar is always visible (no toggle button, no close button)
+    // Clear document body - search bar with toggle button
     document.body.innerHTML = `
       <input id="searchInput" type="text" />
-      <div id="searchContainer"></div>
+      <div id="searchContainer" style="display: none;"></div>
+      <button id="searchToggleBtn"></button>
       <button id="searchPrevBtn"></button>
       <button id="searchNextBtn"></button>
       <div id="searchCounter"></div>
@@ -85,36 +86,78 @@ describe('SearchBar', () => {
     });
   });
 
-  describe('openSearch (legacy method)', () => {
+  describe('toggleSearch', () => {
     beforeEach(() => {
       searchBar.initialize();
     });
 
-    it('should focus input when called', () => {
+    it('should open search when closed', () => {
+      const searchContainer = document.getElementById('searchContainer') as HTMLElement;
+      const searchToggleBtn = document.getElementById('searchToggleBtn');
+      
+      searchBar.toggleSearch();
+      
+      expect(searchContainer.style.display).toBe('block');
+      expect(searchToggleBtn?.classList.contains('active')).toBe(true);
+    });
+
+    it('should close search when open', () => {
+      const searchContainer = document.getElementById('searchContainer') as HTMLElement;
+      const searchToggleBtn = document.getElementById('searchToggleBtn');
+      
+      // First open
+      searchBar.toggleSearch();
+      expect(searchContainer.style.display).toBe('block');
+      
+      // Then close
+      searchBar.toggleSearch();
+      expect(searchContainer.style.display).toBe('none');
+      expect(searchToggleBtn?.classList.contains('active')).toBe(false);
+    });
+  });
+
+  describe('openSearch', () => {
+    beforeEach(() => {
+      searchBar.initialize();
+    });
+
+    it('should open search container and focus input', () => {
+      const searchContainer = document.getElementById('searchContainer') as HTMLElement;
+      const searchToggleBtn = document.getElementById('searchToggleBtn');
       const searchInput = document.getElementById('searchInput') as HTMLInputElement;
       
       // Mock focus method
       const focusSpy = jest.spyOn(searchInput, 'focus');
+      const selectSpy = jest.spyOn(searchInput, 'select');
       
       searchBar.openSearch();
       
+      expect(searchContainer.style.display).toBe('block');
+      expect(searchToggleBtn?.classList.contains('active')).toBe(true);
       expect(focusSpy).toHaveBeenCalled();
+      expect(selectSpy).toHaveBeenCalled();
     });
   });
 
-  describe('closeSearch (legacy method)', () => {
+  describe('closeSearch', () => {
     beforeEach(() => {
       searchBar.initialize();
     });
 
-    it('should clear input when called', () => {
+    it('should close search container and clear input', () => {
+      const searchContainer = document.getElementById('searchContainer') as HTMLElement;
+      const searchToggleBtn = document.getElementById('searchToggleBtn');
       const searchInput = document.getElementById('searchInput') as HTMLInputElement;
       
-      // Set some initial state
+      // First open
+      searchBar.openSearch();
       searchInput.value = 'test query';
       
+      // Then close
       searchBar.closeSearch();
       
+      expect(searchContainer.style.display).toBe('none');
+      expect(searchToggleBtn?.classList.contains('active')).toBe(false);
       expect(searchInput.value).toBe('');
     });
   });
@@ -270,15 +313,17 @@ describe('SearchBar', () => {
       searchBar.initialize();
     });
 
-    it('should not rerun search when input is empty', () => {
+    it('should not rerun search when search is closed', () => {
       searchBar.rerunSearchIfActive();
       
       expect(mockSearchService.performSearch).not.toHaveBeenCalled();
     });
 
-    it('should rerun search when input has value', () => {
+    it('should rerun search when search is open with value', () => {
       const searchInput = document.getElementById('searchInput') as HTMLInputElement;
       
+      // Open search and set value
+      searchBar.openSearch();
       searchInput.value = 'test';
       mockSearchService.performSearch.mockClear();
       
@@ -301,22 +346,37 @@ describe('SearchBar', () => {
       jest.useRealTimers();
     });
 
-    it('should clear search on escape key when input is focused', () => {
-      const searchInput = document.getElementById('searchInput') as HTMLInputElement;
-      searchInput.value = 'test';
+    it('should toggle search when toggle button is clicked', () => {
+      const searchToggleBtn = document.getElementById('searchToggleBtn');
+      const searchContainer = document.getElementById('searchContainer') as HTMLElement;
       
-      // Focus the input
-      searchInput.focus();
-      Object.defineProperty(document, 'activeElement', { value: searchInput, configurable: true });
+      // First click - should open
+      searchToggleBtn?.dispatchEvent(new Event('click'));
+      expect(searchContainer.style.display).toBe('block');
+      
+      // Second click - should close
+      searchToggleBtn?.dispatchEvent(new Event('click'));
+      expect(searchContainer.style.display).toBe('none');
+    });
+
+    it('should close search on escape key when open', () => {
+      const searchContainer = document.getElementById('searchContainer') as HTMLElement;
+      
+      // Open search first
+      searchBar.openSearch();
+      expect(searchContainer.style.display).toBe('block');
       
       const escapeEvent = new KeyboardEvent('keydown', { key: 'Escape' });
       document.dispatchEvent(escapeEvent);
       
-      expect(searchInput.value).toBe('');
+      expect(searchContainer.style.display).toBe('none');
     });
 
     it('should handle search input with debouncing', async () => {
       const searchInput = document.getElementById('searchInput') as HTMLInputElement;
+      
+      // Open search first
+      searchBar.openSearch();
       searchInput.value = 'test';
       
       const inputEvent = new Event('input', { bubbles: true });

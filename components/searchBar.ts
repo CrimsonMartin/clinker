@@ -1,9 +1,10 @@
 // searchBar.ts - Search bar component for searching through citations
-// Search bar is always visible - no toggle functionality needed
+// Search bar toggles visibility via the search icon button
 
 interface SearchElements {
   searchInput: HTMLInputElement | null;
   searchContainer: HTMLElement | null;
+  searchToggleBtn: HTMLElement | null;
   searchPrevBtn: HTMLButtonElement | null;
   searchNextBtn: HTMLButtonElement | null;
   searchCounter: HTMLElement | null;
@@ -17,12 +18,14 @@ class SearchBar {
   private searchTimeout: any;
   private elements: SearchElements;
   private initialized: boolean;
+  private isOpen: boolean;
 
   constructor() {
     this.searchTimeout = null;
     this.elements = {
       searchInput: null,
       searchContainer: null,
+      searchToggleBtn: null,
       searchPrevBtn: null,
       searchNextBtn: null,
       searchCounter: null,
@@ -32,6 +35,7 @@ class SearchBar {
       searchAllTabs: null
     };
     this.initialized = false;
+    this.isOpen = false;
   }
 
   // Initialize search bar
@@ -40,6 +44,7 @@ class SearchBar {
     this.elements = {
       searchInput: document.getElementById('searchInput') as HTMLInputElement,
       searchContainer: document.getElementById('searchContainer'),
+      searchToggleBtn: document.getElementById('searchToggleBtn'),
       searchPrevBtn: document.getElementById('searchPrevBtn') as HTMLButtonElement,
       searchNextBtn: document.getElementById('searchNextBtn') as HTMLButtonElement,
       searchCounter: document.getElementById('searchCounter'),
@@ -62,6 +67,15 @@ class SearchBar {
 
   // Setup event listeners
   private setupEventListeners(): void {
+    // Toggle button click handler
+    if (this.elements.searchToggleBtn) {
+      console.log('SearchBar: Attaching click listener to toggle button');
+      this.elements.searchToggleBtn.addEventListener('click', () => {
+        console.log('SearchBar: Toggle button clicked, isOpen:', this.isOpen);
+        this.toggleSearch();
+      });
+    }
+
     // Keyboard shortcuts for search navigation
     document.addEventListener('keydown', (e) => {
       // Navigate search results with arrow keys when search has results
@@ -75,9 +89,9 @@ class SearchBar {
         }
       }
       
-      // Clear search on Escape
-      if (e.key === 'Escape' && document.activeElement === this.elements.searchInput) {
-        this.clearSearch();
+      // Close search on Escape
+      if (e.key === 'Escape' && this.isOpen) {
+        this.closeSearch();
       }
     });
 
@@ -118,6 +132,48 @@ class SearchBar {
     // Navigation buttons
     this.elements.searchPrevBtn?.addEventListener('click', () => this.navigateToPreviousResult());
     this.elements.searchNextBtn?.addEventListener('click', () => this.navigateToNextResult());
+  }
+
+  // Toggle search visibility
+  toggleSearch(): void {
+    if (this.isOpen) {
+      this.closeSearch();
+    } else {
+      this.openSearch();
+    }
+  }
+
+  // Open search
+  openSearch(): void {
+    if (this.elements.searchContainer) {
+      this.elements.searchContainer.style.display = 'block';
+    }
+    if (this.elements.searchToggleBtn) {
+      this.elements.searchToggleBtn.classList.add('active');
+    }
+    this.isOpen = true;
+    
+    // Focus and select input
+    if (this.elements.searchInput) {
+      this.elements.searchInput.focus();
+      this.elements.searchInput.select();
+    }
+    console.log('SearchBar: Opened');
+  }
+
+  // Close search
+  closeSearch(): void {
+    if (this.elements.searchContainer) {
+      this.elements.searchContainer.style.display = 'none';
+    }
+    if (this.elements.searchToggleBtn) {
+      this.elements.searchToggleBtn.classList.remove('active');
+    }
+    this.isOpen = false;
+    
+    // Clear search
+    this.clearSearch();
+    console.log('SearchBar: Closed');
   }
 
   // Clear search input and results
@@ -402,20 +458,11 @@ class SearchBar {
 
   // Re-run search if there's a query (for when tree updates)
   rerunSearchIfActive(): void {
-    if (this.elements.searchInput?.value.trim()) {
+    if (this.isOpen && this.elements.searchInput?.value.trim()) {
       setTimeout(() => {
         this.performSearch(this.elements.searchInput!.value);
       }, 100);
     }
-  }
-
-  // Legacy methods for compatibility (no-ops since search is always visible)
-  openSearch(): void {
-    this.elements.searchInput?.focus();
-  }
-
-  closeSearch(): void {
-    this.clearSearch();
   }
 }
 
