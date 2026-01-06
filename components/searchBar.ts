@@ -191,9 +191,9 @@ class SearchBar {
     // Update display (always filter mode)
     this.updateSearchDisplay(true);
     this.updateSearchCounter();
-    
+
     if (results.length > 0) {
-      this.highlightCurrentResult();
+      await this.highlightCurrentResult();
     }
   }
 
@@ -333,12 +333,12 @@ class SearchBar {
   }
 
   // Highlight current result
-  private highlightCurrentResult(): void {
+  private async highlightCurrentResult(): Promise<void> {
     // Remove previous current result highlighting
     document.querySelectorAll('.current-result').forEach(el => {
       el.classList.remove('current-result');
     });
-    
+
     document.querySelectorAll('.search-highlight.current').forEach(el => {
       el.classList.remove('current');
     });
@@ -349,17 +349,31 @@ class SearchBar {
     const currentResult = searchService.getCurrentResult();
     if (!currentResult) return;
 
+    // If result is from a different tab, switch to that tab first
+    if (currentResult.tabId) {
+      const tabService = (window as any).tabService || (window as any).CitationLinker?.tabService;
+      if (tabService) {
+        const tabsData = await tabService.getTabs();
+        // Only switch if we're not already on that tab
+        if (tabsData.activeTabId !== currentResult.tabId) {
+          await tabService.setActiveTab(currentResult.tabId);
+          // Wait a bit for the DOM to update after tab switch
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+    }
+
     const nodeElement = document.querySelector(`[data-node-id="${currentResult.nodeId}"]`);
-    
+
     if (nodeElement) {
       nodeElement.classList.add('current-result');
-      
+
       // Highlight the first match in this node as current
       const firstHighlight = nodeElement.querySelector('.search-highlight');
       if (firstHighlight) {
         firstHighlight.classList.add('current');
       }
-      
+
       // Scroll to result
       nodeElement.scrollIntoView({
         behavior: 'smooth',
@@ -374,7 +388,7 @@ class SearchBar {
     if (!searchService) return;
 
     await searchService.navigateToNext();
-    this.highlightCurrentResult();
+    await this.highlightCurrentResult();
     this.updateSearchCounter();
   }
 
@@ -384,7 +398,7 @@ class SearchBar {
     if (!searchService) return;
 
     await searchService.navigateToPrevious();
-    this.highlightCurrentResult();
+    await this.highlightCurrentResult();
     this.updateSearchCounter();
   }
 
