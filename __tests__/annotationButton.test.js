@@ -4,6 +4,7 @@
 
 describe('AnnotationButton', () => {
   let formatTimestamp, addAnnotation, deleteAnnotation, showAnnotationModal, createAnnotationButton;
+  let mockTreeService, mockTreeContainer;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -15,7 +16,7 @@ describe('AnnotationButton', () => {
       warn: jest.fn()
     };
 
-    // Mock browser storage
+    // Mock browser storage (still needed for some operations)
     global.browser = {
       storage: {
         local: {
@@ -26,6 +27,26 @@ describe('AnnotationButton', () => {
         }
       }
     };
+
+    // Mock TreeService
+    mockTreeService = {
+      getTree: jest.fn().mockResolvedValue({ nodes: [], currentNodeId: null }),
+      saveTree: jest.fn().mockResolvedValue()
+    };
+
+    // Mock TreeContainer
+    mockTreeContainer = {
+      loadAndDisplayTree: jest.fn().mockResolvedValue()
+    };
+
+    // Set up CitationLinker namespace with mocks
+    global.window = global;
+    global.window.CitationLinker = {
+      treeService: mockTreeService,
+      treeContainer: mockTreeContainer
+    };
+    global.window.treeService = mockTreeService;
+    global.window.treeContainer = mockTreeContainer;
 
     // Clear document body
     document.body.innerHTML = '';
@@ -55,7 +76,7 @@ describe('AnnotationButton', () => {
     const vm = require('vm');
     const context = vm.createContext({
       ...global,
-      window: global,
+      window: global.window,
       document: global.document,
       console: global.console,
       browser: global.browser,
@@ -91,7 +112,7 @@ describe('AnnotationButton', () => {
   });
 
   describe('addAnnotation', () => {
-    it('should add annotation to existing node', async () => {
+    it('should add annotation to existing node using TreeService', async () => {
       const mockTree = {
         nodes: [
           { id: 1, text: 'Test node', annotations: [] }
@@ -99,13 +120,13 @@ describe('AnnotationButton', () => {
         currentNodeId: 1
       };
       
-      browser.storage.local.get.mockResolvedValue({ citationTree: mockTree });
+      mockTreeService.getTree.mockResolvedValue(mockTree);
 
       await addAnnotation(1, 'Test annotation');
 
-      expect(browser.storage.local.get).toHaveBeenCalled();
-      expect(browser.storage.local.set).toHaveBeenCalledWith({
-        citationTree: expect.objectContaining({
+      expect(mockTreeService.getTree).toHaveBeenCalled();
+      expect(mockTreeService.saveTree).toHaveBeenCalledWith(
+        expect.objectContaining({
           nodes: expect.arrayContaining([
             expect.objectContaining({
               id: 1,
@@ -119,7 +140,8 @@ describe('AnnotationButton', () => {
             })
           ])
         })
-      });
+      );
+      expect(mockTreeContainer.loadAndDisplayTree).toHaveBeenCalled();
     });
 
     it('should create annotations array if it does not exist', async () => {
@@ -130,12 +152,12 @@ describe('AnnotationButton', () => {
         currentNodeId: 1
       };
       
-      browser.storage.local.get.mockResolvedValue({ citationTree: mockTree });
+      mockTreeService.getTree.mockResolvedValue(mockTree);
 
       await addAnnotation(1, 'Test annotation');
 
-      expect(browser.storage.local.set).toHaveBeenCalledWith({
-        citationTree: expect.objectContaining({
+      expect(mockTreeService.saveTree).toHaveBeenCalledWith(
+        expect.objectContaining({
           nodes: expect.arrayContaining([
             expect.objectContaining({
               id: 1,
@@ -147,7 +169,7 @@ describe('AnnotationButton', () => {
             })
           ])
         })
-      });
+      );
     });
 
     it('should handle node not found gracefully', async () => {
@@ -158,25 +180,35 @@ describe('AnnotationButton', () => {
         currentNodeId: 1
       };
       
-      browser.storage.local.get.mockResolvedValue({ citationTree: mockTree });
+      mockTreeService.getTree.mockResolvedValue(mockTree);
 
       await addAnnotation(999, 'Test annotation');
 
-      // Should not call set if node doesn't exist
-      expect(browser.storage.local.set).not.toHaveBeenCalled();
+      // Should not call saveTree if node doesn't exist
+      expect(mockTreeService.saveTree).not.toHaveBeenCalled();
     });
 
-    it('should handle storage errors', async () => {
-      browser.storage.local.get.mockRejectedValue(new Error('Storage error'));
+    it('should handle TreeService errors', async () => {
+      mockTreeService.getTree.mockRejectedValue(new Error('TreeService error'));
 
       await addAnnotation(1, 'Test annotation');
 
       expect(console.error).toHaveBeenCalledWith('Error adding annotation:', expect.any(Error));
     });
+
+    it('should log error when TreeService is not available', async () => {
+      // Remove TreeService from global
+      delete global.window.CitationLinker;
+      delete global.window.treeService;
+
+      await addAnnotation(1, 'Test annotation');
+
+      expect(console.error).toHaveBeenCalledWith('TreeService not available');
+    });
   });
 
   describe('deleteAnnotation', () => {
-    it('should delete annotation from node', async () => {
+    it('should delete annotation from node using TreeService', async () => {
       const mockTree = {
         nodes: [
           { 
@@ -191,12 +223,12 @@ describe('AnnotationButton', () => {
         currentNodeId: 1
       };
       
-      browser.storage.local.get.mockResolvedValue({ citationTree: mockTree });
+      mockTreeService.getTree.mockResolvedValue(mockTree);
 
       await deleteAnnotation(1, 'ann1');
 
-      expect(browser.storage.local.set).toHaveBeenCalledWith({
-        citationTree: expect.objectContaining({
+      expect(mockTreeService.saveTree).toHaveBeenCalledWith(
+        expect.objectContaining({
           nodes: expect.arrayContaining([
             expect.objectContaining({
               id: 1,
@@ -206,7 +238,8 @@ describe('AnnotationButton', () => {
             })
           ])
         })
-      });
+      );
+      expect(mockTreeContainer.loadAndDisplayTree).toHaveBeenCalled();
     });
 
     it('should handle node not found gracefully', async () => {
@@ -217,19 +250,29 @@ describe('AnnotationButton', () => {
         currentNodeId: 1
       };
       
-      browser.storage.local.get.mockResolvedValue({ citationTree: mockTree });
+      mockTreeService.getTree.mockResolvedValue(mockTree);
 
       await deleteAnnotation(999, 'ann1');
 
-      expect(browser.storage.local.set).not.toHaveBeenCalled();
+      expect(mockTreeService.saveTree).not.toHaveBeenCalled();
     });
 
-    it('should handle storage errors', async () => {
-      browser.storage.local.get.mockRejectedValue(new Error('Storage error'));
+    it('should handle TreeService errors', async () => {
+      mockTreeService.getTree.mockRejectedValue(new Error('TreeService error'));
 
       await deleteAnnotation(1, 'ann1');
 
       expect(console.error).toHaveBeenCalledWith('Error deleting annotation:', expect.any(Error));
+    });
+
+    it('should log error when TreeService is not available', async () => {
+      // Remove TreeService from global
+      delete global.window.CitationLinker;
+      delete global.window.treeService;
+
+      await deleteAnnotation(1, 'ann1');
+
+      expect(console.error).toHaveBeenCalledWith('TreeService not available');
     });
   });
 
@@ -435,12 +478,12 @@ describe('AnnotationButton', () => {
         annotations: []
       };
 
-      // Mock the storage to return our node
+      // Mock the TreeService to return our node
       const mockTree = {
         nodes: [node],
         currentNodeId: 1
       };
-      browser.storage.local.get.mockResolvedValue({ citationTree: mockTree });
+      mockTreeService.getTree.mockResolvedValue(mockTree);
 
       showAnnotationModal(node);
 
@@ -453,9 +496,9 @@ describe('AnnotationButton', () => {
       // Wait for async operation
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      // Verify that browser.storage.local.set was called with the new annotation
-      expect(browser.storage.local.set).toHaveBeenCalledWith({
-        citationTree: expect.objectContaining({
+      // Verify that TreeService.saveTree was called with the new annotation
+      expect(mockTreeService.saveTree).toHaveBeenCalledWith(
+        expect.objectContaining({
           nodes: expect.arrayContaining([
             expect.objectContaining({
               id: 1,
@@ -467,7 +510,7 @@ describe('AnnotationButton', () => {
             })
           ])
         })
-      });
+      );
 
       // Modal should be closed
       const modal = document.querySelector('.annotation-modal');
@@ -483,12 +526,12 @@ describe('AnnotationButton', () => {
         ]
       };
 
-      // Mock the storage to return our node
+      // Mock the TreeService to return our node
       const mockTree = {
         nodes: [node],
         currentNodeId: 1
       };
-      browser.storage.local.get.mockResolvedValue({ citationTree: mockTree });
+      mockTreeService.getTree.mockResolvedValue(mockTree);
 
       showAnnotationModal(node);
 
@@ -498,9 +541,9 @@ describe('AnnotationButton', () => {
       // Wait for async operation
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      // Verify that browser.storage.local.set was called with the annotation removed
-      expect(browser.storage.local.set).toHaveBeenCalledWith({
-        citationTree: expect.objectContaining({
+      // Verify that TreeService.saveTree was called with the annotation removed
+      expect(mockTreeService.saveTree).toHaveBeenCalledWith(
+        expect.objectContaining({
           nodes: expect.arrayContaining([
             expect.objectContaining({
               id: 1,
@@ -508,7 +551,7 @@ describe('AnnotationButton', () => {
             })
           ])
         })
-      });
+      );
 
       // Modal should be closed
       const modal = document.querySelector('.annotation-modal');
@@ -522,9 +565,6 @@ describe('AnnotationButton', () => {
         annotations: []
       };
 
-      // Spy on addAnnotation
-      const addAnnotationSpy = jest.spyOn(global, 'addAnnotation').mockImplementation(() => Promise.resolve());
-
       showAnnotationModal(node);
 
       const textarea = document.querySelector('.annotation-input');
@@ -536,8 +576,8 @@ describe('AnnotationButton', () => {
       // Wait for potential async operation
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      expect(addAnnotationSpy).not.toHaveBeenCalled();
-      addAnnotationSpy.mockRestore();
+      // TreeService.saveTree should not have been called
+      expect(mockTreeService.saveTree).not.toHaveBeenCalled();
     });
   });
 });

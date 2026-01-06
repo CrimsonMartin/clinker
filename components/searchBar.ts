@@ -405,5 +405,13 @@ class SearchBar {
 
 // Export as singleton for backward compatibility
 if (typeof window !== 'undefined') {
-  (window as any).searchBar = new SearchBar();
+  // Initialize global namespace if it doesn't exist
+  (window as any).CitationLinker = (window as any).CitationLinker || {};
+  
+  // Create singleton instance
+  const searchBarInstance = new SearchBar();
+  
+  // Attach to both namespaces for compatibility
+  (window as any).CitationLinker.searchBar = searchBarInstance;
+  (window as any).searchBar = searchBarInstance; // Legacy support
 }

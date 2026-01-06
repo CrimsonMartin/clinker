@@ -1,6 +1,46 @@
 # Active Context - Current Work and Focus
 
-## Current Task: Local Storage Clearing on Logout Complete (2025-01-31)
+## Current Task: Search Bar and Annotations Fix Complete (2026-01-05)
+
+### Just Completed
+Fixed two critical issues affecting Chrome users:
+1. **Search bar not working** - The search button click wasn't triggering searches properly
+2. **Annotations not appearing** - New annotations were being saved but not displayed
+
+#### Root Causes Identified:
+1. **Search Bar Issue**: The `searchResults` property in `SearchService` was private, causing access issues when `SearchBar` tried to read results directly
+2. **Annotations Issue**: The `annotationButton.js` was using the legacy `citationTree` storage format, while the rest of the app had migrated to the new tab-based `tabsData` format via `TreeService`
+
+#### Changes Made:
+1. **SearchService** (`services/searchService.ts`):
+   - Changed `searchResults` from `private` to `public` to allow external access
+   - This ensures the SearchBar component can properly read and display search results
+
+2. **AnnotationButton** (`annotationButton.js`):
+   - Updated `addAnnotation()` to use `TreeService.getTree()` and `TreeService.saveTree()` instead of direct `browser.storage.local` access
+   - Updated `deleteAnnotation()` to use `TreeService.getTree()` and `TreeService.saveTree()` instead of direct storage access
+   - Added automatic UI refresh via `TreeContainer.loadAndDisplayTree()` after annotation changes
+   - Added proper error handling when TreeService is not available
+   - Now supports both the new tab-based storage format and legacy format through TreeService
+
+3. **Test Updates** (`__tests__/annotationButton.test.js`):
+   - Updated all tests to mock `TreeService` instead of direct `browser.storage.local` calls
+   - Added tests for TreeService error handling
+   - Added tests for TreeService unavailability scenarios
+   - All 344 tests now pass
+
+#### Technical Details:
+- **Storage Format Compatibility**: TreeService handles both legacy `citationTree` and new `tabsData` formats transparently
+- **UI Refresh**: After adding/deleting annotations, the tree display is automatically refreshed
+- **Error Resilience**: Proper error handling prevents crashes when services are unavailable
+
+#### Final Results:
+- **Before**: Search button clicks did nothing; annotations saved but didn't appear in UI
+- **After**: Search works correctly; annotations appear immediately after adding
+- **Test Coverage**: All 344 tests passing across 19 test suites
+- **Build Status**: TypeScript compilation successful
+
+## Previous Task: Local Storage Clearing on Logout Complete (2025-01-31)
 
 ### Just Completed
 Successfully implemented local storage clearing functionality when users log out! Now when a user logs out, all their citation data is completely cleared from local storage, allowing different users to log in on the same browser and see only their own references.

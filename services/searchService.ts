@@ -28,7 +28,7 @@ interface SearchOptions {
 }
 
 class SearchService {
-  private searchResults: SearchResult[];
+  public searchResults: SearchResult[];
   private currentSearchIndex: number;
   private searchQuery: string;
   private searchOptions: SearchOptions;

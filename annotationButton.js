@@ -12,8 +12,14 @@ function formatTimestamp(timestamp) {
 
 async function addAnnotation(nodeId, text) {
   try {
-    const result = await browser.storage.local.get({ citationTree: { nodes: [], currentNodeId: null } });
-    const tree = result.citationTree;
+    // Use TreeService to get the tree (supports both tab-based and legacy storage)
+    const treeService = window.CitationLinker?.treeService || window.treeService;
+    if (!treeService) {
+      console.error('TreeService not available');
+      return;
+    }
+    
+    const tree = await treeService.getTree();
     
     const node = tree.nodes.find((n) => n.id === nodeId);
     if (node) {
@@ -28,7 +34,15 @@ async function addAnnotation(nodeId, text) {
       };
       
       node.annotations.push(newAnnotation);
-      await browser.storage.local.set({ citationTree: tree });
+      
+      // Use TreeService to save (supports both tab-based and legacy storage)
+      await treeService.saveTree(tree);
+      
+      // Refresh the tree display to show the new annotation
+      const treeContainer = window.CitationLinker?.treeContainer || window.treeContainer;
+      if (treeContainer) {
+        await treeContainer.loadAndDisplayTree();
+      }
     }
   } catch (error) {
     console.error('Error adding annotation:', error);
@@ -37,13 +51,27 @@ async function addAnnotation(nodeId, text) {
 
 async function deleteAnnotation(nodeId, annotationId) {
   try {
-    const result = await browser.storage.local.get({ citationTree: { nodes: [], currentNodeId: null } });
-    const tree = result.citationTree;
+    // Use TreeService to get the tree (supports both tab-based and legacy storage)
+    const treeService = window.CitationLinker?.treeService || window.treeService;
+    if (!treeService) {
+      console.error('TreeService not available');
+      return;
+    }
+    
+    const tree = await treeService.getTree();
     
     const node = tree.nodes.find((n) => n.id === nodeId);
     if (node && node.annotations) {
       node.annotations = node.annotations.filter((a) => a.id !== annotationId);
-      await browser.storage.local.set({ citationTree: tree });
+      
+      // Use TreeService to save (supports both tab-based and legacy storage)
+      await treeService.saveTree(tree);
+      
+      // Refresh the tree display to show the updated annotations
+      const treeContainer = window.CitationLinker?.treeContainer || window.treeContainer;
+      if (treeContainer) {
+        await treeContainer.loadAndDisplayTree();
+      }
     }
   } catch (error) {
     console.error('Error deleting annotation:', error);
