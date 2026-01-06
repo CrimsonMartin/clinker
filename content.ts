@@ -95,7 +95,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 document.addEventListener('mouseup', async (event) => {
   const selection = window.getSelection();
-  if (selection && selection.toString().length > 0) {
+  if (selection && selection.rangeCount > 0 && selection.toString().length > 0) {
     // Check if extension is active before showing save button
     const result = await browserAPI.storage.local.get({ extensionActive: true });
     if (!result.extensionActive) {

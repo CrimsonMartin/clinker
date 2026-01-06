@@ -1,10 +1,9 @@
 // searchBar.ts - Search bar component for searching through citations
+// Search bar is always visible - no toggle functionality needed
 
 interface SearchElements {
   searchInput: HTMLInputElement | null;
   searchContainer: HTMLElement | null;
-  searchToggleBtn: HTMLElement | null;
-  searchCloseBtn: HTMLElement | null;
   searchPrevBtn: HTMLButtonElement | null;
   searchNextBtn: HTMLButtonElement | null;
   searchCounter: HTMLElement | null;
@@ -24,8 +23,6 @@ class SearchBar {
     this.elements = {
       searchInput: null,
       searchContainer: null,
-      searchToggleBtn: null,
-      searchCloseBtn: null,
       searchPrevBtn: null,
       searchNextBtn: null,
       searchCounter: null,
@@ -43,8 +40,6 @@ class SearchBar {
     this.elements = {
       searchInput: document.getElementById('searchInput') as HTMLInputElement,
       searchContainer: document.getElementById('searchContainer'),
-      searchToggleBtn: document.getElementById('searchToggleBtn'),
-      searchCloseBtn: document.getElementById('searchCloseBtn'),
       searchPrevBtn: document.getElementById('searchPrevBtn') as HTMLButtonElement,
       searchNextBtn: document.getElementById('searchNextBtn') as HTMLButtonElement,
       searchCounter: document.getElementById('searchCounter'),
@@ -54,58 +49,57 @@ class SearchBar {
       searchAllTabs: document.getElementById('searchAllTabs') as HTMLInputElement
     };
 
-    // Verify all elements exist
-    const missingElements = Object.entries(this.elements)
-      .filter(([key, element]) => !element)
-      .map(([key]) => key);
-    
-    if (missingElements.length > 0) {
-      console.error('Missing search elements:', missingElements);
+    // Check for required elements (searchInput is the most important)
+    if (!this.elements.searchInput) {
+      console.error('Search input element not found');
       return;
     }
 
     this.setupEventListeners();
     this.initialized = true;
+    console.log('SearchBar initialized successfully');
   }
 
   // Setup event listeners
   private setupEventListeners(): void {
-    // Search toggle button
-    this.elements.searchToggleBtn?.addEventListener('click', () => {
-      if (this.elements.searchContainer?.style.display === 'none') {
-        this.openSearch();
-      } else {
-        this.closeSearch();
-      }
-    });
-
-    // Keyboard shortcuts
+    // Keyboard shortcuts for search navigation
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && this.elements.searchContainer?.style.display !== 'none') {
-        this.closeSearch();
-      }
-      
-      // Navigate search results with arrow keys
-      if (this.elements.searchContainer?.style.display !== 'none' && (window as any).searchService.hasResults()) {
-        if (e.key === 'ArrowDown' || (e.key === 'Enter' && !e.shiftKey)) {
+      // Navigate search results with arrow keys when search has results
+      if ((window as any).searchService?.hasResults()) {
+        if (e.key === 'ArrowDown' || (e.key === 'Enter' && !e.shiftKey && document.activeElement === this.elements.searchInput)) {
           e.preventDefault();
           this.navigateToNextResult();
-        } else if (e.key === 'ArrowUp' || (e.key === 'Enter' && e.shiftKey)) {
+        } else if (e.key === 'ArrowUp' || (e.key === 'Enter' && e.shiftKey && document.activeElement === this.elements.searchInput)) {
           e.preventDefault();
           this.navigateToPreviousResult();
         }
       }
+      
+      // Clear search on Escape
+      if (e.key === 'Escape' && document.activeElement === this.elements.searchInput) {
+        this.clearSearch();
+      }
     });
 
     // Search input with debouncing
-    this.elements.searchInput?.addEventListener('input', (e) => {
-      if (this.searchTimeout) {
-        clearTimeout(this.searchTimeout);
-      }
-      this.searchTimeout = setTimeout(() => {
-        this.performSearch((e.target as HTMLInputElement).value);
-      }, 300);
-    });
+    const searchInput = this.elements.searchInput;
+    if (searchInput) {
+      console.log('SearchBar: Attaching input event listener to search input');
+      searchInput.addEventListener('input', (e) => {
+        const value = (e.target as HTMLInputElement).value;
+        console.log('SearchBar: Input event fired, value:', value);
+        
+        if (this.searchTimeout) {
+          clearTimeout(this.searchTimeout);
+        }
+        this.searchTimeout = setTimeout(() => {
+          console.log('SearchBar: Debounce complete, performing search for:', value);
+          this.performSearch(value);
+        }, 300);
+      });
+    } else {
+      console.error('SearchBar: searchInput element is null, cannot attach listener');
+    }
 
     // Search option changes
     [
@@ -124,25 +118,10 @@ class SearchBar {
     // Navigation buttons
     this.elements.searchPrevBtn?.addEventListener('click', () => this.navigateToPreviousResult());
     this.elements.searchNextBtn?.addEventListener('click', () => this.navigateToNextResult());
-    this.elements.searchCloseBtn?.addEventListener('click', () => this.closeSearch());
   }
 
-  // Open search
-  openSearch(): void {
-    if (this.elements.searchContainer) {
-      this.elements.searchContainer.style.display = 'block';
-    }
-    this.elements.searchToggleBtn?.classList.add('active');
-    this.elements.searchInput?.focus();
-    this.elements.searchInput?.select();
-  }
-
-  // Close search
-  closeSearch(): void {
-    if (this.elements.searchContainer) {
-      this.elements.searchContainer.style.display = 'none';
-    }
-    this.elements.searchToggleBtn?.classList.remove('active');
+  // Clear search input and results
+  clearSearch(): void {
     if (this.elements.searchInput) {
       this.elements.searchInput.value = '';
     }
@@ -160,15 +139,23 @@ class SearchBar {
 
     // Get search options
     const options = {
-      searchHighlighted: this.elements.searchHighlighted?.checked || false,
-      searchAnnotations: this.elements.searchAnnotations?.checked || false,
-      filterMode: this.elements.searchFilterMode?.checked || false,
-      searchAllTabs: this.elements.searchAllTabs?.checked || false
+      searchHighlighted: this.elements.searchHighlighted?.checked ?? true,
+      searchAnnotations: this.elements.searchAnnotations?.checked ?? true,
+      filterMode: this.elements.searchFilterMode?.checked ?? false,
+      searchAllTabs: this.elements.searchAllTabs?.checked ?? false
     };
 
     // Get tree data and perform search
-    const tree = await (window as any).treeService.getTree();
-    const results = await (window as any).searchService.performSearch(trimmedQuery, tree.nodes, options);
+    const treeService = (window as any).treeService || (window as any).CitationLinker?.treeService;
+    const searchService = (window as any).searchService || (window as any).CitationLinker?.searchService;
+    
+    if (!treeService || !searchService) {
+      console.error('TreeService or SearchService not available');
+      return;
+    }
+
+    const tree = await treeService.getTree();
+    const results = await searchService.performSearch(trimmedQuery, tree.nodes, options);
 
     // Update display
     this.updateSearchDisplay(options.filterMode);
@@ -192,9 +179,12 @@ class SearchBar {
       children.classList.remove('search-hidden');
     });
 
+    const searchService = (window as any).searchService || (window as any).CitationLinker?.searchService;
+    if (!searchService) return;
+
     if (filterMode) {
       // Filter mode: hide non-matching nodes
-      const matchingNodeIds = (window as any).searchService.getMatchingNodeIds();
+      const matchingNodeIds = searchService.getMatchingNodeIds();
       
       allNodes.forEach(node => {
         const nodeId = parseInt((node as HTMLElement).dataset.nodeId || '0');
@@ -212,7 +202,7 @@ class SearchBar {
       });
     } else {
       // Highlight mode: show all nodes but highlight matches
-      const results = (window as any).searchService.searchResults;
+      const results = searchService.searchResults;
       results.forEach((result: any) => {
         const nodeElement = document.querySelector(`[data-node-id="${result.nodeId}"]`);
         if (nodeElement) {
@@ -227,7 +217,10 @@ class SearchBar {
 
   // Apply text highlighting
   private applyTextHighlighting(): void {
-    const query = (window as any).searchService.getQuery();
+    const searchService = (window as any).searchService || (window as any).CitationLinker?.searchService;
+    if (!searchService) return;
+
+    const query = searchService.getQuery();
     if (!query) return;
 
     // Remove existing highlights
@@ -239,7 +232,7 @@ class SearchBar {
       }
     });
 
-    const results = (window as any).searchService.searchResults;
+    const results = searchService.searchResults;
     results.forEach((result: any) => {
       const nodeElement = document.querySelector(`[data-node-id="${result.nodeId}"]`);
       if (!nodeElement) return;
@@ -319,7 +312,10 @@ class SearchBar {
       el.classList.remove('current');
     });
 
-    const currentResult = (window as any).searchService.getCurrentResult();
+    const searchService = (window as any).searchService || (window as any).CitationLinker?.searchService;
+    if (!searchService) return;
+
+    const currentResult = searchService.getCurrentResult();
     if (!currentResult) return;
 
     const nodeElement = document.querySelector(`[data-node-id="${currentResult.nodeId}"]`);
@@ -343,26 +339,35 @@ class SearchBar {
 
   // Navigate to next result
   async navigateToNextResult(): Promise<void> {
-    await (window as any).searchService.navigateToNext();
+    const searchService = (window as any).searchService || (window as any).CitationLinker?.searchService;
+    if (!searchService) return;
+
+    await searchService.navigateToNext();
     this.highlightCurrentResult();
     this.updateSearchCounter();
   }
 
   // Navigate to previous result
   async navigateToPreviousResult(): Promise<void> {
-    await (window as any).searchService.navigateToPrevious();
+    const searchService = (window as any).searchService || (window as any).CitationLinker?.searchService;
+    if (!searchService) return;
+
+    await searchService.navigateToPrevious();
     this.highlightCurrentResult();
     this.updateSearchCounter();
   }
 
   // Update search counter
   private updateSearchCounter(): void {
-    const counter = (window as any).searchService.getSearchCounter();
+    const searchService = (window as any).searchService || (window as any).CitationLinker?.searchService;
+    if (!searchService) return;
+
+    const counter = searchService.getSearchCounter();
     if (this.elements.searchCounter) {
       this.elements.searchCounter.textContent = counter;
     }
     
-    const hasResults = (window as any).searchService.hasResults();
+    const hasResults = searchService.hasResults();
     if (this.elements.searchPrevBtn) {
       this.elements.searchPrevBtn.disabled = !hasResults;
     }
@@ -373,7 +378,10 @@ class SearchBar {
 
   // Clear search results
   clearSearchResults(): void {
-    (window as any).searchService.clearSearchResults();
+    const searchService = (window as any).searchService || (window as any).CitationLinker?.searchService;
+    if (searchService) {
+      searchService.clearSearchResults();
+    }
     
     // Remove all search-related classes
     document.querySelectorAll('.search-result, .current-result, .search-hidden').forEach(el => {
@@ -392,14 +400,22 @@ class SearchBar {
     this.updateSearchCounter();
   }
 
-  // Re-run search if active (for when tree updates)
+  // Re-run search if there's a query (for when tree updates)
   rerunSearchIfActive(): void {
-    if (this.elements.searchContainer?.style.display !== 'none' && 
-        this.elements.searchInput?.value.trim()) {
+    if (this.elements.searchInput?.value.trim()) {
       setTimeout(() => {
         this.performSearch(this.elements.searchInput!.value);
       }, 100);
     }
+  }
+
+  // Legacy methods for compatibility (no-ops since search is always visible)
+  openSearch(): void {
+    this.elements.searchInput?.focus();
+  }
+
+  closeSearch(): void {
+    this.clearSearch();
   }
 }
 

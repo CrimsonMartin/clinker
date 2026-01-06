@@ -14,12 +14,10 @@ describe('SearchBar', () => {
   let mockTreeService: any;
 
   beforeEach(() => {
-    // Clear document body
+    // Clear document body - search bar is always visible (no toggle button, no close button)
     document.body.innerHTML = `
       <input id="searchInput" type="text" />
-      <div id="searchContainer" style="display: none;"></div>
-      <button id="searchToggleBtn"></button>
-      <button id="searchCloseBtn"></button>
+      <div id="searchContainer"></div>
       <button id="searchPrevBtn"></button>
       <button id="searchNextBtn"></button>
       <div id="searchCounter"></div>
@@ -61,6 +59,10 @@ describe('SearchBar', () => {
 
     (window as any).searchService = mockSearchService;
     (window as any).treeService = mockTreeService;
+    (window as any).CitationLinker = {
+      searchService: mockSearchService,
+      treeService: mockTreeService
+    };
 
     // Create new SearchBar instance
     searchBar = new SearchBarClass();
@@ -70,69 +72,66 @@ describe('SearchBar', () => {
     it('should initialize successfully with all elements present', () => {
       searchBar.initialize();
       
-      // Verify no errors were logged
-      expect(console.error).not.toHaveBeenCalled();
+      // Should log success message
+      expect(console.log).toHaveBeenCalledWith('SearchBar initialized successfully');
     });
 
-    it('should handle missing elements gracefully', () => {
+    it('should handle missing searchInput gracefully', () => {
       document.body.innerHTML = ''; // Remove all elements
       
       searchBar.initialize();
       
-      expect(console.error).toHaveBeenCalledWith(
-        'Missing search elements:', 
-        expect.arrayContaining([
-          'searchInput', 'searchContainer', 'searchToggleBtn', 'searchCloseBtn',
-          'searchPrevBtn', 'searchNextBtn', 'searchCounter', 'searchHighlighted',
-          'searchAnnotations', 'searchFilterMode'
-        ])
-      );
+      expect(console.error).toHaveBeenCalledWith('Search input element not found');
     });
   });
 
-  describe('openSearch', () => {
+  describe('openSearch (legacy method)', () => {
     beforeEach(() => {
       searchBar.initialize();
     });
 
-    it('should open search container and focus input', () => {
-      const searchContainer = document.getElementById('searchContainer') as HTMLElement;
-      const searchToggleBtn = document.getElementById('searchToggleBtn');
+    it('should focus input when called', () => {
       const searchInput = document.getElementById('searchInput') as HTMLInputElement;
       
       // Mock focus method
       const focusSpy = jest.spyOn(searchInput, 'focus');
-      const selectSpy = jest.spyOn(searchInput, 'select');
       
       searchBar.openSearch();
       
-      expect(searchContainer.style.display).toBe('block');
-      expect(searchToggleBtn?.classList.contains('active')).toBe(true);
       expect(focusSpy).toHaveBeenCalled();
-      expect(selectSpy).toHaveBeenCalled();
     });
   });
 
-  describe('closeSearch', () => {
+  describe('closeSearch (legacy method)', () => {
     beforeEach(() => {
       searchBar.initialize();
     });
 
-    it('should close search container and clear input', () => {
-      const searchContainer = document.getElementById('searchContainer') as HTMLElement;
-      const searchToggleBtn = document.getElementById('searchToggleBtn');
+    it('should clear input when called', () => {
       const searchInput = document.getElementById('searchInput') as HTMLInputElement;
       
       // Set some initial state
-      searchContainer.style.display = 'block';
       searchInput.value = 'test query';
-      searchToggleBtn?.classList.add('active');
       
       searchBar.closeSearch();
       
-      expect(searchContainer.style.display).toBe('none');
-      expect(searchToggleBtn?.classList.contains('active')).toBe(false);
       expect(searchInput.value).toBe('');
+    });
+  });
+
+  describe('clearSearch', () => {
+    beforeEach(() => {
+      searchBar.initialize();
+    });
+
+    it('should clear input and results', () => {
+      const searchInput = document.getElementById('searchInput') as HTMLInputElement;
+      searchInput.value = 'test query';
+      
+      searchBar.clearSearch();
+      
+      expect(searchInput.value).toBe('');
+      expect(mockSearchService.clearSearchResults).toHaveBeenCalled();
     });
   });
 
@@ -271,17 +270,15 @@ describe('SearchBar', () => {
       searchBar.initialize();
     });
 
-    it('should not rerun search when not active', () => {
+    it('should not rerun search when input is empty', () => {
       searchBar.rerunSearchIfActive();
       
       expect(mockSearchService.performSearch).not.toHaveBeenCalled();
     });
 
-    it('should rerun search when active', () => {
-      const searchContainer = document.getElementById('searchContainer') as HTMLElement;
+    it('should rerun search when input has value', () => {
       const searchInput = document.getElementById('searchInput') as HTMLInputElement;
       
-      searchContainer.style.display = 'block';
       searchInput.value = 'test';
       mockSearchService.performSearch.mockClear();
       
@@ -304,27 +301,18 @@ describe('SearchBar', () => {
       jest.useRealTimers();
     });
 
-    it('should toggle search when search toggle button is clicked', () => {
-      const searchToggleBtn = document.getElementById('searchToggleBtn');
-      const searchContainer = document.getElementById('searchContainer') as HTMLElement;
+    it('should clear search on escape key when input is focused', () => {
+      const searchInput = document.getElementById('searchInput') as HTMLInputElement;
+      searchInput.value = 'test';
       
-      // First click - should open
-      searchToggleBtn?.dispatchEvent(new Event('click'));
-      expect(searchContainer.style.display).toBe('block');
-      
-      // Second click - should close
-      searchToggleBtn?.dispatchEvent(new Event('click'));
-      expect(searchContainer.style.display).toBe('none');
-    });
-
-    it('should close search on escape key', () => {
-      const searchContainer = document.getElementById('searchContainer') as HTMLElement;
-      searchContainer.style.display = 'block';
+      // Focus the input
+      searchInput.focus();
+      Object.defineProperty(document, 'activeElement', { value: searchInput, configurable: true });
       
       const escapeEvent = new KeyboardEvent('keydown', { key: 'Escape' });
       document.dispatchEvent(escapeEvent);
       
-      expect(searchContainer.style.display).toBe('none');
+      expect(searchInput.value).toBe('');
     });
 
     it('should handle search input with debouncing', async () => {
@@ -348,9 +336,7 @@ describe('SearchBar', () => {
       expect(mockTreeService.getTree).toHaveBeenCalled();
     });
 
-    it('should navigate search results with arrow keys', () => {
-      const searchContainer = document.getElementById('searchContainer') as HTMLElement;
-      searchContainer.style.display = 'block';
+    it('should navigate search results with arrow keys when results exist', () => {
       mockSearchService.hasResults.mockReturnValue(true);
       
       // Clear previous calls
@@ -365,6 +351,20 @@ describe('SearchBar', () => {
       
       document.dispatchEvent(upEvent);
       expect(mockSearchService.navigateToPrevious).toHaveBeenCalled();
+    });
+
+    it('should navigate with Enter key when input is focused', () => {
+      const searchInput = document.getElementById('searchInput') as HTMLInputElement;
+      searchInput.focus();
+      Object.defineProperty(document, 'activeElement', { value: searchInput, configurable: true });
+      
+      mockSearchService.hasResults.mockReturnValue(true);
+      mockSearchService.navigateToNext.mockClear();
+      
+      const enterEvent = new KeyboardEvent('keydown', { key: 'Enter' });
+      document.dispatchEvent(enterEvent);
+      
+      expect(mockSearchService.navigateToNext).toHaveBeenCalled();
     });
   });
 });

@@ -25,9 +25,6 @@
         <span class="toggle-slider"></span>
       </label>
       <span class="toggle-status active" id="toggleStatus">ON</span>
-      <button class="search-toggle-btn" id="searchToggleBtn" title="Search research trees">
-        &#128269;
-      </button>
     </div>
   </div>
   
@@ -38,22 +35,21 @@
   </div>
   
   <div class="tree-container">
-    <!-- Search Bar -->
-    <div class="search-container" id="searchContainer" style="display: none;">
+    <!-- Search Bar - Always visible -->
+    <div class="search-container" id="searchContainer">
       <div class="search-header">
         <div class="search-input-wrapper">
-          <input type="text" id="searchInput" class="search-input" placeholder="Search highlighted content and annotations..." />
+          <input type="text" id="searchInput" class="search-input" placeholder="Search citations..." />
           <div class="search-controls">
             <button id="searchPrevBtn" class="search-nav-btn" title="Previous result">&uarr;</button>
             <button id="searchNextBtn" class="search-nav-btn" title="Next result">&darr;</button>
             <span id="searchCounter" class="search-counter">0 of 0</span>
-            <button id="searchCloseBtn" class="search-close-btn" title="Close search">&times;</button>
           </div>
         </div>
         <div class="search-options">
           <label class="search-option">
             <input type="checkbox" id="searchHighlighted" checked>
-            <span>Highlighted Content</span>
+            <span>Text</span>
           </label>
           <label class="search-option">
             <input type="checkbox" id="searchAnnotations" checked>
@@ -61,11 +57,11 @@
           </label>
           <label class="search-option">
             <input type="checkbox" id="searchFilterMode">
-            <span>Filter Mode</span>
+            <span>Filter</span>
           </label>
           <label class="search-option">
             <input type="checkbox" id="searchAllTabs">
-            <span>Search All Tabs</span>
+            <span>All Tabs</span>
           </label>
         </div>
       </div>
