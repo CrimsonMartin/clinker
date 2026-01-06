@@ -616,12 +616,8 @@ function initializeSearch() {
   const searchInput = document.getElementById('searchInput');
   const searchContainer = document.getElementById('searchContainer');
   const searchToggleBtn = document.getElementById('searchToggleBtn');
-  const searchCloseBtn = document.getElementById('searchCloseBtn');
   const searchPrevBtn = document.getElementById('searchPrevBtn');
   const searchNextBtn = document.getElementById('searchNextBtn');
-  const searchHighlighted = document.getElementById('searchHighlighted');
-  const searchAnnotations = document.getElementById('searchAnnotations');
-  const searchFilterMode = document.getElementById('searchFilterMode');
 
   // Search toggle button handler
   searchToggleBtn.addEventListener('click', () => {
@@ -637,7 +633,7 @@ function initializeSearch() {
     if (e.key === 'Escape' && searchContainer.style.display !== 'none') {
       closeSearch();
     }
-    
+
     // Navigate search results with arrow keys when search is active
     if (searchContainer.style.display !== 'none' && searchResults.length > 0) {
       if (e.key === 'ArrowDown' || (e.key === 'Enter' && !e.shiftKey)) {
@@ -658,19 +654,9 @@ function initializeSearch() {
     }, 300);
   });
 
-  // Search option changes
-  [searchHighlighted, searchAnnotations, searchFilterMode].forEach(checkbox => {
-    checkbox.addEventListener('change', () => {
-      if (searchInput.value.trim()) {
-        performSearch(searchInput.value);
-      }
-    });
-  });
-
   // Navigation buttons
   searchPrevBtn.addEventListener('click', navigateToPreviousResult);
   searchNextBtn.addEventListener('click', navigateToNextResult);
-  searchCloseBtn.addEventListener('click', closeSearch);
 }
 
 function openSearch() {
@@ -697,19 +683,20 @@ function closeSearch() {
 
 function performSearch(query) {
   const trimmedQuery = query.trim().toLowerCase();
-  
+
   if (!trimmedQuery) {
     clearSearchResults();
     return;
   }
 
-  const searchHighlighted = document.getElementById('searchHighlighted').checked;
-  const searchAnnotations = document.getElementById('searchAnnotations').checked;
-  const filterMode = document.getElementById('searchFilterMode').checked;
+  // Hardcoded search options - always search everything, filter mode
+  const searchHighlighted = true;
+  const searchAnnotations = true;
+  const filterMode = true;
 
   // Clear previous results
   clearSearchResults();
-  
+
   // Get all nodes from storage
   browser.storage.local.get({ citationTree: { nodes: [], currentNodeId: null } }).then(result => {
     const tree = result.citationTree;
@@ -734,7 +721,7 @@ function performSearch(query) {
 
     updateSearchDisplay(filterMode);
     updateSearchCounter();
-    
+
     if (searchResults.length > 0) {
       currentSearchIndex = 0;
       highlightCurrentResult();

@@ -1,5 +1,6 @@
 // searchBar.ts - Search bar component for searching through citations
 // Search bar toggles visibility via the search icon button
+// Always searches: text + annotations, filter mode, all tabs
 
 interface SearchElements {
   searchInput: HTMLInputElement | null;
@@ -8,10 +9,6 @@ interface SearchElements {
   searchPrevBtn: HTMLButtonElement | null;
   searchNextBtn: HTMLButtonElement | null;
   searchCounter: HTMLElement | null;
-  searchHighlighted: HTMLInputElement | null;
-  searchAnnotations: HTMLInputElement | null;
-  searchFilterMode: HTMLInputElement | null;
-  searchAllTabs: HTMLInputElement | null;
 }
 
 class SearchBar {
@@ -28,11 +25,7 @@ class SearchBar {
       searchToggleBtn: null,
       searchPrevBtn: null,
       searchNextBtn: null,
-      searchCounter: null,
-      searchHighlighted: null,
-      searchAnnotations: null,
-      searchFilterMode: null,
-      searchAllTabs: null
+      searchCounter: null
     };
     this.initialized = false;
     this.isOpen = false;
@@ -47,11 +40,7 @@ class SearchBar {
       searchToggleBtn: document.getElementById('searchToggleBtn'),
       searchPrevBtn: document.getElementById('searchPrevBtn') as HTMLButtonElement,
       searchNextBtn: document.getElementById('searchNextBtn') as HTMLButtonElement,
-      searchCounter: document.getElementById('searchCounter'),
-      searchHighlighted: document.getElementById('searchHighlighted') as HTMLInputElement,
-      searchAnnotations: document.getElementById('searchAnnotations') as HTMLInputElement,
-      searchFilterMode: document.getElementById('searchFilterMode') as HTMLInputElement,
-      searchAllTabs: document.getElementById('searchAllTabs') as HTMLInputElement
+      searchCounter: document.getElementById('searchCounter')
     };
 
     // Check for required elements (searchInput is the most important)
@@ -114,20 +103,6 @@ class SearchBar {
     } else {
       console.error('SearchBar: searchInput element is null, cannot attach listener');
     }
-
-    // Search option changes
-    [
-      this.elements.searchHighlighted,
-      this.elements.searchAnnotations,
-      this.elements.searchFilterMode,
-      this.elements.searchAllTabs
-    ].forEach(checkbox => {
-      checkbox?.addEventListener('change', () => {
-        if (this.elements.searchInput?.value.trim()) {
-          this.performSearch(this.elements.searchInput.value);
-        }
-      });
-    });
 
     // Navigation buttons
     this.elements.searchPrevBtn?.addEventListener('click', () => this.navigateToPreviousResult());
@@ -193,12 +168,12 @@ class SearchBar {
       return;
     }
 
-    // Get search options
+    // Hardcoded search options - always search everything, filter mode, all tabs
     const options = {
-      searchHighlighted: this.elements.searchHighlighted?.checked ?? true,
-      searchAnnotations: this.elements.searchAnnotations?.checked ?? true,
-      filterMode: this.elements.searchFilterMode?.checked ?? false,
-      searchAllTabs: this.elements.searchAllTabs?.checked ?? false
+      searchHighlighted: true,
+      searchAnnotations: true,
+      filterMode: true,
+      searchAllTabs: true
     };
 
     // Get tree data and perform search
@@ -213,8 +188,8 @@ class SearchBar {
     const tree = await treeService.getTree();
     const results = await searchService.performSearch(trimmedQuery, tree.nodes, options);
 
-    // Update display
-    this.updateSearchDisplay(options.filterMode);
+    // Update display (always filter mode)
+    this.updateSearchDisplay(true);
     this.updateSearchCounter();
     
     if (results.length > 0) {

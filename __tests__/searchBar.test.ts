@@ -22,10 +22,6 @@ describe('SearchBar', () => {
       <button id="searchPrevBtn"></button>
       <button id="searchNextBtn"></button>
       <div id="searchCounter"></div>
-      <input id="searchHighlighted" type="checkbox" checked />
-      <input id="searchAnnotations" type="checkbox" checked />
-      <input id="searchFilterMode" type="checkbox" />
-      <input id="searchAllTabs" type="checkbox" />
     `;
 
     // Clear mocks
@@ -194,15 +190,15 @@ describe('SearchBar', () => {
       const mockResults = [{ nodeId: 1, matches: [] }];
       mockSearchService.performSearch.mockReturnValue(mockResults);
       mockSearchService.hasResults.mockReturnValue(true);
-      
+
       await searchBar.performSearch('test');
-      
+
       expect(mockTreeService.getTree).toHaveBeenCalled();
       expect(mockSearchService.performSearch).toHaveBeenCalledWith('test', [], {
         searchHighlighted: true,
         searchAnnotations: true,
-        filterMode: false,
-        searchAllTabs: false
+        filterMode: true,
+        searchAllTabs: true
       });
     });
 
