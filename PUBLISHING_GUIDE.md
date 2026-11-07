@@ -32,6 +32,7 @@ The extension syncs with a self-hosted API (contract: `docs/API.md`, code: `serv
 | Secret Name | Description | How to get |
 |-------------|-------------|------------|
 | `CHROME_EXTENSION_ID` | Your Chrome extension ID | After creating extension in Chrome Web Store Developer Dashboard |
+| `CHROME_PUBLISHER_ID` | Your developer account (publisher) ID — **not** the extension ID | Developer Dashboard → Settings / Account, or the dashboard URL. Required by the v2 Chrome Web Store API |
 | `CHROME_CLIENT_ID` | OAuth2 Client ID | Google Cloud Console → APIs & Credentials |
 | `CHROME_CLIENT_SECRET` | OAuth2 Client Secret | Google Cloud Console → APIs & Credentials |
 | `CHROME_REFRESH_TOKEN` | OAuth2 Refresh Token | Generated using Chrome Web Store API |
@@ -80,27 +81,19 @@ The extension syncs with a self-hosted API (contract: `docs/API.md`, code: `serv
 
 ## 🚀 Publishing Workflows
 
-### Automatic Publishing (Recommended)
+Everything runs from one workflow, `.github/workflows/extension.yml`:
 
-1. **Create a Git tag**:
-   ```bash
-   git tag v1.0.1
-   git push origin v1.0.1
-   ```
+| Event | test | build + lint | store credential check | publish Chrome + Firefox |
+|---|---|---|---|---|
+| Pull request to `main` | ✅ | ✅ | ✅ (read-only) | — |
+| Push / PR merge to `main` | ✅ | ✅ | ✅ (before publish) | ✅ automatic |
+| Manual "Run workflow" | ✅ | ✅ | ✅ | ✅ (choose both / chrome / firefox / none) |
 
-2. **Both workflows will trigger automatically**:
-   - Chrome Web Store Release
-   - Firefox Add-ons Release
+Pushes that only touch `server/`, `deploy/`, `docs/` or Markdown don't publish (the API has its own `api-image.yml`).
 
-### Manual Publishing
-
-1. Go to your GitHub repository → Actions
-2. Select "Chrome Web Store Release" or "Firefox Add-ons Release"
-3. Click "Run workflow"
-4. Enter version number (e.g., "1.0.1")
-5. Choose options:
-   - **Draft**: Create GitHub release without publishing to stores
-   - **Listed** (Firefox only): Submit as public listing
+- **Chrome**: uploaded and submitted with `chrome-webstore-upload-cli` (v2 API). Google review then runs as usual.
+- **Firefox**: submitted to the listed channel with `web-ext sign`, with a source-code archive attached for AMO review. The job doesn't wait for review.
+- A PR whose credential check fails means a store token expired or was revoked — fix the secret before merging, or the publish job will fail.
 
 ## 📦 Package Contents
 
@@ -144,11 +137,7 @@ The workflows automatically include these files in the extension packages:
 
 ## 🔄 Version Management
 
-The workflows automatically:
-1. Update `package.json` version
-2. Update `manifest.json` version
-3. Create GitHub releases with changelog
-4. Upload packages to respective stores
+Versions are automatic: `<major>.<minor>` from `manifest.json` plus the workflow run number as the patch (e.g. `2.0.37`). No bump commits needed, and every publish has a unique, increasing version as the stores require. To start a new line, change `manifest.json` to e.g. `2.1.0` (the patch part is ignored).
 
 ## 📋 Store-Specific Notes
 

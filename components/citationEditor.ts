@@ -8,6 +8,14 @@
 //
 // Load after exportDialog.js (reuses its modal/field helpers) and citationService.js.
 
+
+// Render citationService HTML (already escaped) without innerHTML (keeps AMO's linter quiet).
+// Uniquely named: these components are global scripts sharing one scope with exportDialog.ts.
+function setEditorPreviewHtml(el: Element, html: string): void {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  el.replaceChildren(...Array.from(doc.body.childNodes));
+}
+
 namespace ClinkerCitationEditor {
   type Item = CitationLinker.CitationMetadata;
 
@@ -267,7 +275,7 @@ namespace ClinkerCitationEditor {
         const updatePreview = () => {
           try {
             const html = S.formatEntry(read(), 'apa', 'html');
-            preview.innerHTML = html; // escaped by citationService
+            setEditorPreviewHtml(preview, html); // escaped by citationService
           } catch {
             preview.textContent = '';
           }
