@@ -21,7 +21,26 @@ function need(...names) {
 }
 
 async function checkChrome() {
-  need('CHROME_EXTENSION_ID', 'CHROME_PUBLISHER_ID', 'CHROME_CLIENT_ID', 'CHROME_CLIENT_SECRET', 'CHROME_REFRESH_TOKEN');
+  need('CHROME_CLIENT_ID', 'CHROME_CLIENT_SECRET', 'CHROME_REFRESH_TOKEN', 'CHROME_EXTENSION_ID');
+  // Check the OAuth refresh token on its own first, so a missing publisher ID doesn't hide it.
+  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: process.env.CHROME_CLIENT_ID,
+      client_secret: process.env.CHROME_CLIENT_SECRET,
+      refresh_token: process.env.CHROME_REFRESH_TOKEN,
+      grant_type: 'refresh_token',
+    }),
+  });
+  const tokenBody = await tokenRes.json().catch(() => ({}));
+  if (!tokenRes.ok) {
+    fail(`Chrome OAuth refresh failed (${tokenBody.error}: ${tokenBody.error_description || ''}). The refresh token is ` +
+      'expired or revoked (tokens from an OAuth app in "Testing" mode expire after 7 days) — regenerate it ' +
+      '(https://github.com/fregante/chrome-webstore-upload-keys) and update CHROME_REFRESH_TOKEN.');
+  }
+  console.log(`Chrome OAuth refresh token OK (scope: ${tokenBody.scope}).`);
+  need('CHROME_PUBLISHER_ID');
   const { default: chromeWebstoreUpload } = await import('chrome-webstore-upload');
   const store = chromeWebstoreUpload({
     extensionId: process.env.CHROME_EXTENSION_ID,
