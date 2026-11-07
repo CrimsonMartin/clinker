@@ -4,21 +4,19 @@ This guide explains how to publish Citation Linker to both Chrome Web Store and 
 
 ## 🔧 Prerequisites
 
-### 1. Firebase Configuration
-**⚠️ CRITICAL**: You must configure Firebase before publishing.
+### 1. Sync Server
+The extension syncs with a self-hosted API (contract: `docs/API.md`, code: `server/`).
 
-1. Edit `firebase/firebase-config.js`
-2. Replace all placeholder values with your actual Firebase project configuration:
-   ```javascript
-   const firebaseConfig = {
-     apiKey: "your-actual-api-key",
-     authDomain: "your-project.firebaseapp.com",
-     projectId: "your-project-id",
-     storageBucket: "your-project.appspot.com",
-     messagingSenderId: "123456789",
-     appId: "1:123456789:web:abcdefghijk"
-   };
-   ```
+1. Deploy the server and confirm `https://<your-host>/healthz` returns `{"ok":true}`.
+   The default build points at `https://clinker.lanerate.io`.
+2. To build against another server, set `API_BASE_URL` (and optionally `DONATION_URL`):
+   - locally in `.env` (see `.env.example`), or
+   - in CI as GitHub **repository variables** (Settings → Secrets and variables → Actions → Variables).
+     The release workflows pass `vars.API_BASE_URL` and `vars.DONATION_URL` to the build;
+     both are optional.
+3. `npm run build:extension:*` writes `api/config.js` and sets the packaged
+   manifest's `host_permissions` to the API origin only.
+4. The server must allow CORS from `chrome-extension://*` and `moz-extension://*`.
 
 ### 2. Store Developer Accounts
 - **Chrome Web Store**: Developer account ($5 registration fee)
@@ -115,24 +113,25 @@ The workflows automatically include these files in the extension packages:
 
 **Features:**
 - `sidebar.html` + `sidebar.js` - Main popup interface
-- `firebase/` - Firebase configuration and sync
+- `api/` - Sync API client (`auth.js`, `sync.js`, generated `config.js`)
 - `sound.js` - Audio feedback
 - `speechRecognition.js` - Voice input
 - `annotationButton.js` - Annotation functionality
 - `deleteButton.js` - Delete functionality
-- `login.html` + `login.js` - Authentication
+- `login.html` + `login.js` - Sign in, sign up, password reset, account deletion
 
 ## 🔍 Pre-Publication Checklist
 
 ### Extension Validation
-- [ ] Firebase configuration updated with real values
+- [ ] `API_BASE_URL` points at the production sync server (default `https://clinker.lanerate.io`)
+- [ ] Sign up, sign in, sync between two browsers, sign out and "Delete Account" tested against that server
 - [ ] Extension builds without errors (`npm run build`)
 - [ ] All features tested in browser
 - [ ] Icons are present and properly sized
 - [ ] Extension name/description finalized
 
 ### Store Requirements
-- [ ] Privacy policy prepared (required for microphone permission)
+- [ ] Privacy policy prepared (required for microphone permission and for syncing user data to the server; mention account deletion)
 - [ ] Extension description written
 - [ ] Screenshots/promotional images ready
 - [ ] Category selected
@@ -169,7 +168,7 @@ The workflows automatically:
 
 ### Common Issues
 1. **Build failures**: Check TypeScript compilation errors
-2. **Firebase errors**: Verify configuration values
+2. **Sync/sign-in errors**: Verify `API_BASE_URL`, server health (`/healthz`, `/readyz`) and CORS
 3. **Permission errors**: Ensure GitHub secrets are set correctly
 4. **Store rejection**: Review store policies and extension permissions
 
@@ -184,8 +183,8 @@ The workflows automatically:
 2. **Update store descriptions** with detailed feature information
 3. **Respond to user reviews** and feedback
 4. **Plan future releases** using the same automated workflows
-5. **Monitor Firebase usage** and costs
+5. **Monitor the sync server** (health checks, disk, backups)
 
 ---
 
-**Ready to publish?** Ensure Firebase is configured, then create a Git tag to trigger automatic publishing to both stores!
+**Ready to publish?** Ensure the sync server is deployed and reachable, then create a Git tag to trigger automatic publishing to both stores!

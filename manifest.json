@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Citation Linker",
-  "version": "1.0.9",
+  "version": "2.0.0",
   "description": "Follow research paper citations seamlessly and organize your research with annotations",
   "permissions": [
     "activeTab",
@@ -10,8 +10,7 @@
     "tabs"
   ],
   "host_permissions": [
-    "https://*.firebaseapp.com/*",
-    "https://*.firebaseio.com/*"
+    "https://clinker.lanerate.io/*"
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self';"
@@ -22,7 +21,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["sound.js", "dist/content.js"]
+      "js": ["sound.js", "dist/citationMetadata.js", "dist/content.js"]
     }
   ],
   "action": {

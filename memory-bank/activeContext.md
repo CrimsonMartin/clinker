@@ -51,12 +51,12 @@ Successfully implemented local storage clearing functionality when users log out
 - **Privacy Concern**: User data persisted across different user sessions
 
 #### Changes Made:
-1. **Enhanced AuthManager.signOut()** (`firebase/auth.js`):
+1. **Enhanced AuthManager.signOut()** (`api/auth.js`, originally in the 1.x auth module):
    - Added call to new `clearUserData()` method after clearing auth data
    - Updated success message to indicate both auth and user data clearing
    - Maintains error handling - logout succeeds even if data clearing fails
 
-2. **New clearUserData() Method** (`firebase/auth.js`):
+2. **New clearUserData() Method** (`api/auth.js`):
    - Clears `citationTree` (legacy format) - resets to empty tree structure
    - Clears `tabsData` (new tab format) - sets to null
    - Clears `nodeCounter` - resets to 0
@@ -64,7 +64,7 @@ Successfully implemented local storage clearing functionality when users log out
    - **Preserves system settings** like `extensionActive` to maintain user preferences
    - Graceful error handling - logs errors but doesn't throw to prevent logout failure
 
-3. **Global Export Enhancement** (`firebase/auth.js`):
+3. **Global Export Enhancement** (`api/auth.js`):
    - Added global scope export for both window and global objects
    - Ensures AuthManager singleton is accessible in both browser and test environments
    - Maintains backward compatibility with existing module exports
@@ -102,7 +102,7 @@ Fixed the critical sync issue where links added to non-general tabs weren't gett
 - **Data Format Mismatch**: Cloud storage needed to understand tab structure with metadata
 
 #### Changes Made:
-1. **Updated SyncManager** (`firebase/sync.js`):
+1. **Updated SyncManager** (`api/sync.js`):
    - Added `convertTabsDataToSyncFormat()` to combine all tabs into one tree for cloud storage
    - Added `convertSyncFormatToTabsData()` to restore tab structure when downloading from cloud
    - Modified `performSync()` to detect and handle new tab format
@@ -355,7 +355,7 @@ sidebarController
 ### Working Features
 - ✅ Text highlighting and citation saving
 - ✅ Tree organization with drag & drop
-- ✅ Firebase sync with email/password auth
+- ✅ Cloud sync with email/password auth (self-hosted API since 2.0.0)
 - ✅ Search functionality
 - ✅ Voice annotations
 - ✅ Cross-browser support (Chrome & Firefox)
@@ -373,7 +373,7 @@ sidebarController
 
 ### Technical Stack
 - TypeScript with browser API declarations
-- Firebase REST API (no SDK)
+- Self-hosted Clinker sync API via fetch (no SDK), see docs/API.md
 - Manifest V3 compliant
 - Local-first architecture
 - Jest testing with full coverage

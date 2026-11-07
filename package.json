@@ -1,6 +1,6 @@
 {
   "name": "citation-linker",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Follow research paper citations seamlessly and organize your research with annotations",
   "scripts": {
     "build:config": "node build-config.js",

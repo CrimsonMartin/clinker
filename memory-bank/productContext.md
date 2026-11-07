@@ -88,7 +88,7 @@ Research is too valuable to lose. Sync must be immediate, conflict-free, and wor
 - Sync latency: <3 seconds across devices
 - Speech recognition accuracy: >90% for clear speech
 - Extension load time: <2 seconds on any webpage
-- Uptime: >99.9% for Firebase backend
+- Uptime: >99.9% for the self-hosted sync API
 
 ## Competitive Landscape
 
@@ -107,7 +107,7 @@ Research is too valuable to lose. Sync must be immediate, conflict-free, and wor
 ## Future Vision
 
 ### Phase 1 (Current): Core Citation Management
-Web highlighting, voice annotations, tree organization, Firebase sync
+Web highlighting, voice annotations, tree organization, cloud sync (self-hosted API)
 
 ### Phase 2: Enhanced Integration
 PDF support, citation export formats, browser bookmark import

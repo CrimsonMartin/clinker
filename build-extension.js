@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 const archiver = require('archiver');
+const { getConfig } = require('./build-config');
 
 // Configuration
 const browserTarget = process.env.BROWSER_TARGET || 'chrome';
@@ -22,16 +23,7 @@ const INCLUDE_FILES = [
   'sidebar.html',
   'login.html',
   
-  // CSS Styles
-  'styles/main.css',
-  'styles/tree-nodes.css',
-  'styles/annotations.css',
-  'styles/modals.css',
-  'styles/controls.css',
-  'styles/auth.css',
-  'styles/search.css',
-  'styles/tabs.css',
-  'styles/donation.css',
+  // CSS Styles: every styles/*.css file is added below
   
   // JavaScript files (non-TypeScript sources)
   'sidebar.js',
@@ -44,6 +36,7 @@ const INCLUDE_FILES = [
   // Compiled TypeScript files (from dist/)
   'dist/background.js',
   'dist/content.js',
+  'dist/citationMetadata.js',
   'dist/browser-compat.js',
   
   // Compiled TypeScript modules
@@ -54,17 +47,21 @@ const INCLUDE_FILES = [
   'dist/services/treeValidationService.js',
   'dist/services/searchService.js',
   'dist/services/tabService.js',
+  'dist/services/citationService.js',
+  'dist/services/citationApi.js',
   'dist/components/treeNode.js',
   'dist/components/authStatus.js',
   'dist/components/searchBar.js',
   'dist/components/treeContainer.js',
   'dist/components/sidebarController.js',
   'dist/components/tabBar.js',
+  'dist/components/exportDialog.js',
+  'dist/components/citationEditor.js',
   
-  // Firebase integration (REST API)
-  'firebase/auth.js',
-  'firebase/sync.js',
-  'firebase/firebase-config.js',
+  // Sync API client (self-hosted backend)
+  'api/auth.js',
+  'api/sync.js',
+  'api/config.js',
   
   // Icons
   'icons/icon16.png',
@@ -75,6 +72,15 @@ const INCLUDE_FILES = [
   'icons/icon128-inactive.png',
   'icons/icon.svg'
 ];
+
+// Add every stylesheet so new/renamed CSS files don't need to be listed here
+function listFiles(dir, ext) {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir)
+    .filter(name => name.endsWith(ext))
+    .sort()
+    .map(name => `${dir}/${name}`);
+}
 
 // Files and directories to exclude (even if they exist)
 const EXCLUDE_PATTERNS = [
@@ -95,13 +101,10 @@ const EXCLUDE_PATTERNS = [
   // Documentation
   'README.md',
   'PUBLISHING_GUIDE.md',
-  'FIREBASE_SETUP.md',
-  'FIREBASE_ENV_SETUP.md',
   'BUY_ME_A_COFFEE_SETUP.md',
   'SPEECH_RECOGNITION.md',
   
   // Setup scripts
-  'setup-firebase.sh',
   'setup-icons.sh',
   
   // Test files
@@ -111,9 +114,12 @@ const EXCLUDE_PATTERNS = [
   // TypeScript sources (only compiled versions needed)
   'background.ts',
   'content.ts',
+  'citationMetadata.ts',
   
   // Memory bank documentation
   'memory-bank/',
+  'docs/',
+  'server/',
   
   // Node modules and dist
   'node_modules/',
@@ -188,7 +194,7 @@ function zipDirectory(sourceDir, outputPath) {
 }
 
 function validateExtensionStructure(buildDir) {
-  const required = ['manifest.json', 'sidebar.html', 'dist/background.js'];
+  const required = ['manifest.json', 'sidebar.html', 'login.html', 'dist/background.js', 'api/auth.js', 'api/sync.js', 'api/config.js'];
   const missing = [];
   
   for (const file of required) {
@@ -232,7 +238,8 @@ async function buildExtension() {
     let copiedCount = 0;
     let skippedCount = 0;
     
-    for (const file of INCLUDE_FILES) {
+    const filesToCopy = [...INCLUDE_FILES, ...listFiles('styles', '.css')];
+    for (const file of filesToCopy) {
       if (fs.existsSync(file)) {
         const destPath = path.join(BUILD_DIR, file);
         copyFile(file, destPath);
@@ -245,31 +252,30 @@ async function buildExtension() {
     
     console.log(`\n📊 Copy summary: ${copiedCount} files copied, ${skippedCount} files skipped`);
     
-    // Step 4.5: Transform manifest for Firefox compatibility
+    // Step 4.5: Point host_permissions at the configured API origin
+    const manifestPath = path.join(BUILD_DIR, 'manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    const { apiOrigin } = getConfig();
+    manifest.host_permissions = [`${apiOrigin}/*`];
+    console.log(`\n🔐 host_permissions set to API origin: ${apiOrigin}/*`);
+
+    // Step 4.6: Transform manifest for Firefox compatibility
     if (browserTarget === 'firefox') {
       console.log('\n🦊 Transforming manifest for Firefox...');
-      
-      const manifestPath = path.join(BUILD_DIR, 'manifest.json');
-      if (fs.existsSync(manifestPath)) {
-        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-        
-        // Convert service_worker to scripts array for Firefox
-        if (manifest.background && manifest.background.service_worker) {
-          const scriptPath = manifest.background.service_worker;
-          manifest.background = {
-            scripts: [scriptPath]
-            // Note: Firefox MV3 doesn't need 'type: module' - it's implicit
-          };
-          console.log(`  ✓ Converted service_worker to scripts array: ${scriptPath}`);
-        }
-        
-        // Write the transformed manifest
-        fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
-        console.log('  ✓ Manifest transformation complete');
-      } else {
-        console.warn('  ⚠️  manifest.json not found for Firefox transformation');
+
+      // Convert service_worker to scripts array for Firefox
+      if (manifest.background && manifest.background.service_worker) {
+        const scriptPath = manifest.background.service_worker;
+        manifest.background = {
+          scripts: [scriptPath]
+          // Note: Firefox MV3 doesn't need 'type: module' - it's implicit
+        };
+        console.log(`  ✓ Converted service_worker to scripts array: ${scriptPath}`);
       }
     }
+
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+    console.log('  ✓ Manifest written');
     
     // Step 5: Validate extension structure
     console.log('\n🔍 Validating extension structure...');

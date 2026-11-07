@@ -59,6 +59,16 @@ class AuthStatus {
       window.location.href = 'login.html';
     });
 
+    // Clicking the signed-in email opens the account page (sign out / delete account)
+    const userEmail = this.elements.userEmail;
+    if (userEmail) {
+      userEmail.title = 'Manage account';
+      userEmail.style.cursor = 'pointer';
+      userEmail.addEventListener('click', () => {
+        window.location.href = 'login.html';
+      });
+    }
+
     // Logout button
     this.elements.logoutButton?.addEventListener('click', async () => {
       const result = await (window as any).authManager.signOut();

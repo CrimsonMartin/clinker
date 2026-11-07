@@ -6,7 +6,7 @@ Citation Linker is a browser extension designed to revolutionize how researchers
 ## Primary Goals
 1. **Seamless Citation Management**: Transform scattered research into organized, hierarchical citation trees
 2. **Enhanced Note-Taking**: Enable voice annotations with speech-to-text conversion for any highlighted text
-3. **Cross-Device Continuity**: Provide Firebase-powered cloud synchronization for accessing research from anywhere
+3. **Cross-Device Continuity**: Provide cloud synchronization via a self-hosted API for accessing research from anywhere
 4. **Research Workflow Integration**: Integrate naturally with browsing through context menus and highlighting
 
 ## Target Users
@@ -25,7 +25,7 @@ Citation Linker is a browser extension designed to revolutionize how researchers
 - Browser extension (Chrome, Firefox, Edge support)
 - Text highlighting and annotation on web pages
 - Voice recording and speech-to-text conversion
-- Firebase authentication and data sync
+- Account authentication and data sync via the self-hosted Clinker API
 - Context menu integration
 - Citation tree visualization and management
 
@@ -44,7 +44,7 @@ Citation Linker is a browser extension designed to revolutionize how researchers
 
 ## Technical Constraints
 - Must work as Manifest V3 browser extension
-- Firebase dependency for authentication and sync
+- Self-hosted sync API (`server/`, `docs/API.md`) for authentication and sync
 - Cross-browser compatibility (Chrome, Firefox, Edge)
 - Local storage fallback when offline
 - Microphone permission required for voice features

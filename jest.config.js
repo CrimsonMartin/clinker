@@ -17,8 +17,10 @@ module.exports = {
     '/dist/',
     '/dist-chrome/',
     '/dist-firefox/',
-    '/coverage/'
+    '/coverage/',
+    '/server/'
   ],
+  modulePathIgnorePatterns: ['<rootDir>/server/'],
   moduleFileExtensions: ['ts', 'js', 'json'],
   transform: {
     '^.+\\.(ts|tsx)$': ['ts-jest', {
