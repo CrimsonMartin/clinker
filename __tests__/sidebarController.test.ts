@@ -332,19 +332,18 @@ describe('SidebarController', () => {
       expect(navigateToNodeSpy).toHaveBeenCalledWith(1);
     });
 
-    it('should handle unknown action', async () => {
+    it('should leave unknown actions to other listeners', async () => {
       await sidebarController.initialize();
       
       const messageCallback = browser.runtime.onMessage.addListener.mock.calls[0][0];
       const sendResponse = jest.fn();
       
+      // e.g. 'performSync' is answered by the sync listener in sidebar.js;
+      // replying here first would swallow that response.
       const result = messageCallback({ action: 'unknown' }, null, sendResponse);
       
-      expect(result).toBe(true);
-      expect(sendResponse).toHaveBeenCalledWith({ 
-        success: false, 
-        error: 'Unknown action' 
-      });
+      expect(result).toBe(false);
+      expect(sendResponse).not.toHaveBeenCalled();
     });
   });
 

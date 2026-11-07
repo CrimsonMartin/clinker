@@ -521,4 +521,117 @@ describe('TreeService', () => {
       expect(childNodes[0].id).toBe(2);
     });
   });
+
+  describe('drag-and-drop moves (applyMove / moveNodeRelative)', () => {
+    const mk = (id: number, parentId: number | null, children: number[] = []): TreeNode => ({
+      id, text: `N${id}`, url: `https://example.com/${id}`, timestamp: '2023-01-01', parentId, children
+    });
+    // Tree:
+    //  1
+    //  ├─ 2
+    //  │  └─ 5
+    //  └─ 3
+    //  4
+    const build = (): TreeData => ({
+      nodes: [mk(1, null, [2, 3]), mk(2, 1, [5]), mk(3, 1), mk(4, null), mk(5, 2)],
+      currentNodeId: null
+    });
+    const order = (tree: TreeData, parentId: number | null) =>
+      tree.nodes.filter(n => n.parentId === parentId).map(n => n.id);
+
+    it('canMoveNode rejects self, descendants and unknown ids', () => {
+      const t = build();
+      expect(treeService.canMoveNode(t.nodes, 1, 1)).toBe(false);
+      expect(treeService.canMoveNode(t.nodes, 1, 5)).toBe(false);
+      expect(treeService.canMoveNode(t.nodes, 2, 5)).toBe(false);
+      expect(treeService.canMoveNode(t.nodes, 99, 1)).toBe(false);
+      expect(treeService.canMoveNode(t.nodes, 1, 99)).toBe(false);
+      expect(treeService.canMoveNode(t.nodes, 5, 1)).toBe(true);
+      expect(treeService.canMoveNode(t.nodes, 5, null)).toBe(true);
+    });
+
+    it("'inside' makes the node the last child of the target", () => {
+      const t = build();
+      expect(treeService.applyMove(t, 4, 1, 'inside')).toBe(true);
+      expect(order(t, 1)).toEqual([2, 3, 4]);
+      expect(treeService.findNode(t.nodes, 1).children).toEqual([2, 3, 4]);
+      expect(treeService.findNode(t.nodes, 4).parentId).toBe(1);
+      expect(order(t, null)).toEqual([1]);
+    });
+
+    it("'before' reorders among siblings", () => {
+      const t = build();
+      expect(treeService.applyMove(t, 3, 2, 'before')).toBe(true);
+      expect(order(t, 1)).toEqual([3, 2]);
+      expect(treeService.findNode(t.nodes, 1).children).toEqual([3, 2]);
+    });
+
+    it("'after' reorders root nodes", () => {
+      const t = build();
+      expect(treeService.applyMove(t, 1, 4, 'after')).toBe(true);
+      expect(order(t, null)).toEqual([4, 1]);
+      // subtree stays attached
+      expect(order(t, 1)).toEqual([2, 3]);
+    });
+
+    it("'before'/'after' a node in another parent reparents at that index", () => {
+      const t = build();
+      expect(treeService.applyMove(t, 4, 3, 'before')).toBe(true);
+      expect(treeService.findNode(t.nodes, 4).parentId).toBe(1);
+      expect(order(t, 1)).toEqual([2, 4, 3]);
+      expect(treeService.findNode(t.nodes, 1).children).toEqual([2, 4, 3]);
+
+      expect(treeService.applyMove(t, 5, 4, 'after')).toBe(true);
+      expect(treeService.findNode(t.nodes, 2).children).toEqual([]);
+      expect(order(t, 1)).toEqual([2, 4, 5, 3]);
+    });
+
+    it('moving a nested node next to a root node makes it a root', () => {
+      const t = build();
+      expect(treeService.applyMove(t, 5, 1, 'before')).toBe(true);
+      expect(treeService.findNode(t.nodes, 5).parentId).toBeNull();
+      expect(order(t, null)).toEqual([5, 1, 4]);
+      expect(treeService.findNode(t.nodes, 2).children).toEqual([]);
+    });
+
+    it('null target moves the node to the end of the root list', () => {
+      const t = build();
+      expect(treeService.applyMove(t, 2, null, 'inside')).toBe(true);
+      expect(order(t, null)).toEqual([1, 4, 2]);
+      expect(treeService.findNode(t.nodes, 1).children).toEqual([3]);
+      expect(order(t, 2)).toEqual([5]);
+    });
+
+    it('refuses to move a node into its own subtree and leaves the tree untouched', () => {
+      const t = build();
+      const before = JSON.stringify(t);
+      expect(treeService.applyMove(t, 1, 5, 'inside')).toBe(false);
+      expect(treeService.applyMove(t, 1, 2, 'before')).toBe(false);
+      expect(treeService.applyMove(t, 2, 2, 'after')).toBe(false);
+      expect(JSON.stringify(t)).toBe(before);
+    });
+
+    it('moveNodeRelative persists the reordered tree', async () => {
+      const t = build();
+      (browser.storage.local.get as jest.Mock).mockResolvedValue({ citationTree: t });
+      const result = await treeService.moveNodeRelative(3, 2, 'before');
+      expect(result).toBe(true);
+      const saved = (browser.storage.local.set as jest.Mock).mock.calls[0][0].citationTree;
+      expect(saved.nodes.filter((n: TreeNode) => n.parentId === 1).map((n: TreeNode) => n.id)).toEqual([3, 2]);
+    });
+
+    it('moveNodeRelative does not save an invalid move', async () => {
+      (browser.storage.local.get as jest.Mock).mockResolvedValue({ citationTree: build() });
+      expect(await treeService.moveNodeRelative(1, 5, 'after')).toBe(false);
+      expect(browser.storage.local.set).not.toHaveBeenCalled();
+    });
+
+    it('shiftNodeToParent places the node right after its former parent', async () => {
+      const t = build();
+      (browser.storage.local.get as jest.Mock).mockResolvedValue({ citationTree: t });
+      expect(await treeService.shiftNodeToParent(5)).toBe(true);
+      const saved = (browser.storage.local.set as jest.Mock).mock.calls[0][0].citationTree;
+      expect(saved.nodes.filter((n: TreeNode) => n.parentId === 1).map((n: TreeNode) => n.id)).toEqual([2, 5, 3]);
+    });
+  });
 });

@@ -200,6 +200,18 @@ document.addEventListener('mouseup', async (event) => {
             console.warn('Could not get active tab ID, using general-tab:', error);
           }
 
+          // Bibliographic metadata for reference export (citationMetadata.ts is
+          // loaded before this script; never let extraction break saving).
+          let citation: any = undefined;
+          try {
+            const extract = (globalThis as any).extractCitationMetadata;
+            if (typeof extract === 'function') {
+              citation = extract(document, window.location.href);
+            }
+          } catch (error) {
+            console.warn('Could not extract citation metadata:', error);
+          }
+
           // Create new node
           const newNode = {
             id: nodeCounter + 1,
@@ -211,7 +223,8 @@ document.addEventListener('mouseup', async (event) => {
             children: [],
             images: images.length > 0 ? images : undefined,
             annotations: [],
-            tabId: activeTabId
+            tabId: activeTabId,
+            citation
           };
           
           console.log('Creating new node:', newNode.id, 'URL:', newNode.url, 'Parent:', newNode.parentId);

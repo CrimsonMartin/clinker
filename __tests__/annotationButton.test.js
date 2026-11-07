@@ -310,8 +310,9 @@ describe('AnnotationButton', () => {
 
       expect(button).toBeInstanceOf(HTMLElement);
       expect(button.className).toBe('annotation-bubble empty');
-      expect(button.textContent).toBe('+');
+      expect(button.tagName).toBe('BUTTON');
       expect(button.title).toBe('Add annotation');
+      expect(button.getAttribute('aria-label')).toBe('Add annotation');
     });
 
     it('should create empty annotation bubble for nodes with no annotations property', () => {
@@ -324,7 +325,7 @@ describe('AnnotationButton', () => {
 
       expect(button).toBeInstanceOf(HTMLElement);
       expect(button.className).toBe('annotation-bubble empty');
-      expect(button.textContent).toBe('+');
+      expect(button.getAttribute('aria-label')).toBe('Add annotation');
     });
 
     it('should include tooltip with annotations', () => {
@@ -453,6 +454,15 @@ describe('AnnotationButton', () => {
 
       const modal = document.querySelector('.annotation-modal');
       expect(modal).toBeNull();
+    });
+
+    it('should close modal when pressing Escape', () => {
+      showAnnotationModal({ id: 1, text: 'Test node', annotations: [] });
+      expect(document.querySelector('.annotation-modal')).not.toBeNull();
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+
+      expect(document.querySelector('.annotation-modal')).toBeNull();
     });
 
     it('should close modal when clicking background', () => {

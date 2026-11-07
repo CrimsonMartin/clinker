@@ -264,46 +264,225 @@ describe('TreeContainer', () => {
     });
   });
 
-  describe('setupBackgroundDrop', () => {
-    beforeEach(() => {
-      treeContainer.initialize();
-    });
+  describe('drag and drop (delegated on #tree-root)', () => {
+    // Real TreeNode + TreeContainer rendering of:
+    //   1
+    //   ├─ 2
+    //   └─ 3
+    //   4
+    const nodes = () => [
+      { id: 1, text: 'One', url: 'https://example.com/1', timestamp: '2023-01-01', parentId: null, children: [2, 3] },
+      { id: 2, text: 'Two', url: 'https://example.com/2', timestamp: '2023-01-01', parentId: 1, children: [] },
+      { id: 3, text: 'Three', url: 'https://example.com/3', timestamp: '2023-01-01', parentId: 1, children: [] },
+      { id: 4, text: 'Four', url: 'https://example.com/4', timestamp: '2023-01-01', parentId: null, children: [] }
+    ];
 
-    it('should handle dragover event on tree container', () => {
-      (window as any).currentDraggedNodeId = 1; // Set dragged node
-      
-      const treeContainerElement = document.querySelector('.tree-container');
-      const dragEvent = new Event('dragover');
-      Object.defineProperty(dragEvent, 'preventDefault', { value: jest.fn() });
-      Object.defineProperty(dragEvent, 'stopPropagation', { value: jest.fn() });
-      Object.defineProperty(dragEvent, 'target', { value: treeContainerElement });
-      
-      treeContainerElement?.dispatchEvent(dragEvent);
-      
-      // Should prevent default when dragging a node over background
-      expect(dragEvent.preventDefault).toHaveBeenCalled();
-      expect(dragEvent.stopPropagation).toHaveBeenCalled();
-    });
+    let root: HTMLElement;
 
-    it('should handle drop event on tree container background', async () => {
-      (window as any).currentDraggedNodeId = 1;
-      
-      const treeContainerElement = document.querySelector('.tree-container');
-      const dropEvent = new Event('drop');
-      Object.defineProperty(dropEvent, 'preventDefault', { value: jest.fn() });
-      Object.defineProperty(dropEvent, 'stopPropagation', { value: jest.fn() });
-      Object.defineProperty(dropEvent, 'target', { value: treeContainerElement });
-      Object.defineProperty(dropEvent, 'dataTransfer', {
-        value: { getData: jest.fn().mockReturnValue('1') }
+    const row = (id: number) =>
+      root.querySelector(`.tree-node[data-node-id="${id}"] > .tree-node-row`) as HTMLElement;
+    const wrapper = (id: number) =>
+      root.querySelector(`.tree-node[data-node-id="${id}"]`) as HTMLElement;
+
+    const fire = (target: Element, type: string, props: Record<string, any> = {}) => {
+      const ev = new Event(type, { bubbles: true, cancelable: true });
+      Object.entries(props).forEach(([k, v]) => Object.defineProperty(ev, k, { value: v }));
+      target.dispatchEvent(ev);
+      return ev;
+    };
+    const dataTransfer = (data: Record<string, string> = {}) => ({
+      setData: jest.fn((type: string, value: string) => { data[type] = value; }),
+      getData: jest.fn((type: string) => data[type] || ''),
+      effectAllowed: '',
+      dropEffect: ''
+    });
+    // rows are 40px tall at y = 100
+    const placeRows = () => {
+      root.querySelectorAll('.tree-node-row').forEach(r => {
+        (r as HTMLElement).getBoundingClientRect = () =>
+          ({ top: 100, bottom: 140, height: 40, left: 0, right: 300, width: 300, x: 0, y: 100, toJSON() {} } as DOMRect);
       });
-      
-      treeContainerElement?.dispatchEvent(dropEvent);
-      
-      // Wait for async operations
-      await new Promise(resolve => setTimeout(resolve, 0));
-      
-      expect(dropEvent.preventDefault).toHaveBeenCalled();
-      expect(mockTreeService.moveNodeToRoot).toHaveBeenCalledWith(1);
+    };
+
+    const startDrag = (id: number) => {
+      const dt = dataTransfer();
+      fire(row(id), 'mousedown');
+      const ev = fire(row(id), 'dragstart', { dataTransfer: dt });
+      return { ev, dt };
+    };
+
+    beforeEach(async () => {
+      require('../components/treeNode');
+      (global as any).TreeNode = (window as any).TreeNode;
+      const realService = {
+        getChildNodes: (all: any[], parentId: number | null) =>
+          all.filter(n => n.parentId === parentId && !n.deleted)
+      };
+      mockTreeService.getChildNodes.mockImplementation(realService.getChildNodes);
+      mockTreeService.getTree.mockResolvedValue({ nodes: nodes(), currentNodeId: null });
+      mockTreeService.moveNode = jest.fn().mockResolvedValue(true);
+      mockTreeService.moveNodeRelative = jest.fn().mockResolvedValue(true);
+      mockTreeService.moveNodeToRoot = jest.fn().mockResolvedValue(true);
+
+      treeContainer.initialize();
+      await treeContainer.loadAndDisplayTree();
+      root = document.getElementById('tree-root')!;
+      placeRows();
+    });
+
+    it('renders nested children inside the parent wrapper, not inside the row', () => {
+      expect(wrapper(1).querySelector(':scope > .tree-children > .tree-node[data-node-id="2"]')).not.toBeNull();
+      expect(row(1).querySelector('.tree-node')).toBeNull();
+    });
+
+    it('getDropPosition splits a row into before / inside / after zones', () => {
+      expect(TreeContainerClass.getDropPosition(2, 40)).toBe('before');
+      expect(TreeContainerClass.getDropPosition(20, 40)).toBe('inside');
+      expect(TreeContainerClass.getDropPosition(38, 40)).toBe('after');
+    });
+
+    it('dragstart sets the drag data synchronously and marks the node', () => {
+      const { ev, dt } = startDrag(2);
+
+      expect(ev.defaultPrevented).toBe(false);
+      expect(dt.setData).toHaveBeenCalledWith('text/plain', '2');
+      expect(dt.effectAllowed).toBe('move');
+      expect((window as any).currentDraggedNodeId).toBe(2);
+      expect(wrapper(2).classList.contains('dragging')).toBe(true);
+      // the parent is not affected by the child's drag
+      expect(wrapper(1).classList.contains('dragging')).toBe(false);
+    });
+
+    it('a drag that starts on a button inside the row is cancelled', () => {
+      const btn = row(4).querySelector('.node-delete-button') as HTMLElement;
+      fire(btn, 'mousedown');
+      const ev = fire(row(4), 'dragstart', { dataTransfer: dataTransfer() });
+
+      expect(ev.defaultPrevented).toBe(true);
+      expect((window as any).currentDraggedNodeId).toBeNull();
+    });
+
+    it('dragover shows before / inside / after indicators and allows the drop', () => {
+      startDrag(4);
+
+      let ev = fire(row(1), 'dragover', { clientY: 102, dataTransfer: dataTransfer() });
+      expect(ev.defaultPrevented).toBe(true);
+      expect(wrapper(1).classList.contains('drop-before')).toBe(true);
+
+      ev = fire(row(1), 'dragover', { clientY: 120, dataTransfer: dataTransfer() });
+      expect(wrapper(1).classList.contains('drop-before')).toBe(false);
+      expect(wrapper(1).classList.contains('drop-inside')).toBe(true);
+
+      // "after" a parent whose children are shown = before its first child
+      fire(row(1), 'dragover', { clientY: 138, dataTransfer: dataTransfer() });
+      expect(wrapper(1).classList.contains('drop-inside')).toBe(false);
+      expect(wrapper(2).classList.contains('drop-before')).toBe(true);
+      expect(root.querySelectorAll('.drop-before, .drop-after, .drop-inside')).toHaveLength(1);
+    });
+
+    it('refuses to drop a node onto itself or its descendants', () => {
+      startDrag(1);
+
+      const onSelf = fire(row(1), 'dragover', { clientY: 120, dataTransfer: dataTransfer() });
+      const onChild = fire(row(3), 'dragover', { clientY: 120, dataTransfer: dataTransfer() });
+
+      expect(onSelf.defaultPrevented).toBe(false);
+      expect(onChild.defaultPrevented).toBe(false);
+      expect(root.querySelector('.drop-inside')).toBeNull();
+    });
+
+    it('ignores drags that did not start on a tree node (e.g. tabs or files)', () => {
+      const ev = fire(row(1), 'dragover', { clientY: 120, dataTransfer: dataTransfer() });
+      expect(ev.defaultPrevented).toBe(false);
+    });
+
+    it('dropping in the middle of a node makes the dragged node its child', async () => {
+      const { dt } = startDrag(4);
+      fire(row(3), 'dragover', { clientY: 120, dataTransfer: dt });
+      fire(row(3), 'drop', { clientY: 120, dataTransfer: dt });
+      await new Promise(r => setTimeout(r, 0));
+
+      expect(mockTreeService.moveNode).toHaveBeenCalledWith(4, 3);
+    });
+
+    it('dropping on the top edge of a node reorders before it', async () => {
+      const { dt } = startDrag(3);
+      fire(row(2), 'dragover', { clientY: 101, dataTransfer: dt });
+      fire(row(2), 'drop', { clientY: 101, dataTransfer: dt });
+      await new Promise(r => setTimeout(r, 0));
+
+      expect(mockTreeService.moveNodeRelative).toHaveBeenCalledWith(3, 2, 'before');
+    });
+
+    it('dropping on the bottom edge of a leaf reorders after it', async () => {
+      const { dt } = startDrag(2);
+      fire(row(4), 'dragover', { clientY: 139, dataTransfer: dt });
+      fire(row(4), 'drop', { clientY: 139, dataTransfer: dt });
+      await new Promise(r => setTimeout(r, 0));
+
+      expect(mockTreeService.moveNodeRelative).toHaveBeenCalledWith(2, 4, 'after');
+    });
+
+    it('dropping on empty space moves the node to the top level', async () => {
+      const { dt } = startDrag(2);
+      const over = fire(root, 'dragover', { clientY: 500, dataTransfer: dt });
+      expect(over.defaultPrevented).toBe(true);
+      expect(root.classList.contains('drag-over-background')).toBe(true);
+
+      fire(root, 'drop', { clientY: 500, dataTransfer: dt });
+      await new Promise(r => setTimeout(r, 0));
+
+      expect(mockTreeService.moveNodeToRoot).toHaveBeenCalledWith(2);
+      expect(root.classList.contains('drag-over-background')).toBe(false);
+    });
+
+    it('dragend clears every piece of drag state', () => {
+      startDrag(4);
+      fire(row(1), 'dragover', { clientY: 120, dataTransfer: dataTransfer() });
+      fire(row(4), 'dragend');
+
+      expect(root.querySelector('.dragging, .drop-before, .drop-after, .drop-inside')).toBeNull();
+      expect(root.classList.contains('is-dragging')).toBe(false);
+      expect((window as any).currentDraggedNodeId).toBeNull();
+      expect((window as any).currentDragState).toBeNull();
+    });
+
+    it('does not duplicate listeners across re-renders and repeated initialize()', async () => {
+      treeContainer.initialize();
+      treeContainer.initialize();
+      mockTreeService.getTree.mockResolvedValue({ nodes: [...nodes(), { id: 5, text: 'Five', url: 'https://example.com/5', timestamp: '2023-01-01', parentId: null, children: [] }], currentNodeId: null });
+      await treeContainer.refresh();
+      placeRows();
+
+      const { dt } = startDrag(4);
+      fire(row(3), 'dragover', { clientY: 120, dataTransfer: dt });
+      fire(row(3), 'drop', { clientY: 120, dataTransfer: dt });
+      await new Promise(r => setTimeout(r, 0));
+
+      expect(mockTreeService.moveNode).toHaveBeenCalledTimes(1);
+      expect((browser.storage.onChanged.addListener as jest.Mock).mock.calls.length).toBe(1);
+    });
+
+    it('defers re-rendering while a drag is in progress', async () => {
+      startDrag(4);
+      const before = row(1);
+      mockTreeService.getTree.mockResolvedValue({ nodes: nodes().slice(0, 3), currentNodeId: null });
+      await treeContainer.refresh();
+      expect(row(1)).toBe(before); // DOM untouched mid-drag
+
+      fire(row(4), 'dragend');
+      await new Promise(r => setTimeout(r, 0));
+      await new Promise(r => setTimeout(r, 0));
+      expect(wrapper(4)).toBeNull(); // pending refresh ran after the drag
+    });
+
+    it('only updates the highlight when nothing but currentNodeId changed', async () => {
+      const before = row(2);
+      mockTreeService.getTree.mockResolvedValue({ nodes: nodes(), currentNodeId: 2 });
+      await treeContainer.refresh();
+
+      expect(row(2)).toBe(before);
+      expect(wrapper(2).classList.contains('current')).toBe(true);
     });
   });
 

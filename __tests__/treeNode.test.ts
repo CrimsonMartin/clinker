@@ -47,7 +47,8 @@ describe('TreeNode', () => {
       },
       tabs: {
         query: jest.fn().mockResolvedValue([{ id: 1 }]),
-        update: jest.fn().mockResolvedValue(undefined)
+        update: jest.fn().mockResolvedValue(undefined),
+        create: jest.fn().mockResolvedValue(undefined)
       }
     };
 
@@ -65,7 +66,9 @@ describe('TreeNode', () => {
     mockTreeService = {
       setCurrentNode: jest.fn().mockResolvedValue(true),
       moveNode: jest.fn().mockResolvedValue(true),
-      shiftNodeToParent: jest.fn().mockResolvedValue(true)
+      shiftNodeToParent: jest.fn().mockResolvedValue(true),
+      moveNodeToRoot: jest.fn().mockResolvedValue(true),
+      deleteNode: jest.fn().mockResolvedValue(true)
     };
 
     // Mock syncManager
@@ -84,429 +87,281 @@ describe('TreeNode', () => {
     (window as any).currentDraggedNodeId = null;
   });
 
+  const makeNode = (overrides: Partial<TreeNodeType> = {}): TreeNodeType => ({
+    id: 1,
+    text: 'Test Node',
+    url: 'https://example.com',
+    timestamp: '2023-01-01T00:00:00.000Z',
+    parentId: null,
+    children: [],
+    ...overrides
+  });
+
+  const render = (node: TreeNodeType, current = false) => {
+    const element: HTMLElement = new TreeNodeClass(node, current).createElement();
+    document.body.appendChild(element);
+    const row = element.querySelector(':scope > .tree-node-row') as HTMLElement;
+    return { element, row };
+  };
+
+  const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+
   describe('createElement', () => {
-    it('should create tree node element with correct structure', () => {
-      const node: TreeNodeType = {
-        id: 1,
-        text: 'Test Node',
-        url: 'https://example.com',
-        timestamp: '2023-01-01T00:00:00.000Z',
-        parentId: null,
-        children: []
-      };
+    it('should create a wrapper with a draggable row', () => {
+      const { element, row } = render(makeNode());
 
-      const treeNode = new TreeNodeClass(node, false);
-      const element = treeNode.createElement();
-
-      expect(element).toBeInstanceOf(HTMLElement);
-      expect(element.className).toBe('tree-node ');
+      expect(element.className).toBe('tree-node');
       expect(element.dataset.nodeId).toBe('1');
-      expect(element.draggable).toBe(true);
+      expect(element.getAttribute('role')).toBe('treeitem');
+      // the wrapper itself is not draggable; the row is (so nested nodes drag independently)
+      expect(element.draggable).toBe(false);
+      expect(row).not.toBeNull();
+      expect(row.draggable).toBe(true);
+      expect(row.tabIndex).toBe(0);
     });
 
     it('should mark current node with current class', () => {
-      const node: TreeNodeType = {
-        id: 1,
-        text: 'Current Node',
-        url: 'https://example.com',
-        timestamp: '2023-01-01T00:00:00.000Z',
-        parentId: null,
-        children: []
-      };
-
-      const treeNode = new TreeNodeClass(node, true);
-      const element = treeNode.createElement();
-
+      const { element } = render(makeNode(), true);
       expect(element.className).toBe('tree-node current');
+      expect(element.getAttribute('aria-selected')).toBe('true');
     });
 
-    it('should create content element with truncated text', () => {
-      const node: TreeNodeType = {
-        id: 1,
-        text: 'Very long text that should be truncated',
-        url: 'https://example.com',
-        timestamp: '2023-01-01T00:00:00.000Z',
-        parentId: null,
-        children: []
-      };
-
+    it('should create content element with truncated text and a full-text tooltip', () => {
       mockFormatters.truncateText.mockReturnValue('Very long text...');
+      const node = makeNode({ text: 'Very long text that should be truncated' });
+      const { row } = render(node);
 
-      const treeNode = new TreeNodeClass(node, false);
-      const element = treeNode.createElement();
-      const contentElement = element.querySelector('.tree-node-content');
-
-      expect(contentElement?.textContent).toBe('Very long text...');
-      expect(mockFormatters.truncateText).toHaveBeenCalledWith(node.text);
+      expect(row.querySelector('.tree-node-content')?.textContent).toBe('Very long text...');
+      expect(mockFormatters.truncateText).toHaveBeenCalledWith(node.text, 300);
+      expect(row.title).toBe(node.text);
     });
 
-    it('should create images container when node has images', () => {
-      const node: TreeNodeType = {
-        id: 1,
-        text: 'Node with images',
-        url: 'https://example.com',
-        timestamp: '2023-01-01T00:00:00.000Z',
-        parentId: null,
-        children: [],
-        images: ['data:image/png;base64,test1', 'data:image/png;base64,test2']
-      };
-
-      const treeNode = new TreeNodeClass(node, false);
-      const element = treeNode.createElement();
-      const imagesContainer = element.querySelector('.tree-node-images');
+    it('should create non-draggable image thumbnails', () => {
+      const { element } = render(makeNode({ images: ['data:image/png;base64,test1', 'data:image/png;base64,test2'] }));
       const imageElements = element.querySelectorAll('.tree-node-image-thumbnail');
 
-      expect(imagesContainer).not.toBeNull();
+      expect(element.querySelector('.tree-node-images')).not.toBeNull();
       expect(imageElements).toHaveLength(2);
       expect((imageElements[0] as HTMLImageElement).src).toBe('data:image/png;base64,test1');
-      expect((imageElements[1] as HTMLImageElement).src).toBe('data:image/png;base64,test2');
+      expect((imageElements[0] as HTMLImageElement).draggable).toBe(false);
     });
 
     it('should create meta element with URL and timestamp', () => {
-      const node: TreeNodeType = {
-        id: 1,
-        text: 'Test Node',
-        url: 'https://example.com/path',
-        timestamp: '2023-01-01T12:00:00.000Z',
-        parentId: null,
-        children: []
-      };
-
       mockFormatters.formatTimestamp.mockReturnValue('Jan 1, 12:00 PM');
+      const { element } = render(makeNode({ url: 'https://example.com/path' }));
+      const urlElement = element.querySelector('.tree-node-url') as HTMLElement;
 
-      const treeNode = new TreeNodeClass(node, false);
-      const element = treeNode.createElement();
-      const urlElement = element.querySelector('.tree-node-url');
-      const timeElement = element.querySelector('.tree-node-info span:last-child');
-
-      expect(urlElement?.textContent).toBe('example.com');
-      expect((urlElement as HTMLElement)?.title).toBe('https://example.com/path');
-      expect(timeElement?.textContent).toBe('Jan 1, 12:00 PM');
+      expect(urlElement.textContent).toBe('example.com');
+      expect(urlElement.title).toBe('https://example.com/path');
+      expect(element.querySelector('.tree-node-time')?.textContent).toBe('Jan 1, 12:00 PM');
     });
 
-    it('should create annotation and delete buttons', () => {
-      const node: TreeNodeType = {
-        id: 1,
-        text: 'Test Node',
-        url: 'https://example.com',
-        timestamp: '2023-01-01T00:00:00.000Z',
-        parentId: null,
-        children: []
-      };
+    it('should not throw on an invalid URL', () => {
+      const { element } = render(makeNode({ url: 'not a url' }));
+      expect(element.querySelector('.tree-node-url')?.textContent).toBe('not a url');
+    });
 
-      const treeNode = new TreeNodeClass(node, false);
-      const element = treeNode.createElement();
+    it('should create annotation and an accessible delete button', () => {
+      const node = makeNode();
+      const { element } = render(node);
 
-      // Check that annotation button was created via global function
       expect(mockCreateAnnotationButton).toHaveBeenCalledWith(node);
-      
-      // Check that delete button was created (TreeNode creates its own delete button)
-      const deleteButton = element.querySelector('.node-delete-button') as HTMLElement;
+      const deleteButton = element.querySelector('.node-delete-button') as HTMLButtonElement;
       expect(deleteButton).not.toBeNull();
-      expect(deleteButton?.textContent).toBe('X');
-      expect(deleteButton?.title).toBe('Delete this node');
-    });
-  });
-
-  describe('drag and drop', () => {
-    let node: TreeNodeType;
-    let treeNode: any;
-    let element: HTMLElement;
-
-    beforeEach(() => {
-      node = {
-        id: 1,
-        text: 'Draggable Node',
-        url: 'https://example.com',
-        timestamp: '2023-01-01T00:00:00.000Z',
-        parentId: null,
-        children: []
-      };
-
-      treeNode = new TreeNodeClass(node, false);
-      element = treeNode.createElement();
-      document.body.appendChild(element);
-    });
-
-    it('should handle dragstart event', () => {
-      const dragStartEvent = new Event('dragstart');
-      Object.defineProperty(dragStartEvent, 'dataTransfer', {
-        value: {
-          setData: jest.fn(),
-          effectAllowed: ''
-        }
-      });
-
-      element.dispatchEvent(dragStartEvent);
-
-      expect((window as any).currentDraggedNodeId).toBe(1);
-      expect((dragStartEvent as any).dataTransfer.setData).toHaveBeenCalledWith('text/plain', '1');
-      expect((dragStartEvent as any).dataTransfer.effectAllowed).toBe('move');
-      expect(element.classList.contains('dragging')).toBe(true);
-    });
-
-    it('should handle dragend event', () => {
-      // First trigger dragstart to set up state
-      const dragStartEvent = new Event('dragstart');
-      Object.defineProperty(dragStartEvent, 'dataTransfer', {
-        value: { setData: jest.fn(), effectAllowed: '' }
-      });
-      element.dispatchEvent(dragStartEvent);
-
-      const dragEndEvent = new Event('dragend');
-      element.dispatchEvent(dragEndEvent);
-
-      expect((window as any).currentDraggedNodeId).toBeNull();
-      expect(element.classList.contains('dragging')).toBe(false);
-    });
-
-    it('should handle dragover event', () => {
-      (window as any).currentDraggedNodeId = 2; // Different node being dragged
-      
-      const dragOverEvent = new Event('dragover');
-      Object.defineProperty(dragOverEvent, 'preventDefault', { value: jest.fn() });
-      Object.defineProperty(dragOverEvent, 'stopPropagation', { value: jest.fn() });
-
-      element.dispatchEvent(dragOverEvent);
-
-      expect(dragOverEvent.preventDefault).toHaveBeenCalled();
-      expect(dragOverEvent.stopPropagation).toHaveBeenCalled();
-      expect(element.classList.contains('drag-over')).toBe(true);
-    });
-
-    it('should handle drop event', async () => {
-      (window as any).currentDraggedNodeId = 2; // Different node being dragged
-      
-      const dropEvent = new Event('drop');
-      Object.defineProperty(dropEvent, 'preventDefault', { value: jest.fn() });
-      Object.defineProperty(dropEvent, 'stopPropagation', { value: jest.fn() });
-      Object.defineProperty(dropEvent, 'dataTransfer', {
-        value: { getData: jest.fn().mockReturnValue('2') }
-      });
-
-      element.dispatchEvent(dropEvent);
-
-      // Wait for async operations
-      await new Promise(resolve => setTimeout(resolve, 0));
-
-      expect(dropEvent.preventDefault).toHaveBeenCalled();
-      expect(dropEvent.stopPropagation).toHaveBeenCalled();
-      expect(mockTreeService.moveNode).toHaveBeenCalledWith(2, 1);
-      expect(mockSyncManager.markAsModified).toHaveBeenCalled();
+      expect(deleteButton.tagName).toBe('BUTTON');
+      expect(deleteButton.type).toBe('button');
+      expect(deleteButton.title).toBe('Delete this node');
+      expect(deleteButton.getAttribute('aria-label')).toBe('Delete this citation');
+      expect(deleteButton.querySelector('svg use')?.getAttribute('href')).toBe('#i-trash-2');
     });
   });
 
   describe('event handlers', () => {
-    let node: TreeNodeType;
-    let treeNode: any;
-    let element: HTMLElement;
+    it('should select the node on click without re-rendering', async () => {
+      document.body.innerHTML = '<div class="tree-node current" data-node-id="9"></div>';
+      const { element, row } = render(makeNode());
 
-    beforeEach(() => {
-      node = {
-        id: 1,
-        text: 'Test Node',
-        url: 'https://example.com',
-        timestamp: '2023-01-01T00:00:00.000Z',
-        parentId: null,
-        children: []
-      };
-
-      treeNode = new TreeNodeClass(node, false);
-      element = treeNode.createElement();
-      document.body.appendChild(element);
-    });
-
-    it('should handle click event to update current node', async () => {
-      const clickEvent = new Event('click');
-      element.dispatchEvent(clickEvent);
+      row.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await flush();
 
       expect(mockTreeService.setCurrentNode).toHaveBeenCalledWith(1);
+      expect(element.classList.contains('current')).toBe(true);
+      expect(document.querySelector('[data-node-id="9"]')?.classList.contains('current')).toBe(false);
     });
 
-    it('should handle double-click event for navigation', async () => {
-      const dblClickEvent = new Event('dblclick');
-      Object.defineProperty(dblClickEvent, 'preventDefault', { value: jest.fn() });
-      Object.defineProperty(dblClickEvent, 'stopPropagation', { value: jest.fn() });
+    it('should not select the node when a button inside the row is clicked', async () => {
+      const { element } = render(makeNode());
+      const btn = document.createElement('button');
+      element.querySelector('.tree-node-buttons')!.appendChild(btn);
 
-      element.dispatchEvent(dblClickEvent);
+      btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await flush();
 
-      // Wait for async operations
-      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(mockTreeService.setCurrentNode).not.toHaveBeenCalled();
+    });
+
+    it('clicking a nested child only selects the child', async () => {
+      const parent = render(makeNode({ id: 1, children: [2] }));
+      const child = new TreeNodeClass(makeNode({ id: 2, parentId: 1 }), false).createElement();
+      const childrenContainer = document.createElement('div');
+      childrenContainer.className = 'tree-children';
+      childrenContainer.appendChild(child);
+      parent.element.appendChild(childrenContainer);
+
+      (child.querySelector('.tree-node-row') as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await flush();
+
+      expect(mockTreeService.setCurrentNode).toHaveBeenCalledTimes(1);
+      expect(mockTreeService.setCurrentNode).toHaveBeenCalledWith(2);
+    });
+
+    it('should navigate on double-click', async () => {
+      const { row } = render(makeNode());
+
+      row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+      await flush();
 
       expect(mockTreeService.setCurrentNode).toHaveBeenCalledWith(1);
       expect(browser.tabs.update).toHaveBeenCalledWith(1, { url: 'https://example.com' });
     });
 
-    it('should handle context menu event', () => {
-      const contextMenuEvent = new MouseEvent('contextmenu');
-      Object.defineProperty(contextMenuEvent, 'preventDefault', { value: jest.fn() });
-      Object.defineProperty(contextMenuEvent, 'stopPropagation', { value: jest.fn() });
+    it('should navigate on Enter', async () => {
+      const { row } = render(makeNode());
 
-      element.dispatchEvent(contextMenuEvent);
+      row.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await flush();
 
-      const contextMenu = document.querySelector('.context-menu');
-      expect(contextMenu).not.toBeNull();
+      expect(browser.tabs.update).toHaveBeenCalledWith(1, { url: 'https://example.com' });
+    });
+
+    it('should open a context menu on right-click', () => {
+      const { row } = render(makeNode());
+      row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+      expect(document.querySelector('.context-menu')).not.toBeNull();
+    });
+  });
+
+  describe('delete button', () => {
+    it('should delete the node and refresh the tree', async () => {
+      const refresh = jest.fn().mockResolvedValue(undefined);
+      (window as any).treeContainer = { refresh };
+      const { element } = render(makeNode());
+
+      (element.querySelector('.node-delete-button') as HTMLButtonElement).click();
+      await flush();
+      await flush();
+
+      expect(mockTreeService.deleteNode).toHaveBeenCalledWith(1);
+      expect(refresh).toHaveBeenCalled();
+      expect(mockTreeService.setCurrentNode).not.toHaveBeenCalled();
+    });
+
+    it('should ask for confirmation before deleting a node with children', async () => {
+      const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false);
+      const { element } = render(makeNode({ children: [2] }));
+
+      (element.querySelector('.node-delete-button') as HTMLButtonElement).click();
+      await flush();
+
+      expect(confirmSpy).toHaveBeenCalled();
+      expect(mockTreeService.deleteNode).not.toHaveBeenCalled();
+      confirmSpy.mockRestore();
+    });
+
+    it('should re-enable the button when deletion fails', async () => {
+      mockTreeService.deleteNode.mockResolvedValue(false);
+      const { element } = render(makeNode());
+      const button = element.querySelector('.node-delete-button') as HTMLButtonElement;
+
+      button.click();
+      await flush();
+      await flush();
+
+      expect(button.disabled).toBe(false);
     });
   });
 
   describe('context menu', () => {
-    it('should show context menu with shift option for nodes with parent', () => {
-      const node: TreeNodeType = {
-        id: 2,
-        text: 'Child Node',
-        url: 'https://example.com',
-        timestamp: '2023-01-01T00:00:00.000Z',
-        parentId: 1,
-        children: []
-      };
+    const openMenu = (node: TreeNodeType) => {
+      const { row } = render(node);
+      row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+      return Array.from(document.querySelectorAll('.context-menu .context-menu-item')) as HTMLElement[];
+    };
 
-      const treeNode = new TreeNodeClass(node, false);
-      const element = treeNode.createElement();
-      document.body.appendChild(element);
-
-      const contextMenuEvent = new MouseEvent('contextmenu');
-      Object.defineProperty(contextMenuEvent, 'preventDefault', { value: jest.fn() });
-      Object.defineProperty(contextMenuEvent, 'stopPropagation', { value: jest.fn() });
-
-      element.dispatchEvent(contextMenuEvent);
-
-      const contextMenu = document.querySelector('.context-menu');
-      const shiftOption = document.querySelector('.context-menu-item');
-      
-      expect(contextMenu).not.toBeNull();
-      expect(shiftOption?.textContent).toBe('Shift out');
+    it('should show shift option first for nodes with a parent', () => {
+      const items = openMenu(makeNode({ id: 2, parentId: 1 }));
+      expect(items[0].textContent).toBe('Shift out');
+      expect(items.map(i => i.textContent)).toEqual(['Shift out', 'Move to top level', 'Open in new tab', 'Delete']);
     });
 
     it('should not show shift option for root nodes', () => {
-      const node: TreeNodeType = {
-        id: 1,
-        text: 'Root Node',
-        url: 'https://example.com',
-        timestamp: '2023-01-01T00:00:00.000Z',
-        parentId: null,
-        children: []
-      };
-
-      const treeNode = new TreeNodeClass(node, false);
-      const element = treeNode.createElement();
-      document.body.appendChild(element);
-
-      const contextMenuEvent = new MouseEvent('contextmenu');
-      Object.defineProperty(contextMenuEvent, 'preventDefault', { value: jest.fn() });
-      Object.defineProperty(contextMenuEvent, 'stopPropagation', { value: jest.fn() });
-
-      element.dispatchEvent(contextMenuEvent);
-
-      const contextMenu = document.querySelector('.context-menu');
-      const shiftOption = document.querySelector('.context-menu-item');
-      
-      expect(contextMenu).not.toBeNull();
-      expect(shiftOption).toBeNull();
+      const items = openMenu(makeNode());
+      expect(items.map(i => i.textContent)).toEqual(['Open in new tab', 'Delete']);
     });
 
     it('should handle shift option click', async () => {
-      const node: TreeNodeType = {
-        id: 2,
-        text: 'Child Node',
-        url: 'https://example.com',
-        timestamp: '2023-01-01T00:00:00.000Z',
-        parentId: 1,
-        children: []
-      };
-
-      const treeNode = new TreeNodeClass(node, false);
-      const element = treeNode.createElement();
-      document.body.appendChild(element);
-
-      const contextMenuEvent = new MouseEvent('contextmenu');
-      Object.defineProperty(contextMenuEvent, 'preventDefault', { value: jest.fn() });
-      Object.defineProperty(contextMenuEvent, 'stopPropagation', { value: jest.fn() });
-
-      element.dispatchEvent(contextMenuEvent);
-
-      const shiftOption = document.querySelector('.context-menu-item');
-      shiftOption?.dispatchEvent(new Event('click'));
-
-      // Wait for async operations
-      await new Promise(resolve => setTimeout(resolve, 0));
+      const items = openMenu(makeNode({ id: 2, parentId: 1 }));
+      items[0].dispatchEvent(new Event('click'));
+      await flush();
 
       expect(mockTreeService.shiftNodeToParent).toHaveBeenCalledWith(2);
       expect(mockSyncManager.markAsModified).toHaveBeenCalled();
+      expect(document.querySelector('.context-menu')).toBeNull();
+    });
+
+    it('should handle move to top level click', async () => {
+      const items = openMenu(makeNode({ id: 2, parentId: 1 }));
+      items[1].dispatchEvent(new Event('click'));
+      await flush();
+
+      expect(mockTreeService.moveNodeToRoot).toHaveBeenCalledWith(2);
+    });
+
+    it('should open in a new tab', async () => {
+      const items = openMenu(makeNode());
+      items[0].dispatchEvent(new Event('click'));
+      await flush();
+
+      expect(browser.tabs.create).toHaveBeenCalledWith({ url: 'https://example.com' });
+    });
+
+    it('should close on Escape', async () => {
+      openMenu(makeNode());
+      await flush();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      expect(document.querySelector('.context-menu')).toBeNull();
     });
   });
 
   describe('image modal', () => {
+    const openModal = () => {
+      const { element } = render(makeNode({ images: ['data:image/png;base64,test'] }));
+      element.querySelector('.tree-node-image-thumbnail')!.dispatchEvent(new Event('click', { bubbles: true }));
+    };
+
     it('should show image modal when image thumbnail is clicked', () => {
-      const node: TreeNodeType = {
-        id: 1,
-        text: 'Node with images',
-        url: 'https://example.com',
-        timestamp: '2023-01-01T00:00:00.000Z',
-        parentId: null,
-        children: [],
-        images: ['data:image/png;base64,test']
-      };
-
-      const treeNode = new TreeNodeClass(node, false);
-      const element = treeNode.createElement();
-      document.body.appendChild(element);
-
-      const imageThumbnail = element.querySelector('.tree-node-image-thumbnail');
-      imageThumbnail?.dispatchEvent(new Event('click', { bubbles: true }));
-
-      const modal = document.querySelector('.image-modal');
-      const modalImage = document.querySelector('.modal-image');
-      
-      expect(modal).not.toBeNull();
-      expect((modalImage as HTMLImageElement)?.src).toBe('data:image/png;base64,test');
+      openModal();
+      expect(document.querySelector('.image-modal')).not.toBeNull();
+      expect((document.querySelector('.modal-image') as HTMLImageElement).src).toBe('data:image/png;base64,test');
+      // clicking a thumbnail must not select the node
+      expect(mockTreeService.setCurrentNode).not.toHaveBeenCalled();
     });
 
     it('should close modal when close button is clicked', () => {
-      const node: TreeNodeType = {
-        id: 1,
-        text: 'Node with images',
-        url: 'https://example.com',
-        timestamp: '2023-01-01T00:00:00.000Z',
-        parentId: null,
-        children: [],
-        images: ['data:image/png;base64,test']
-      };
-
-      const treeNode = new TreeNodeClass(node, false);
-      const element = treeNode.createElement();
-      document.body.appendChild(element);
-
-      const imageThumbnail = element.querySelector('.tree-node-image-thumbnail');
-      imageThumbnail?.dispatchEvent(new Event('click', { bubbles: true }));
-
-      const closeButton = document.querySelector('.modal-close');
-      closeButton?.dispatchEvent(new Event('click'));
-
-      const modal = document.querySelector('.image-modal');
-      expect(modal).toBeNull();
+      openModal();
+      document.querySelector('.modal-close')!.dispatchEvent(new Event('click'));
+      expect(document.querySelector('.image-modal')).toBeNull();
     });
 
     it('should close modal when background is clicked', () => {
-      const node: TreeNodeType = {
-        id: 1,
-        text: 'Node with images',
-        url: 'https://example.com',
-        timestamp: '2023-01-01T00:00:00.000Z',
-        parentId: null,
-        children: [],
-        images: ['data:image/png;base64,test']
-      };
+      openModal();
+      document.querySelector('.image-modal')!.dispatchEvent(new Event('click'));
+      expect(document.querySelector('.image-modal')).toBeNull();
+    });
 
-      const treeNode = new TreeNodeClass(node, false);
-      const element = treeNode.createElement();
-      document.body.appendChild(element);
-
-      const imageThumbnail = element.querySelector('.tree-node-image-thumbnail');
-      imageThumbnail?.dispatchEvent(new Event('click', { bubbles: true }));
-
-      const modal = document.querySelector('.image-modal');
-      modal?.dispatchEvent(new Event('click'));
-
+    it('should close modal on Escape', () => {
+      openModal();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
       expect(document.querySelector('.image-modal')).toBeNull();
     });
   });

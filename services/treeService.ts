@@ -20,6 +20,8 @@ interface TreeNode {
   tabId?: string;
 }
 
+type DropPosition = 'before' | 'after' | 'inside';
+
 interface TreeData {
   nodes: TreeNode[];
   currentNodeId: number | null;
@@ -156,125 +158,122 @@ class TreeService {
     return this.isDescendant(nodes, node.parentId, potentialAncestorId);
   }
 
-  // Move a node to a new parent
-  async moveNode(draggedNodeId: number, targetNodeId: number): Promise<boolean> {
+  // Check whether draggedNodeId may be moved relative to targetNodeId.
+  // A node cannot be dropped onto/next to itself or into its own subtree.
+  canMoveNode(nodes: TreeNode[], draggedNodeId: number, targetNodeId: number | null): boolean {
+    if (!this.findNode(nodes, draggedNodeId)) return false;
+    if (targetNodeId === null) return true;
+    if (draggedNodeId === targetNodeId) return false;
+    if (!this.findNode(nodes, targetNodeId)) return false;
+    return !this.isDescendant(nodes, targetNodeId, draggedNodeId);
+  }
+
+  // Pure tree mutation used by all move operations.
+  //   position 'inside' -> dragged becomes the last child of target
+  //   position 'before' / 'after' -> dragged becomes a sibling of target,
+  //                                  placed immediately before/after it
+  //   targetNodeId null -> dragged becomes the last root node
+  // Sibling order is the order of nodes in tree.nodes (that is what the
+  // renderer uses), and each parent's children[] array is kept in the same order.
+  applyMove(tree: TreeData, draggedNodeId: number, targetNodeId: number | null, position: DropPosition): boolean {
+    const nodes = tree.nodes;
+    if (!this.canMoveNode(nodes, draggedNodeId, targetNodeId)) return false;
+
+    const dragged = this.findNode(nodes, draggedNodeId)!;
+    const target = targetNodeId === null ? undefined : this.findNode(nodes, targetNodeId)!;
+    const newParentId: number | null =
+      !target ? null : position === 'inside' ? target.id : target.parentId;
+
+    // Detach from old parent
+    if (dragged.parentId !== null) {
+      const oldParent = this.findNode(nodes, dragged.parentId);
+      if (oldParent && oldParent.children) {
+        oldParent.children = oldParent.children.filter(id => id !== draggedNodeId);
+      }
+    }
+
+    // Reposition the dragged node within the flat nodes array
+    nodes.splice(nodes.indexOf(dragged), 1);
+    let insertAt: number;
+    if (!target) {
+      insertAt = nodes.length;
+    } else if (position === 'before') {
+      insertAt = nodes.indexOf(target);
+    } else if (position === 'after') {
+      insertAt = nodes.indexOf(target) + 1;
+    } else {
+      // inside: after the target's last existing child (or right after target)
+      let last = nodes.indexOf(target);
+      nodes.forEach((n, i) => {
+        if (n.parentId === target.id && i > last) last = i;
+      });
+      insertAt = last + 1;
+    }
+    nodes.splice(insertAt, 0, dragged);
+    dragged.parentId = newParentId;
+
+    // Rebuild the new parent's children[] in render (array) order
+    if (newParentId !== null) {
+      const newParent = this.findNode(nodes, newParentId)!;
+      const existing = (newParent.children || []).filter(id => id !== draggedNodeId);
+      const ordered = nodes
+        .filter(n => n.parentId === newParentId && (n.id === draggedNodeId || existing.includes(n.id)))
+        .map(n => n.id);
+      // keep any ids that reference nodes not found (defensive) at the end
+      existing.forEach(id => { if (!ordered.includes(id)) ordered.push(id); });
+      newParent.children = ordered;
+    }
+    return true;
+  }
+
+  // Move a node relative to another node (or to root when targetNodeId is null)
+  async moveNodeRelative(draggedNodeId: number, targetNodeId: number | null, position: DropPosition): Promise<boolean> {
     try {
       const tree = await this.getTree();
-      
-      const draggedNode = this.findNode(tree.nodes, draggedNodeId);
-      const targetNode = this.findNode(tree.nodes, targetNodeId);
-      
-      if (!draggedNode || !targetNode) {
+      const nodes = tree.nodes || [];
+      if (!this.findNode(nodes, draggedNodeId) || (targetNodeId !== null && !this.findNode(nodes, targetNodeId))) {
         console.error('Could not find dragged or target node');
         return false;
       }
-      
-      // Prevent moving a node to one of its descendants
-      if (this.isDescendant(tree.nodes, targetNodeId, draggedNodeId)) {
+      if (targetNodeId !== null && (draggedNodeId === targetNodeId || this.isDescendant(nodes, targetNodeId, draggedNodeId))) {
         console.warn('Cannot move node to its descendant');
         return false;
       }
-      
-      // Remove from old parent's children
-      if (draggedNode.parentId !== null) {
-        const oldParent = this.findNode(tree.nodes, draggedNode.parentId);
-        if (oldParent) {
-          oldParent.children = oldParent.children.filter(childId => childId !== draggedNodeId);
-        }
-      }
-      
-      // Ensure target node has children array
-      if (!targetNode.children) {
-        targetNode.children = [];
-      }
-      
-      // Add to new parent's children if not already there
-      if (!targetNode.children.includes(draggedNodeId)) {
-        targetNode.children.push(draggedNodeId);
-      }
-      
-      // Update the dragged node's parentId
-      draggedNode.parentId = targetNodeId;
-      
-      console.log(`Moved node ${draggedNodeId} to parent ${targetNodeId}`);
+      if (!this.applyMove(tree, draggedNodeId, targetNodeId, position)) return false;
+      console.log(`Moved node ${draggedNodeId} ${position} ${targetNodeId === null ? 'root' : targetNodeId}`);
       await this.saveTree(tree);
-      
       return true;
     } catch (error) {
-      console.error('Error moving node:', error);
+      console.error(targetNodeId === null ? 'Error moving node to root:' : 'Error moving node:', error);
       return false;
     }
   }
 
-  // Move a node to root level
+  // Move a node to a new parent (becomes its last child)
+  async moveNode(draggedNodeId: number, targetNodeId: number): Promise<boolean> {
+    return this.moveNodeRelative(draggedNodeId, targetNodeId, 'inside');
+  }
+
+  // Move a node to root level (becomes the last root node)
   async moveNodeToRoot(nodeId: number): Promise<boolean> {
-    try {
-      const tree = await this.getTree();
-      const node = this.findNode(tree.nodes, nodeId);
-      
-      if (!node) return false;
-      
-      // Remove from old parent's children
-      if (node.parentId !== null) {
-        const oldParent = this.findNode(tree.nodes, node.parentId);
-        if (oldParent) {
-          oldParent.children = oldParent.children.filter(childId => childId !== nodeId);
-        }
-      }
-      
-      // Set as root node
-      node.parentId = null;
-      
-      console.log(`Moved node ${nodeId} to root level`);
-      await this.saveTree(tree);
-      
-      return true;
-    } catch (error) {
-      console.error('Error moving node to root:', error);
-      return false;
-    }
+    return this.moveNodeRelative(nodeId, null, 'inside');
   }
 
-  // Shift a node to its parent's level
+  // Shift a node to its parent's level (placed right after its former parent)
   async shiftNodeToParent(nodeId: number): Promise<boolean> {
     try {
       const tree = await this.getTree();
       const node = this.findNode(tree.nodes, nodeId);
-      
       if (!node || node.parentId === null) {
         console.log('Node has no parent to shift up to');
         return false;
       }
-      
-      const currentParent = this.findNode(tree.nodes, node.parentId);
-      if (!currentParent) {
+      if (!this.findNode(tree.nodes, node.parentId)) {
         console.error('Current parent not found');
         return false;
       }
-      
-      // Remove from current parent's children
-      currentParent.children = currentParent.children.filter(childId => childId !== nodeId);
-      
-      // Set the node's parent to be its grandparent
-      const grandparentId = currentParent.parentId;
-      node.parentId = grandparentId;
-      
-      // If there's a grandparent, add this node to its children
-      if (grandparentId !== null) {
-        const grandparent = this.findNode(tree.nodes, grandparentId);
-        if (grandparent) {
-          if (!grandparent.children) {
-            grandparent.children = [];
-          }
-          if (!grandparent.children.includes(nodeId)) {
-            grandparent.children.push(nodeId);
-          }
-        }
-      }
-      
-      console.log(`Shifted node ${nodeId} up to parent level`);
+      if (!this.applyMove(tree, nodeId, node.parentId, 'after')) return false;
       await this.saveTree(tree);
-      
       return true;
     } catch (error) {
       console.error('Error shifting node to parent:', error);

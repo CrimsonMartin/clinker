@@ -9,6 +9,17 @@ class SidebarController {
     this.storageListener = null;
   }
 
+  // Header "Export" button opens the export dialog scoped to the current project (tab)
+  private setupExportButton(): void {
+    const btn = document.getElementById('exportBtn');
+    if (!btn || (btn as any).dataset.bound) return;
+    (btn as any).dataset.bound = '1';
+    btn.addEventListener('click', () => {
+      const dialog = (window as any).CitationLinker?.exportDialog;
+      if (dialog) dialog.open({ scope: 'tab' });
+    });
+  }
+
   // Initialize the sidebar
   async initialize(): Promise<void> {
     try {
@@ -52,6 +63,9 @@ class SidebarController {
         console.error('Tab bar not found!');
       }
       
+      // Header "Export references" button
+      this.setupExportButton();
+
       // Setup storage listener
       this.setupStorageListener();
       
@@ -61,7 +75,7 @@ class SidebarController {
       // Initial load
       await this.loadAndDisplay();
       
-      // Initialize Firebase auth if available
+      // Initialize auth (self-hosted API) if available
       if ((window as any).authManager) {
         (window as any).authManager.onAuthStateChanged((user: any) => {
           if (authStatus) {
@@ -144,7 +158,7 @@ class SidebarController {
           break;
           
         case 'focusSearch':
-          (window as any).searchBar.openSearch();
+          ((window as any).CitationLinker?.searchBar || (window as any).searchBar)?.openSearch();
           sendResponse({ success: true });
           break;
           
@@ -154,11 +168,12 @@ class SidebarController {
           }
           sendResponse({ success: true });
           break;
-          
+
         default:
-          sendResponse({ success: false, error: 'Unknown action' });
+          // Not ours: let other listeners (e.g. sync in sidebar.js) respond.
+          return false;
       }
-      
+
       return true; // Keep message channel open for async response
     });
   }
