@@ -21,7 +21,7 @@
     "test:coverage": "jest --coverage"
   },
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "devDependencies": {
     "@types/chrome": "^0.0.270",
     "@types/firefox-webext-browser": "^120.0.4",

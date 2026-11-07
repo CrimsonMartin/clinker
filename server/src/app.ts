@@ -10,6 +10,7 @@ import { authRoutes } from './routes/auth.js';
 import { meRoutes } from './routes/me.js';
 import { syncRoutes } from './routes/sync.js';
 import { resetPageRoute } from './routes/resetPage.js';
+import { privacyPageRoute } from './routes/privacyPage.js';
 import { metaRoutes } from './routes/meta.js';
 import type { FetchLike } from './doi.js';
 
@@ -141,6 +142,7 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   await app.register(syncRoutes, { prefix: '/v1' });
   await app.register(metaRoutes, { prefix: '/v1', fetch: opts.fetch });
   await app.register(resetPageRoute);
+  await app.register(privacyPageRoute);
 
   return app;
 }

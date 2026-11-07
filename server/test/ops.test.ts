@@ -74,3 +74,12 @@ describe('CORS', () => {
     expect(res.headers['access-control-allow-origin']).toBe(origin);
   });
 });
+
+describe('privacy policy page', () => {
+  it('serves the public privacy policy', async () => {
+    const res = await ctx.app.inject({ method: 'GET', url: '/privacy' });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('text/html');
+    expect(res.body).toContain('Citation Linker Privacy Policy');
+  });
+});

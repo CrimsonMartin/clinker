@@ -135,6 +135,14 @@ The workflows automatically include these files in the extension packages:
 - [ ] Repository access permissions set
 - [ ] Workflows tested with draft releases
 
+## 🧾 One-time store setup (can't be automated)
+
+- **Privacy policy URL**: https://clinker.lanerate.io/privacy (served by the API, source in `server/src/routes/privacyPage.ts`).
+  - Chrome: Developer Dashboard → item → **Privacy** tab: set the privacy policy URL and fill in the data-use disclosures (authentication info, website content; not sold, not used for unrelated purposes).
+  - Firefox: Developer Hub → add-on → **Edit Product Page → Privacy Policy** (paste the URL or text). The manifest also declares `data_collection_permissions`.
+- **Firefox listing text** (summary, description, categories, license, reviewer notes) lives in `store/amo-metadata.json` and is sent with every submission. Edit that file rather than the AMO website, or the next publish will overwrite your web edits.
+- **Chrome listing text, screenshots and icons** are edited in the Chrome Developer Dashboard (the API can't set them).
+
 ## 🔄 Version Management
 
 Versions are automatic: `<major>.<minor>` from `manifest.json` plus the workflow run number as the patch (e.g. `2.0.37`). No bump commits needed, and every publish has a unique, increasing version as the stores require. To start a new line, change `manifest.json` to e.g. `2.1.0` (the patch part is ignored).

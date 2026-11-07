@@ -2,6 +2,7 @@
   "name": "clinker-api",
   "version": "1.0.0",
   "private": true,
+  "license": "MIT",
   "description": "Self-hosted auth + sync backend for the Citation Linker (clinker) browser extension",
   "type": "module",
   "main": "dist/index.js",

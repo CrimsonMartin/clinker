@@ -41,4 +41,4 @@ configMapGenerator:
 images:
   - name: ghcr.io/crimsonmartin/clinker-api
     newName: ghcr.io/crimsonmartin/clinker-api
-    newTag: sha-4d98ea8-dev2 # bump on each deploy (CI pushes sha-<commit>)
+    newTag: sha-046a3ec-dev3 # bump on each deploy (CI pushes sha-<commit>)
