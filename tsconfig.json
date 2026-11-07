@@ -19,6 +19,9 @@
   "exclude": [
     "node_modules",
     "dist",
+    "dist-chrome",
+    "dist-firefox",
+    "server",
     "__tests__"
   ]
 }

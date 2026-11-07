@@ -2,49 +2,21 @@
  * @jest-environment jsdom
  */
 
-// Standalone implementation of the sanitizeData function for testing
-function sanitizeData(obj) {
-  if (obj === null) {
-    return null;
-  }
-  
-  if (obj === undefined) {
-    return undefined; // Signal that this should be removed
-  }
-  
-  if (Array.isArray(obj)) {
-    return obj.map(item => sanitizeData(item)).filter(item => item !== undefined);
-  }
-  
-  if (typeof obj === 'object') {
-    const sanitized = {};
-    for (const [key, value] of Object.entries(obj)) {
-      const sanitizedValue = sanitizeData(value);
-      if (sanitizedValue !== undefined) {
-        sanitized[key] = sanitizedValue;
-      }
+// Tests for SyncManager.sanitizeData and uploadToCloud (api/sync.js)
+
+const API = 'https://api.test.example';
+
+global.browser = {
+  storage: {
+    local: {
+      get: jest.fn().mockResolvedValue({}),
+      set: jest.fn().mockResolvedValue()
     }
-    return sanitized;
   }
-  
-  return obj;
-}
+};
 
-// Mock upload function that uses sanitizeData
-async function uploadToCloud(userId, localData, authManager, db) {
-  const currentUser = authManager.getCurrentUser();
-  const userEmail = currentUser ? currentUser.email : null;
-
-  const dataToUpload = {
-    citationTree: localData.citationTree || { nodes: [], currentNodeId: null },
-    nodeCounter: localData.nodeCounter || 0,
-    lastModified: new Date().toISOString(),
-    userEmail: userEmail
-  };
-
-  const sanitizedData = sanitizeData(dataToUpload);
-  return await db.collection('users').doc(userId).set(sanitizedData);
-}
+const { SyncManager } = require('../api/sync.js');
+const sanitizeData = (obj) => new SyncManager().sanitizeData(obj);
 
 describe('SyncManager Data Sanitization', () => {
   describe('sanitizeData', () => {
@@ -268,27 +240,30 @@ describe('SyncManager Data Sanitization', () => {
   });
 
   describe('uploadToCloud integration', () => {
-    let mockAuthManager, mockDb, mockDoc, mockCollection;
+    let mockAuthManager;
+    let syncManager;
+
+    // Body of the PUT /v1/sync request
+    const uploaded = () => JSON.parse(global.fetch.mock.calls[0][1].body);
 
     beforeEach(() => {
-      mockDoc = {
-        set: jest.fn().mockResolvedValue()
-      };
-      mockCollection = {
-        doc: jest.fn().mockReturnValue(mockDoc)
-      };
-      mockDb = {
-        collection: jest.fn().mockReturnValue(mockCollection)
-      };
       mockAuthManager = {
-        getCurrentUser: jest.fn().mockReturnValue({
-          uid: 'test-uid',
-          email: 'test@example.com'
-        })
+        getCurrentUser: jest.fn().mockReturnValue({ uid: 'test-uid', email: 'test@example.com' }),
+        isLoggedIn: jest.fn().mockReturnValue(true),
+        ensureValidToken: jest.fn().mockResolvedValue('token')
       };
+      window.authManager = mockAuthManager;
+      window.CLINKER_CONFIG = { apiBaseUrl: API };
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(JSON.stringify({ data: {}, version: 2, updatedAt: new Date().toISOString() }))
+      });
+      syncManager = new SyncManager();
+      syncManager.loadConfig();
     });
 
-    it('should sanitize data before uploading to Firestore', async () => {
+    it('should PUT sanitized data to /v1/sync with the base version', async () => {
       const localData = {
         citationTree: {
           nodes: [
@@ -300,13 +275,15 @@ describe('SyncManager Data Sanitization', () => {
         badField: undefined
       };
 
-      await uploadToCloud('test-uid', localData, mockAuthManager, mockDb);
+      await syncManager.uploadToCloud('test-uid', localData, 1);
 
-      expect(mockDb.collection).toHaveBeenCalledWith('users');
-      expect(mockCollection.doc).toHaveBeenCalledWith('test-uid');
-      
-      const uploadedData = mockDoc.set.mock.calls[0][0];
-      expect(uploadedData).toEqual({
+      expect(global.fetch).toHaveBeenCalledWith(`${API}/v1/sync`, expect.objectContaining({
+        method: 'PUT',
+        headers: expect.objectContaining({ Authorization: 'Bearer token' })
+      }));
+      const body = uploaded();
+      expect(body.baseVersion).toBe(1);
+      expect(body.data).toEqual({
         citationTree: {
           nodes: [
             { id: 1, text: 'test' }
@@ -317,38 +294,51 @@ describe('SyncManager Data Sanitization', () => {
         lastModified: expect.any(String),
         userEmail: 'test@example.com'
       });
-      
-      // Ensure no undefined values made it through
-      expect(JSON.stringify(uploadedData)).not.toContain('undefined');
+      expect(syncManager.remoteVersion).toBe(2);
+    });
+
+    it('should send baseVersion null when there is no server document', async () => {
+      await syncManager.uploadToCloud('test-uid', {}, null);
+      expect(uploaded().baseVersion).toBeNull();
+    });
+
+    it('should throw a SyncVersionConflictError carrying the current document on 409', async () => {
+      const current = { data: { lastModified: 'x' }, version: 9, updatedAt: 'y' };
+      global.fetch.mockResolvedValue({
+        ok: false,
+        status: 409,
+        text: () => Promise.resolve(JSON.stringify({ error: { code: 'version_conflict', message: 'conflict' }, current }))
+      });
+
+      await expect(syncManager.uploadToCloud('test-uid', {}, 1)).rejects.toMatchObject({
+        name: 'SyncVersionConflictError',
+        current
+      });
     });
 
     it('should handle missing user email gracefully', async () => {
       mockAuthManager.getCurrentUser.mockReturnValue(null);
 
-      const localData = {
-        citationTree: { nodes: [], currentNodeId: null },
-        nodeCounter: 0
-      };
+      await syncManager.uploadToCloud('test-uid', { citationTree: { nodes: [], currentNodeId: null }, nodeCounter: 0 }, null);
 
-      await uploadToCloud('test-uid', localData, mockAuthManager, mockDb);
-
-      const uploadedData = mockDoc.set.mock.calls[0][0];
-      expect(uploadedData.userEmail).toBe(null);
-      expect(uploadedData).not.toHaveProperty('undefinedField');
+      expect(uploaded().data.userEmail).toBe(null);
     });
 
     it('should provide default values for missing required fields', async () => {
-      const localData = {}; // Empty data
+      await syncManager.uploadToCloud('test-uid', {}, null);
 
-      await uploadToCloud('test-uid', localData, mockAuthManager, mockDb);
-
-      const uploadedData = mockDoc.set.mock.calls[0][0];
-      expect(uploadedData).toEqual({
+      expect(uploaded().data).toEqual({
         citationTree: { nodes: [], currentNodeId: null },
         nodeCounter: 0,
         lastModified: expect.any(String),
         userEmail: 'test@example.com'
       });
+    });
+
+    it('should include tab metadata when present', async () => {
+      const tabsMetadata = { activeTabId: 't1', tabCount: 1, tabTitles: [{ id: 't1', title: 'General' }] };
+      await syncManager.uploadToCloud('test-uid', { tabsMetadata }, null);
+      expect(uploaded().data.tabsMetadata).toEqual(tabsMetadata);
     });
 
     it('should sanitize complex nested citation data', async () => {
@@ -374,10 +364,9 @@ describe('SyncManager Data Sanitization', () => {
         undefinedRootProperty: undefined
       };
 
-      await uploadToCloud('test-uid', localData, mockAuthManager, mockDb);
+      await syncManager.uploadToCloud('test-uid', localData, null);
 
-      const uploadedData = mockDoc.set.mock.calls[0][0];
-      
+      const uploadedData = uploaded().data;
       expect(uploadedData.citationTree.nodes).toHaveLength(1);
       expect(uploadedData.citationTree.nodes[0]).toEqual({
         id: 1,
@@ -389,12 +378,6 @@ describe('SyncManager Data Sanitization', () => {
         images: ['image1', 'image2']
       });
       expect(uploadedData.citationTree.currentNodeId).toBe(1);
-      expect(uploadedData).not.toHaveProperty('undefinedRootProperty');
-      expect(uploadedData.citationTree).not.toHaveProperty('undefinedTreeProperty');
-      
-      // Verify no undefined values exist anywhere in the data
-      const serialized = JSON.stringify(uploadedData);
-      expect(serialized).not.toContain('undefined');
     });
   });
 });

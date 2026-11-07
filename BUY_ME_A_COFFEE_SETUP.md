@@ -51,7 +51,7 @@ A beautiful, gradient-styled donation button has been added to the bottom of the
    ```bash
    npm run build:config
    ```
-   - This will create the `firebase/firebase-config.js` file with your donation URL
+   - This will create the `api/config.js` file with your donation URL
 
 3. **Build the Extension**
    - Run the full build process:

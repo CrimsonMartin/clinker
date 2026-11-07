@@ -21,7 +21,7 @@ The system follows the modern browser extension architecture with clear separati
          │
          ▼
 ┌─────────────────┐
-│    Firebase     │
+│  Clinker API    │
 │  Auth & Sync    │
 └─────────────────┘
 ```
@@ -44,11 +44,11 @@ The system follows the modern browser extension architecture with clear separati
 - **Role**: Main user interface
 - **Responsibilities**: Citation tree display, user controls, authentication UI
 - **Pattern**: Single-page application with dynamic content
-- **State Management**: Local storage + Firebase sync
+- **State Management**: Local storage + sync API
 
-#### 4. Firebase Integration Layer
-- **Authentication**: `firebase/auth.js` - Google OAuth + email/password
-- **Data Sync**: `firebase/sync.js` - Real-time database operations
+#### 4. Sync API Client Layer
+- **Authentication**: `api/auth.js` - email/password, access + rotating refresh tokens
+- **Data Sync**: `api/sync.js` - GET/PUT `/v1/sync` with version-based conflict detection
 - **Pattern**: Singleton manager classes with event listeners
 
 ## Design Patterns
@@ -88,8 +88,8 @@ chrome.runtime.sendMessage({
   data: { text, url, timestamp }
 });
 
-// Firebase state changes
-firebase.auth().onAuthStateChanged((user) => {
+// Auth state changes
+authManager.onAuthStateChanged((user) => {
   // Notify all listeners
 });
 ```
@@ -100,7 +100,7 @@ firebase.auth().onAuthStateChanged((user) => {
 Data persistence follows local-first pattern:
 
 ```
-User Action → Local Storage → Firebase Sync → Other Devices
+User Action → Local Storage → API Sync → Other Devices
      ↑                             ↓
      └── Immediate UI Update    Conflict Resolution
 ```
@@ -128,9 +128,9 @@ Web Page Text Selection
 Background Script Processing
     ↓ (storage + messaging)
 Sidebar UI Update
-    ↓ (Firebase sync)
+    ↓ (API sync, 30 s interval)
 Cloud Storage
-    ↓ (real-time sync)
+    ↓ (polling sync)
 Other Devices Update
 ```
 
@@ -138,7 +138,7 @@ Other Devices Update
 ```
 User Login Request
     ↓ (sidebar)
-Firebase Auth
+Clinker API /v1/auth/login
     ↓ (auth manager)
 Local Storage Update
     ↓ (event notification)
@@ -153,17 +153,16 @@ UI State Updates
 - **activeTab**: Content script injection on demand
 - **storage**: Local data persistence
 - **contextMenus**: Right-click integration
-- **identity**: Google OAuth integration
-- **scripting**: Dynamic content script injection
+- **host_permissions**: the sync API origin only
 
 #### Content Security Policy
 ```javascript
 "content_security_policy": {
-  "extension_pages": "script-src 'self' https://www.gstatic.com; object-src 'self'"
+  "extension_pages": "script-src 'self'; object-src 'self';"
 }
 ```
 
-**Pattern**: Strict CSP with specific Firebase exceptions
+**Pattern**: Strict CSP, no remote scripts; API calls are plain fetch()
 
 ## Technical Patterns
 
@@ -171,12 +170,12 @@ UI State Updates
 Consistent async pattern throughout codebase:
 
 ```javascript
-async signInWithGoogle() {
+async signInWithEmail(email, password) {
   try {
-    const result = await firebase.auth().signInWithPopup(provider);
-    return { success: true, user: result.user };
+    const data = await this.apiRequest('POST', '/v1/auth/login', { email, password });
+    return { success: true, user: await this.setSession(data) };
   } catch (error) {
-    console.error('Google sign-in error:', error);
+    console.error('Email sign-in error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -220,7 +219,7 @@ NPM scripts coordinate build pipeline:
 ### 1. Lazy Loading
 Components load only when needed:
 - Content scripts inject on first text selection
-- Firebase initializes on first auth check
+- Auth manager restores the stored session on first auth check
 - Heavy UI components render on demand
 
 ### 2. Debounced Operations
@@ -239,7 +238,7 @@ Minimal DOM operations in content scripts:
 
 ### 1. Graceful Degradation
 Features fail gracefully:
-- Offline mode when Firebase unavailable
+- Offline mode when the sync server is unavailable
 - Local storage fallback for sync failures
 - Text input fallback for speech recognition
 

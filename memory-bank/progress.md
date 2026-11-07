@@ -20,7 +20,7 @@ The Citation Linker browser extension is functionally complete for its core use 
 - **Tree Validation**: Proactive data integrity checking and repair
 - **Context Operations**: Right-click to shift nodes, promote to root level
 
-#### 3. Firebase Cloud Sync
+#### 3. Cloud Sync (self-hosted API since 2.0.0)
 - **Authentication**: Email/password authentication only (Google OAuth removed for Firefox compatibility)
 - **Real-time Sync**: Cross-device synchronization implemented
 - **Conflict Resolution**: Last-write-wins with data repair mechanisms
@@ -265,7 +265,7 @@ The Citation Linker browser extension is functionally complete for its core use 
 ## 📈 Future Vision Alignment
 
 ### Phase 1 (Current): ✅ Core Citation Management
-Web highlighting, voice annotations, tree organization, Firebase sync, modular architecture
+Web highlighting, voice annotations, tree organization, cloud sync, modular architecture
 
 ### Phase 2 (Next 6 months): 🔧 Enhanced Integration  
 PDF support, citation export formats, browser bookmark import, plugin system

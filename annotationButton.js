@@ -1,5 +1,16 @@
 // annotationButton.js - Annotation button functionality for Research Linker
 
+// Icon from the sprite in sidebar.html (helper defined in components/treeNode.ts).
+function annotationIcon(name) {
+  if (typeof window !== 'undefined' && typeof window.clinkerIcon === 'function') {
+    return window.clinkerIcon(name);
+  }
+  const span = document.createElement('span');
+  span.className = 'icon';
+  span.setAttribute('aria-hidden', 'true');
+  return span;
+}
+
 function formatTimestamp(timestamp) {
   const date = new Date(timestamp);
   return date.toLocaleString('en-US', {
@@ -88,22 +99,50 @@ function showAnnotationModal(node) {
   const header = document.createElement('div');
   header.className = 'annotation-modal-header';
   
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  modal.setAttribute('aria-label', 'Annotations');
+
   const title = document.createElement('h3');
   title.textContent = 'Annotations';
-  
-  const closeButton = document.createElement('button');
-  closeButton.className = 'modal-close';
-  closeButton.innerHTML = '&times;';
-  closeButton.addEventListener('click', () => {
-    // Stop speech recognition if active
-    if (window.speechRecognitionInstance) {
-      window.speechRecognitionInstance.abort();
+
+  // Close the modal, stopping dictation and removing the key handler
+  const closeModal = () => {
+    if (window.speechRecognitionInstance && typeof window.speechRecognitionInstance.abort === 'function') {
+      try {
+        if (typeof window.speechRecognitionInstance.getIsListening !== 'function' ||
+            window.speechRecognitionInstance.getIsListening()) {
+          window.speechRecognitionInstance.abort();
+        }
+      } catch (e) { /* ignore */ }
     }
-    document.body.removeChild(modal);
-  });
+    document.removeEventListener('keydown', onKeyDown);
+    if (modal.parentNode) {
+      modal.parentNode.removeChild(modal);
+    }
+  };
+  const onKeyDown = (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeModal();
+    }
+  };
+  document.addEventListener('keydown', onKeyDown);
+
+  const closeButton = document.createElement('button');
+  closeButton.type = 'button';
+  closeButton.className = 'icon-button modal-close';
+  closeButton.title = 'Close';
+  closeButton.setAttribute('aria-label', 'Close');
+  closeButton.appendChild(annotationIcon('x'));
+  closeButton.addEventListener('click', closeModal);
   
   header.appendChild(title);
   header.appendChild(closeButton);
+
+  const excerpt = document.createElement('div');
+  excerpt.className = 'annotation-modal-excerpt';
+  excerpt.textContent = node.text || '';
   
   const annotationsList = document.createElement('div');
   annotationsList.className = 'annotations-list';
@@ -123,16 +162,21 @@ function showAnnotationModal(node) {
       annotationTime.textContent = formatTimestamp(annotation.timestamp);
       
       const deleteButton = document.createElement('button');
-      deleteButton.className = 'annotation-delete';
-      deleteButton.innerHTML = '&#128465;';
+      deleteButton.type = 'button';
+      deleteButton.className = 'icon-button annotation-delete';
       deleteButton.title = 'Delete annotation';
+      deleteButton.setAttribute('aria-label', 'Delete annotation');
+      deleteButton.appendChild(annotationIcon('trash-2'));
       deleteButton.addEventListener('click', async () => {
         await deleteAnnotation(node.id, annotation.id);
-        document.body.removeChild(modal);
+        closeModal();
       });
       
-      annotationItem.appendChild(annotationText);
-      annotationItem.appendChild(annotationTime);
+      const annotationBody = document.createElement('div');
+      annotationBody.className = 'annotation-modal-body';
+      annotationBody.appendChild(annotationText);
+      annotationBody.appendChild(annotationTime);
+      annotationItem.appendChild(annotationBody);
       annotationItem.appendChild(deleteButton);
       annotationsList.appendChild(annotationItem);
     });
@@ -166,10 +210,12 @@ function showAnnotationModal(node) {
   
   if (speechRecognition.getIsSupported()) {
     micButton = document.createElement('button');
-    micButton.className = 'microphone-button';
+    micButton.className = 'icon-button microphone-button';
     micButton.type = 'button';
-    micButton.innerHTML = '&#127908;';
+    micButton.appendChild(annotationIcon('mic'));
     micButton.title = 'Click to start dictation';
+    micButton.setAttribute('aria-label', 'Start dictation');
+    micButton.setAttribute('aria-pressed', 'false');
     
     // Create status indicator
     statusIndicator = document.createElement('div');
@@ -181,8 +227,10 @@ function showAnnotationModal(node) {
   if (speechRecognition.getIsSupported()) {
     speechRecognition.setOnStart(() => {
       micButton.classList.add('recording');
-      micButton.innerHTML = '&#9209;';
+      micButton.replaceChildren(annotationIcon('square'));
       micButton.title = 'Click to stop dictation';
+      micButton.setAttribute('aria-label', 'Stop dictation');
+      micButton.setAttribute('aria-pressed', 'true');
       statusIndicator.textContent = 'Listening...';
       statusIndicator.style.display = 'block';
       statusIndicator.className = 'speech-status listening';
@@ -205,8 +253,10 @@ function showAnnotationModal(node) {
     
     speechRecognition.setOnEnd(() => {
       micButton.classList.remove('recording');
-      micButton.innerHTML = '&#127908;';
+      micButton.replaceChildren(annotationIcon('mic'));
       micButton.title = 'Click to start dictation';
+      micButton.setAttribute('aria-label', 'Start dictation');
+      micButton.setAttribute('aria-pressed', 'false');
       statusIndicator.style.display = 'none';
       
       // Keep any final transcript in the textarea
@@ -218,8 +268,10 @@ function showAnnotationModal(node) {
     
     speechRecognition.setOnError((error) => {
       micButton.classList.remove('recording');
-      micButton.innerHTML = '&#127908;';
+      micButton.replaceChildren(annotationIcon('mic'));
       micButton.title = 'Click to start dictation';
+      micButton.setAttribute('aria-label', 'Start dictation');
+      micButton.setAttribute('aria-pressed', 'false');
       statusIndicator.textContent = error;
       statusIndicator.className = 'speech-status error';
       
@@ -249,6 +301,7 @@ function showAnnotationModal(node) {
   }
   
   const addButton = document.createElement('button');
+  addButton.type = 'button';
   addButton.className = 'add-annotation-button';
   addButton.textContent = 'Add Annotation';
   addButton.addEventListener('click', async () => {
@@ -259,7 +312,17 @@ function showAnnotationModal(node) {
         speechRecognition.stop();
       }
       await addAnnotation(node.id, text);
-      document.body.removeChild(modal);
+      closeModal();
+    } else {
+      textarea.focus();
+    }
+  });
+
+  // Ctrl/Cmd+Enter saves
+  textarea.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      addButton.click();
     }
   });
   
@@ -270,17 +333,19 @@ function showAnnotationModal(node) {
   addForm.appendChild(addButton);
   
   modalContent.appendChild(header);
+  if (excerpt.textContent) {
+    modalContent.appendChild(excerpt);
+  }
+  if (annotationsList.childElementCount === 0) {
+    annotationsList.classList.add('empty');
+  }
   modalContent.appendChild(annotationsList);
   modalContent.appendChild(addForm);
   modal.appendChild(modalContent);
   
   modal.addEventListener('click', (e) => {
     if (e.target === modal) {
-      // Stop speech recognition if active
-      if (speechRecognition.getIsListening()) {
-        speechRecognition.abort();
-      }
-      document.body.removeChild(modal);
+      closeModal();
     }
   });
   
@@ -289,26 +354,32 @@ function showAnnotationModal(node) {
 }
 
 function createAnnotationButton(node) {
-  const annotationBubble = document.createElement('div');
+  const annotationBubble = document.createElement('button');
+  annotationBubble.type = 'button';
+  annotationBubble.draggable = false;
   
   if (node.annotations && node.annotations.length > 0) {
     // Annotation bubble with count
+    const count = node.annotations.length;
     annotationBubble.className = 'annotation-bubble';
-    annotationBubble.textContent = node.annotations.length.toString();
+    annotationBubble.appendChild(annotationIcon('message-square-text'));
+    annotationBubble.appendChild(document.createTextNode(count.toString()));
     annotationBubble.title = 'Click to add/view annotations';
+    annotationBubble.setAttribute('aria-label', `${count} annotation${count === 1 ? '' : 's'} – view or add`);
     
-    const annotationTooltip = document.createElement('div');
+    const annotationTooltip = document.createElement('span');
     annotationTooltip.className = 'annotation-tooltip';
+    annotationTooltip.setAttribute('role', 'tooltip');
     
     node.annotations.forEach(annotation => {
-      const annotationItem = document.createElement('div');
+      const annotationItem = document.createElement('span');
       annotationItem.className = 'annotation-item';
       
-      const annotationText = document.createElement('div');
+      const annotationText = document.createElement('span');
       annotationText.className = 'annotation-text';
       annotationText.textContent = annotation.text;
       
-      const annotationTime = document.createElement('div');
+      const annotationTime = document.createElement('span');
       annotationTime.className = 'annotation-time';
       annotationTime.textContent = formatTimestamp(annotation.timestamp);
       
@@ -318,17 +389,27 @@ function createAnnotationButton(node) {
     });
     
     annotationBubble.appendChild(annotationTooltip);
+
+    // Open the tooltip below the bubble when there is no room above it
+    annotationBubble.addEventListener('mouseenter', () => {
+      const scroller = annotationBubble.closest('#tree-root');
+      const top = annotationBubble.getBoundingClientRect().top;
+      const limit = scroller ? scroller.getBoundingClientRect().top : 0;
+      annotationBubble.classList.toggle('tooltip-below', top - limit < 140);
+    });
   } else {
     // Empty annotation bubble for adding new annotations
     annotationBubble.className = 'annotation-bubble empty';
-    annotationBubble.textContent = '+';
+    annotationBubble.appendChild(annotationIcon('message-square-plus'));
     annotationBubble.title = 'Add annotation';
+    annotationBubble.setAttribute('aria-label', 'Add annotation');
   }
   
   annotationBubble.addEventListener('click', (e) => {
     e.stopPropagation();
     showAnnotationModal(node);
   });
+  annotationBubble.addEventListener('dblclick', (e) => e.stopPropagation());
   
   return annotationBubble;
 }

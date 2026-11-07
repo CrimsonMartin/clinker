@@ -67,6 +67,23 @@ class SearchBar {
 
     // Keyboard shortcuts for search navigation
     document.addEventListener('keydown', (e) => {
+      // Ctrl/Cmd+F opens the search bar
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'f' || e.key === 'F')) {
+        e.preventDefault();
+        this.openSearch();
+        return;
+      }
+
+      // Only navigate results while the user is in the search box (or nothing
+      // else has focus) so arrows/Enter keep working in modals and inputs.
+      const active = document.activeElement;
+      const inSearch = active === this.elements.searchInput;
+      const inOtherField = !!active && active !== document.body && !inSearch &&
+        (active as HTMLElement).matches?.('input, textarea, select, [contenteditable="true"]');
+      if (inOtherField) {
+        return;
+      }
+
       // Navigate search results with arrow keys when search has results
       if ((window as any).searchService?.hasResults()) {
         if (e.key === 'ArrowDown' || (e.key === 'Enter' && !e.shiftKey && document.activeElement === this.elements.searchInput)) {
@@ -204,7 +221,7 @@ class SearchBar {
     
     // Reset all nodes and children visibility
     allNodes.forEach(node => {
-      node.classList.remove('search-result', 'current-result', 'search-hidden');
+      node.classList.remove('search-result', 'current-result', 'search-hidden', 'search-context');
     });
     allChildren.forEach(children => {
       children.classList.remove('search-hidden');
@@ -214,21 +231,22 @@ class SearchBar {
     if (!searchService) return;
 
     if (filterMode) {
-      // Filter mode: hide non-matching nodes
+      // Filter mode: hide non-matching nodes, but keep ancestors of matches
+      // visible (dimmed) so nested matches stay reachable and in context.
       const matchingNodeIds = searchService.getMatchingNodeIds();
-      
+
       allNodes.forEach(node => {
         const nodeId = parseInt((node as HTMLElement).dataset.nodeId || '0');
-        if (!matchingNodeIds.has(nodeId)) {
-          node.classList.add('search-hidden');
-          
-          // Also hide children containers if parent is hidden
-          const childrenContainer = node.querySelector('.tree-children');
-          if (childrenContainer) {
-            childrenContainer.classList.add('search-hidden');
-          }
-        } else {
+        if (matchingNodeIds.has(nodeId)) {
           node.classList.add('search-result');
+        }
+      });
+      allNodes.forEach(node => {
+        if (node.classList.contains('search-result')) return;
+        if (node.querySelector('.tree-node.search-result')) {
+          node.classList.add('search-context');
+        } else {
+          node.classList.add('search-hidden');
         }
       });
     } else {
@@ -277,7 +295,7 @@ class SearchBar {
           }
         } else if (match.type === 'annotation') {
           // Highlight in annotation tooltip if visible
-          const tooltips = nodeElement.querySelectorAll('.annotation-text');
+          const tooltips = nodeElement.querySelectorAll(':scope > .tree-node-row .annotation-text, :scope > .annotation-text');
           tooltips.forEach(tooltip => {
             if (tooltip.textContent?.toLowerCase().includes(query)) {
               this.highlightTextInElement(tooltip as HTMLElement, query);
@@ -374,8 +392,9 @@ class SearchBar {
         firstHighlight.classList.add('current');
       }
 
-      // Scroll to result
-      nodeElement.scrollIntoView({
+      // Scroll to result (the node's own row, not its whole subtree)
+      const scrollTarget = nodeElement.querySelector(':scope > .tree-node-row') || nodeElement;
+      scrollTarget.scrollIntoView({
         behavior: 'smooth',
         block: 'center'
       });
@@ -429,8 +448,8 @@ class SearchBar {
     }
     
     // Remove all search-related classes
-    document.querySelectorAll('.search-result, .current-result, .search-hidden').forEach(el => {
-      el.classList.remove('search-result', 'current-result', 'search-hidden');
+    document.querySelectorAll('.search-result, .current-result, .search-hidden, .search-context').forEach(el => {
+      el.classList.remove('search-result', 'current-result', 'search-hidden', 'search-context');
     });
     
     // Remove text highlights

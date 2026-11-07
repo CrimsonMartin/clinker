@@ -1,68 +1,294 @@
-/* Citation Linker - Main Styles */
+/* Citation Linker - design tokens, base layout and shared controls */
 
+:root {
+  /* spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+
+  /* type scale */
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-lg: 15px;
+
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 10px;
+
+  /* colors (light) */
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --surface-2: #f0f2f5;
+  --surface-3: #e7eaef;
+  --border: #e2e5ea;
+  --border-strong: #c9ced6;
+  --text: #1d2230;
+  --text-muted: #586173;
+  --text-subtle: #8a93a2;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --accent-soft: #eef0ff;
+  --accent-contrast: #ffffff;
+  --danger: #dc2626;
+  --danger-soft: #fdecec;
+  --success: #16a34a;
+  --warning: #d97706;
+  --warning-soft: #fff4d6;
+  --mark: #fde68a;
+  --mark-current: #f59e0b;
+  --overlay: rgba(15, 18, 25, 0.5);
+  --focus-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-md: 0 6px 20px rgba(16, 24, 40, 0.14);
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161b;
+    --surface: #1c1f26;
+    --surface-2: #242831;
+    --surface-3: #2d323d;
+    --border: #2e333d;
+    --border-strong: #404756;
+    --text: #e7e9ee;
+    --text-muted: #a8b0bd;
+    --text-subtle: #7d8696;
+    --accent: #8b8dfa;
+    --accent-hover: #a7a9fc;
+    --accent-soft: #272a4d;
+    --accent-contrast: #12131c;
+    --danger: #f87171;
+    --danger-soft: #3b1f23;
+    --success: #4ade80;
+    --warning: #fbbf24;
+    --warning-soft: #3a2f12;
+    --mark: #7c6514;
+    --mark-current: #d39a0b;
+    --overlay: rgba(0, 0, 0, 0.6);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
+    color-scheme: dark;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
 body {
-  width: 600px;
-  min-height: 400px;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   margin: 0;
-  padding: 16px;
-  background-color: #f8fafc;
+  padding: 0;
+}
+
+/* The popup is a fixed-size column; only the tree scrolls. */
+body {
+  width: 460px;
+  height: 580px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.4;
+  color: var(--text);
+  background: var(--surface);
+  -webkit-font-smoothing: antialiased;
 }
 
 h1 {
-  font-size: 1.3em;
-  margin: 0 0 16px 0;
-  color: #1e293b;
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
-/* Tree Container */
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* Icons (lucide sprite in sidebar.html) */
+.icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+/* Buttons */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  height: 28px;
+  padding: 0 var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.button .icon {
+  width: 14px;
+  height: 14px;
+}
+
+.button-primary {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.button-primary:hover {
+  background: var(--accent-hover);
+}
+
+.button-ghost {
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.button-ghost:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.icon-button:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.icon-button:active {
+  background: var(--surface-3);
+}
+
+.icon-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+  background: transparent;
+}
+
+/* Tree area */
 .tree-container {
-  background: white;
-  border-radius: 8px;
-  padding: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  overflow-x: auto;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
+#tree-root {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  min-height: 500px;
-  max-height: calc(100vh - 100px);
+  overflow-x: hidden;
+  /* bottom padding leaves room to drop a node onto the top level */
+  padding: var(--space-2) var(--space-2) var(--space-5);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+#tree-root.drag-over-background {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.tree-hint {
+  flex-shrink: 0;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+  border-top: 1px solid var(--border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-5) var(--space-4);
   text-align: center;
-  color: #64748b;
-  font-style: italic;
-  padding: 32px 16px;
+  color: var(--text-muted);
 }
 
-/* Drag and drop container styles */
-.tree-container.drag-over-background {
-  background-color: #f0f9ff;
-  border: 2px dashed #6366f1;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 0 0 3px rgba(99, 102, 241, 0.1);
+.empty-state strong {
+  color: var(--text);
+  font-weight: 600;
 }
 
-/* Context menu styles */
+/* Context menu */
 .context-menu {
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  padding: 4px 0;
-  min-width: 160px;
-  font-size: 13px;
+  position: fixed;
+  z-index: 10000;
+  min-width: 170px;
+  padding: var(--space-1);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  font-size: var(--text-base);
 }
 
 .context-menu-item {
-  padding: 8px 12px;
+  padding: 6px var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--text);
   cursor: pointer;
-  color: #374151;
-  transition: background-color 0.2s ease;
+  user-select: none;
 }
 
 .context-menu-item:hover {
-  background-color: #f3f4f6;
+  background: var(--surface-2);
 }
 
-.context-menu-item:active {
-  background-color: #e5e7eb;
+.context-menu-item.danger {
+  color: var(--danger);
+}
+
+.context-menu-item.danger:hover {
+  background: var(--danger-soft);
 }

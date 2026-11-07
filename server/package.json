@@ -1,0 +1,36 @@
+{
+  "name": "clinker-api",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Self-hosted auth + sync backend for the Citation Linker (clinker) browser extension",
+  "type": "module",
+  "main": "dist/index.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.4.1",
+    "@fastify/rate-limit": "^11.2.2",
+    "argon2": "^0.45.2",
+    "fastify": "^5.12.8",
+    "jose": "^6.2.15",
+    "nodemailer": "^10.3.1",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/nodemailer": "^8.0.2",
+    "@types/pg": "^8.23.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}

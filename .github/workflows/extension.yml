@@ -1,0 +1,210 @@
+name: Extension
+
+# Test + build on every PR and push to main. On push to main (incl. PR merges) the
+# Chrome Web Store and Firefox Add-ons (AMO) builds are published automatically.
+#
+# Version: <major>.<minor> from manifest.json + the workflow run number as the patch
+# (e.g. 2.0.37), so every publish has a unique, increasing version without bump commits.
+# To start a new minor/major line, change manifest.json's version (e.g. to 2.1.0).
+#
+# Secrets: CHROME_EXTENSION_ID, CHROME_PUBLISHER_ID, CHROME_CLIENT_ID,
+#          CHROME_CLIENT_SECRET, CHROME_REFRESH_TOKEN, FIREFOX_API_KEY, FIREFOX_API_SECRET
+# Variables (optional): API_BASE_URL, DONATION_URL
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "server/**"
+      - "deploy/**"
+      - "docs/**"
+      - "**/*.md"
+      - ".github/workflows/api-image.yml"
+      - ".github/workflows/secret-scanning.yml"
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish to which stores"
+        type: choice
+        options: [both, chrome, firefox, none]
+        default: both
+
+permissions:
+  contents: read
+
+concurrency:
+  group: extension-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NODE_VERSION: 22
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test -- --ci
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+
+      - name: Compute version
+        id: version
+        run: |
+          BASE=$(jq -r '.version' manifest.json | cut -d. -f1-2)
+          VERSION="$BASE.$GITHUB_RUN_NUMBER"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          jq --arg v "$VERSION" '.version = $v' manifest.json > m.tmp && mv m.tmp manifest.json
+          npm version "$VERSION" --no-git-tag-version --allow-same-version >/dev/null
+          echo "Building version $VERSION"
+
+      - name: Build Chrome and Firefox packages
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+          DONATION_URL: ${{ vars.DONATION_URL }}
+        run: npm run build:extension:all
+
+      - name: Lint Firefox build (AMO validator)
+        run: npx web-ext lint --source-dir dist-firefox --warnings-as-errors
+
+      - name: Source archive for AMO review
+        # AMO asks for readable source when shipped code is transpiled (tsc).
+        run: git archive --format=zip -o source-code.zip HEAD
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chrome-${{ steps.version.outputs.version }}
+          path: citation-linker-chrome.zip
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firefox-${{ steps.version.outputs.version }}
+          path: |
+            dist-firefox/
+            source-code.zip
+          if-no-files-found: error
+
+  # PRs: read-only check that the store credentials still work, so a broken token is
+  # caught before merge instead of failing the publish. Skipped for forks/Dependabot
+  # (no access to secrets).
+  store-credentials:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        store: [chrome, firefox]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: node scripts/store-check.mjs ${{ matrix.store }}
+        env:
+          CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          CHROME_PUBLISHER_ID: ${{ secrets.CHROME_PUBLISHER_ID }}
+          CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          FIREFOX_API_KEY: ${{ secrets.FIREFOX_API_KEY }}
+          FIREFOX_API_SECRET: ${{ secrets.FIREFOX_API_SECRET }}
+
+  publish-chrome:
+    needs: build
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && (inputs.publish == 'both' || inputs.publish == 'chrome'))
+    runs-on: ubuntu-latest
+    concurrency:
+      group: publish-chrome
+      cancel-in-progress: false
+    env:
+      CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+      CHROME_PUBLISHER_ID: ${{ secrets.CHROME_PUBLISHER_ID }}
+      CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+      CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+      CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Check credentials
+        run: node scripts/store-check.mjs chrome
+      - uses: actions/download-artifact@v4
+        with:
+          name: chrome-${{ needs.build.outputs.version }}
+      - name: Upload and publish ${{ needs.build.outputs.version }} to Chrome Web Store
+        env:
+          EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          PUBLISHER_ID: ${{ secrets.CHROME_PUBLISHER_ID }}
+          CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+        run: npx chrome-webstore-upload --source citation-linker-chrome.zip
+
+  publish-firefox:
+    needs: build
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && (inputs.publish == 'both' || inputs.publish == 'firefox'))
+    runs-on: ubuntu-latest
+    concurrency:
+      group: publish-firefox
+      cancel-in-progress: false
+    env:
+      FIREFOX_API_KEY: ${{ secrets.FIREFOX_API_KEY }}
+      FIREFOX_API_SECRET: ${{ secrets.FIREFOX_API_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Check credentials
+        run: node scripts/store-check.mjs firefox
+      - uses: actions/download-artifact@v4
+        with:
+          name: firefox-${{ needs.build.outputs.version }}
+          path: artifact
+      - name: Submit ${{ needs.build.outputs.version }} to Firefox Add-ons (listed)
+        # --approval-timeout 0: submit and return; AMO review happens asynchronously.
+        # --amo-metadata: listing details (summary, categories, license...). Required to
+        # complete the listing; sent with every version so store/amo-metadata.json is the
+        # source of truth for the AMO listing text.
+        run: >-
+          npx web-ext sign
+          --source-dir artifact/dist-firefox
+          --channel listed
+          --api-key "$FIREFOX_API_KEY"
+          --api-secret "$FIREFOX_API_SECRET"
+          --upload-source-code artifact/source-code.zip
+          --amo-metadata store/amo-metadata.json
+          --approval-timeout 0

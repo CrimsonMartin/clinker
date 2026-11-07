@@ -162,6 +162,16 @@ describe('AuthStatus', () => {
       }).not.toThrow();
     });
 
+    it('should make the signed-in email a link to the account page', () => {
+      const userEmail = document.getElementById('userEmail');
+
+      expect(userEmail?.title).toBe('Manage account');
+      // jsdom does not implement navigation; just make sure the handler runs
+      expect(() => {
+        userEmail?.dispatchEvent(new Event('click'));
+      }).not.toThrow();
+    });
+
     it('should call signOut when logout button is clicked', async () => {
       const logoutButton = document.getElementById('logoutButton');
       

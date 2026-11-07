@@ -190,6 +190,81 @@ class TabService {
     await browser.storage.local.set({ [this.storageKey]: tabsData });
   }
 
+  // Persist a new tab order. Ids not mentioned keep their relative order at the end.
+  async reorderTabs(orderedIds: string[]): Promise<boolean> {
+    const tabsData = await this.getTabs();
+    const byId = new Map(tabsData.tabs.map(t => [t.id, t] as [string, CitationLinker.Tab]));
+    const reordered: CitationLinker.Tab[] = [];
+    orderedIds.forEach(id => {
+      const tab = byId.get(id);
+      if (tab) {
+        reordered.push(tab);
+        byId.delete(id);
+      }
+    });
+    tabsData.tabs.forEach(t => { if (byId.has(t.id)) reordered.push(t); });
+
+    const unchanged = reordered.every((t, i) => t.id === tabsData.tabs[i].id);
+    if (unchanged) return false;
+
+    tabsData.tabs = reordered;
+    await browser.storage.local.set({ [this.storageKey]: tabsData });
+    return true;
+  }
+
+  // Move a node (with its whole subtree) from one tab to another.
+  // The node becomes the last root node of the target tab.
+  async moveNodeToTab(nodeId: number, fromTabId: string, toTabId: string): Promise<boolean> {
+    if (fromTabId === toTabId) return false;
+    const tabsData = await this.getTabs();
+    const from = tabsData.tabs.find(t => t.id === fromTabId);
+    const to = tabsData.tabs.find(t => t.id === toTabId);
+    if (!from || !to) return false;
+
+    const fromNodes = from.treeData.nodes;
+    const node = fromNodes.find(n => n.id === nodeId);
+    if (!node) return false;
+
+    // Collect subtree ids
+    const ids = new Set<number>();
+    const collect = (id: number) => {
+      if (ids.has(id)) return;
+      ids.add(id);
+      fromNodes.filter(n => n.parentId === id).forEach(n => collect(n.id));
+    };
+    collect(nodeId);
+
+    // Detach from old parent
+    if (node.parentId !== null) {
+      const parent = fromNodes.find(n => n.id === node.parentId);
+      if (parent && parent.children) {
+        parent.children = parent.children.filter(id => id !== nodeId);
+      }
+    }
+
+    const moving = fromNodes.filter(n => ids.has(n.id));
+    from.treeData.nodes = fromNodes.filter(n => !ids.has(n.id));
+    if (from.treeData.currentNodeId !== null && ids.has(from.treeData.currentNodeId)) {
+      from.treeData.currentNodeId = null;
+    }
+
+    node.parentId = null;
+    // Avoid id collisions in the target tab
+    const targetIds = new Set(to.treeData.nodes.map(n => n.id));
+    if (moving.some(n => targetIds.has(n.id))) {
+      console.warn('Node id collision while moving between tabs; aborting');
+      return false;
+    }
+    moving.forEach(n => { (n as any).tabId = toTabId; });
+    to.treeData.nodes = [...to.treeData.nodes, ...moving];
+
+    const now = Date.now();
+    from.lastModified = now;
+    to.lastModified = now;
+    await browser.storage.local.set({ [this.storageKey]: tabsData });
+    return true;
+  }
+
   // Get all tabs for display
   async getTabsForDisplay(): Promise<CitationLinker.Tab[]> {
     const tabsData = await this.getTabs();

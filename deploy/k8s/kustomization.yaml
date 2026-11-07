@@ -1,0 +1,44 @@
+# Kustomize base for the clinker sync API.
+#
+#   kubectl apply -k deploy/k8s
+#
+# Before applying, create the `clinker-secrets` Secret (see secret.example.yaml / deploy/README.md).
+# Cluster-specific values to check (search for "PATCHME"):
+#   - ingress.yaml: ingressClassName, TLS secret name, cert-manager annotation
+#   - configMapGenerator below: PUBLIC_BASE_URL, MAIL_FROM, CORS_EXTRA_ORIGINS
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: clinker
+
+resources:
+  - namespace.yaml
+  - api-deployment.yaml
+  - api-service.yaml
+  - ingress.yaml
+  # NOTE: secret.example.yaml is intentionally NOT listed; never commit real secrets.
+
+components:
+  # In-cluster single-replica Postgres. Remove this line if the cluster already has a
+  # Postgres you want to use, and point DATABASE_URL in the secret at it instead.
+  - postgres
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: clinker
+    includeSelectors: false
+
+configMapGenerator:
+  - name: clinker-api-config
+    literals:
+      - PUBLIC_BASE_URL=https://clinker.lanerate.io # PATCHME if the host changes
+      - CORS_EXTRA_ORIGINS=                         # comma-separated extra web origins, usually empty
+      - LOG_LEVEL=info
+      - TRUST_PROXY=true
+      - AUTH_RATE_LIMIT_MAX=10
+      - MAIL_FROM=Citation Linker <no-reply@lanerate.io> # PATCHME (only used when SMTP_URL is set)
+
+images:
+  - name: ghcr.io/crimsonmartin/clinker-api
+    newName: ghcr.io/crimsonmartin/clinker-api
+    newTag: sha-046a3ec-dev3 # bump on each deploy (CI pushes sha-<commit>)

@@ -1,0 +1,26 @@
+{
+  "slug": "citation-linker",
+  "categories": {
+    "firefox": [
+      "bookmarks",
+      "search-tools"
+    ]
+  },
+  "summary": {
+    "en-US": "Save highlights from research papers and web pages, link them into citation trees, annotate them, and export references in APA, MLA, Chicago, BibTeX and more."
+  },
+  "description": {
+    "en-US": "Citation Linker turns the pages you read into an organized, citable research trail.\n\n**Save and link sources.** Select text on any page and save it with one click. Each highlight keeps its page, title and citation details, and links to the highlight you came from, so you can see how one source led to the next.\n\n**Organize visually.** Arrange highlights into trees by dragging them before, after or inside each other. Use tabs to keep separate projects apart.\n\n**Annotate.** Add typed or voice notes to any highlight.\n\n**Reference manager.** Citation details (authors, date, journal, volume, pages, DOI) are captured from the page automatically, can be fetched by DOI, and can be edited by hand. Export a single source, a branch, a project or everything as APA 7, MLA 9, Chicago, Harvard or IEEE, or as BibTeX, RIS or CSL-JSON for Zotero, Mendeley and EndNote.\n\n**Search.** Find any highlight or note across all your projects.\n\n**Optional sync.** Works fully offline without an account. Create a free account to sync across devices. Sync data is stored on our own server in the EU; see the privacy policy: https://clinker.lanerate.io/privacy"
+  },
+  "homepage": {
+    "en-US": "https://github.com/CrimsonMartin/clinker"
+  },
+  "requires_payment": false,
+  "version": {
+    "license": "MIT",
+    "approval_notes": "Source: the uploaded source-code archive (also https://github.com/CrimsonMartin/clinker). Build: `npm ci && npm run build:extension:firefox` produces dist-firefox/ (TypeScript compiled by tsc, no minification or bundling).\n\nTesting: select text on any page and click the floating button to save a highlight; open the toolbar popup to see, drag and export them. Sync is optional: create an account from the popup (email + password, no verification needed). The only remote host is our API at https://clinker.lanerate.io (auth, sync, DOI lookup). Privacy policy: https://clinker.lanerate.io/privacy",
+    "release_notes": {
+      "en-US": "Self-hosted sync, a cleaner interface with working drag-and-drop, and reference export (APA, MLA, Chicago, Harvard, IEEE, BibTeX, RIS, CSL-JSON)."
+    }
+  }
+}

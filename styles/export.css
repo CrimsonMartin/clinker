@@ -1,0 +1,299 @@
+/* Citation Linker - export / cite dialog and citation editor (components/exportDialog.ts, citationEditor.ts) */
+
+.cite-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3, 12px);
+  background: var(--overlay, rgba(15, 18, 25, 0.5));
+}
+
+.cite-modal-content {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 440px;
+  max-height: 100%;
+  border: 1px solid var(--border, #e2e5ea);
+  border-radius: var(--radius-lg, 10px);
+  background: var(--surface, #fff);
+  color: var(--text, #1d2230);
+  box-shadow: var(--shadow-md, 0 6px 20px rgba(16, 24, 40, 0.14));
+  overflow: hidden;
+}
+
+.cite-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3, 12px) var(--space-3, 12px) var(--space-2, 8px) var(--space-4, 16px);
+  border-bottom: 1px solid var(--border, #e2e5ea);
+}
+
+.cite-modal-header h3 {
+  margin: 0;
+  font-size: var(--text-lg, 15px);
+  font-weight: 600;
+}
+
+.cite-modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-3, 12px) var(--space-4, 16px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2, 8px);
+}
+
+.cite-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2, 8px);
+  padding: var(--space-2, 8px) var(--space-3, 12px) var(--space-3, 12px) var(--space-4, 16px);
+  border-top: 1px solid var(--border, #e2e5ea);
+}
+
+.cite-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1, 4px);
+  flex-shrink: 0;
+}
+
+.cite-footer-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  min-width: 0;
+}
+
+/* Controls */
+.cite-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2, 8px);
+  align-items: end;
+}
+
+.cite-controls .cite-check {
+  grid-column: 1 / -1;
+}
+
+.cite-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cite-field-label {
+  font-size: var(--text-xs, 11px);
+  font-weight: 600;
+  color: var(--text-muted, #586173);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.cite-select,
+.cite-input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 28px;
+  padding: 4px var(--space-2, 8px);
+  border: 1px solid var(--border-strong, #c9ced6);
+  border-radius: var(--radius-sm, 4px);
+  background: var(--surface, #fff);
+  color: var(--text, #1d2230);
+  font: inherit;
+  font-size: var(--text-base, 13px);
+}
+
+textarea.cite-input {
+  resize: vertical;
+  line-height: 1.35;
+}
+
+.cite-select:focus-visible,
+.cite-input:focus-visible,
+.cite-preview:focus-visible {
+  outline: none;
+  border-color: var(--accent, #4f46e5);
+  box-shadow: var(--focus-ring, 0 0 0 2px var(--accent, #4f46e5));
+}
+
+.cite-select-compact {
+  width: auto;
+  min-height: 28px;
+}
+
+.cite-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1, 4px);
+  font-size: var(--text-sm, 12px);
+  color: var(--text-muted, #586173);
+  cursor: pointer;
+}
+
+.cite-summary {
+  font-size: var(--text-xs, 11px);
+  color: var(--text-subtle, #8a93a2);
+}
+
+.cite-intext {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1, 4px);
+  font-size: var(--text-sm, 12px);
+  color: var(--text-muted, #586173);
+}
+
+.cite-intext:empty {
+  display: none;
+}
+
+.cite-intext-value {
+  padding: 1px 6px;
+  border-radius: var(--radius-sm, 4px);
+  background: var(--surface-2, #f0f2f5);
+  color: var(--text, #1d2230);
+}
+
+.cite-intext-copy {
+  width: 24px;
+  height: 24px;
+}
+
+.cite-intext-copy .icon {
+  width: 13px;
+  height: 13px;
+}
+
+/* Preview */
+.cite-preview {
+  flex: 1;
+  min-height: 120px;
+  max-height: 260px;
+  overflow: auto;
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  border: 1px solid var(--border, #e2e5ea);
+  border-radius: var(--radius, 6px);
+  background: var(--surface-2, #f0f2f5);
+  color: var(--text, #1d2230);
+  font-size: var(--text-sm, 12px);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.cite-preview.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-subtle, #8a93a2);
+  text-align: center;
+}
+
+.cite-preview-rich {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: var(--text-base, 13px);
+}
+
+.cite-preview-rich .csl-entry {
+  padding-left: 1.6em;
+  text-indent: -1.6em;
+  margin-bottom: var(--space-2, 8px);
+}
+
+.cite-preview-rich .csl-entry:last-child {
+  margin-bottom: 0;
+}
+
+.cite-preview-rich .csl-quote {
+  margin: -4px 0 var(--space-2, 8px) 1.6em;
+  padding-left: var(--space-2, 8px);
+  border-left: 2px solid var(--border-strong, #c9ced6);
+  color: var(--text-muted, #586173);
+  font-style: italic;
+  font-size: var(--text-sm, 12px);
+}
+
+.cite-preview-rich a {
+  color: var(--accent, #4f46e5);
+  text-decoration: none;
+}
+
+.cite-preview-code {
+  margin: 0;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--text-xs, 11px);
+  white-space: pre;
+}
+
+.cite-status {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm, 12px);
+  color: var(--success, #16a34a);
+}
+
+.cite-status.error {
+  color: var(--danger, #dc2626);
+}
+
+/* Citation editor */
+.cite-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px);
+}
+
+.cite-form > .cite-field {
+  flex: 1 1 100%;
+}
+
+.cite-form > .cite-field-half {
+  flex: 1 1 calc(50% - var(--space-2, 8px));
+}
+
+.cite-form > .cite-field-third {
+  flex: 1 1 calc(33% - var(--space-2, 8px));
+}
+
+.cite-doi-row {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2, 8px);
+}
+
+.cite-doi-row .cite-field {
+  flex: 1;
+}
+
+.cite-fetch {
+  flex-shrink: 0;
+  min-height: 28px;
+  border: 1px solid var(--border-strong, #c9ced6);
+}
+
+.cite-editor-preview {
+  flex: none;
+  min-height: 0;
+  max-height: 90px;
+}
+
+/* Node card citation line */
+.tree-node-citation {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted, #586173);
+}
