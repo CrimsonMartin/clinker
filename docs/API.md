@@ -36,7 +36,11 @@ Refresh token: opaque random string (stored hashed server-side), 30 day TTL, rot
 | GET | /v1/meta/doi/{doi} | — | 200 `CslItem` · 400 `invalid_doi` · 404 `doi_not_found` · 502 `upstream_error` · 429 `rate_limited` |
 
 Auth required. `{doi}` is a DOI (`10.1234/abc`), optionally prefixed with `doi:` or `https://doi.org/`; clients should
-`encodeURIComponent` it, but unencoded slashes are accepted (the route is `/v1/meta/doi/*`).
+`encodeURIComponent` it, but unencoded slashes are accepted (the route is `/v1/meta/doi/*`). After decoding, DOIs
+containing `.`/`..` path segments, `?`, `#`, `\`, whitespace or control characters are rejected with 400 `invalid_doi`.
+Upstream requests percent-encode each DOI path segment, never follow redirects automatically (at most 3 redirects are
+followed, and only to `https://` URLs on an allowlist of DOI registry hosts: doi.org, dx.doi.org, api/data.crossref.org,
+api/data.datacite.org, data.crosscite.org, data.medra.org, japanlinkcenter.org), and stream response bodies with a 2 MB cap.
 The server fetches `https://doi.org/{doi}` with `Accept: application/vnd.citationstyles.csl+json` and falls back to
 `https://api.crossref.org/works/{doi}`, then normalizes to CSL-JSON: only known CSL fields are kept, markup is stripped,
 array-valued Crossref fields become strings, Crossref types are mapped to CSL types, `DOI` is the requested DOI and
