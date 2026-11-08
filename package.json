@@ -27,7 +27,7 @@
     "@types/firefox-webext-browser": "^120.0.4",
     "@types/jest": "^29.5.14",
     "@types/node": "^24.1.0",
-    "archiver": "^7.0.1",
+    "archiver": "^8.0.0",
     "dotenv": "^16.5.0",
     "jest": "^30.0.0",
     "jest-environment-jsdom": "^30.0.0",
@@ -35,5 +35,9 @@
     "ts-jest": "^29.4.0",
     "typescript": "^5.8.3",
     "web-ext": "^10.8.0"
+  },
+  "overrides": {
+    "glob": "^14.0.4",
+    "minimatch@>=7.0.0 <11.0.1": "^11.0.5"
   }
 }

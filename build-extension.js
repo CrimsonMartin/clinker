@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
-const archiver = require('archiver');
+const { ZipArchive } = require('archiver');
 const { getConfig } = require('./build-config');
 
 // Configuration
@@ -157,7 +157,7 @@ function zipDirectory(sourceDir, outputPath) {
   return new Promise((resolve, reject) => {
     // Create a file to stream archive data to
     const output = fs.createWriteStream(outputPath);
-    const archive = archiver('zip', {
+    const archive = new ZipArchive({
       zlib: { level: 9 } // Sets the compression level
     });
 
