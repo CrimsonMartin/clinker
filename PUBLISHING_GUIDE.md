@@ -32,7 +32,6 @@ The extension syncs with a self-hosted API (contract: `docs/API.md`, code: `serv
 | Secret Name | Description | How to get |
 |-------------|-------------|------------|
 | `CHROME_EXTENSION_ID` | Your Chrome extension ID | After creating extension in Chrome Web Store Developer Dashboard |
-| `CHROME_PUBLISHER_ID` | Your developer account (publisher) ID — **not** the extension ID | Developer Dashboard → Settings / Account, or the dashboard URL. Required by the v2 Chrome Web Store API |
 | `CHROME_CLIENT_ID` | OAuth2 Client ID | Google Cloud Console → APIs & Credentials |
 | `CHROME_CLIENT_SECRET` | OAuth2 Client Secret | Google Cloud Console → APIs & Credentials |
 | `CHROME_REFRESH_TOKEN` | OAuth2 Refresh Token | Generated using Chrome Web Store API |
@@ -91,7 +90,7 @@ Everything runs from one workflow, `.github/workflows/extension.yml`:
 
 Pushes that only touch `server/`, `deploy/`, `docs/` or Markdown don't publish (the API has its own `api-image.yml`).
 
-- **Chrome**: uploaded and submitted with `chrome-webstore-upload-cli` (v2 API). Google review then runs as usual.
+- **Chrome**: uploaded and submitted by `scripts/chrome-store.mjs` (Chrome Web Store API v1.1, no publisher ID needed). Google review then runs as usual.
 - **Firefox**: submitted to the listed channel with `web-ext sign`, with a source-code archive attached for AMO review. The job doesn't wait for review.
 - A PR whose credential check fails means a store token expired or was revoked — fix the secret before merging, or the publish job will fail.
 

@@ -21,48 +21,12 @@ function need(...names) {
 }
 
 async function checkChrome() {
-  need('CHROME_CLIENT_ID', 'CHROME_CLIENT_SECRET', 'CHROME_REFRESH_TOKEN', 'CHROME_EXTENSION_ID');
-  // Check the OAuth refresh token on its own first, so a missing publisher ID doesn't hide it.
-  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: process.env.CHROME_CLIENT_ID,
-      client_secret: process.env.CHROME_CLIENT_SECRET,
-      refresh_token: process.env.CHROME_REFRESH_TOKEN,
-      grant_type: 'refresh_token',
-    }),
-  });
-  const tokenBody = await tokenRes.json().catch(() => ({}));
-  if (!tokenRes.ok) {
-    fail(`Chrome OAuth refresh failed (${tokenBody.error}: ${tokenBody.error_description || ''}). The refresh token is ` +
-      'expired or revoked (tokens from an OAuth app in "Testing" mode expire after 7 days) — regenerate it ' +
-      '(https://github.com/fregante/chrome-webstore-upload-keys) and update CHROME_REFRESH_TOKEN.');
-  }
-  console.log(`Chrome OAuth refresh token OK (scope: ${tokenBody.scope}).`);
-  need('CHROME_PUBLISHER_ID');
-  const { default: chromeWebstoreUpload } = await import('chrome-webstore-upload');
-  const store = chromeWebstoreUpload({
-    extensionId: process.env.CHROME_EXTENSION_ID,
-    publisherId: process.env.CHROME_PUBLISHER_ID,
-    clientId: process.env.CHROME_CLIENT_ID,
-    clientSecret: process.env.CHROME_CLIENT_SECRET,
-    refreshToken: process.env.CHROME_REFRESH_TOKEN,
-  });
-  let token;
+  // Delegates to the v1.1 client (no publisher ID needed).
+  const { execFileSync } = await import('node:child_process');
   try {
-    token = await store.fetchToken();
-  } catch (e) {
-    fail(`Chrome OAuth refresh failed (${e.message}). The refresh token is probably expired or revoked — ` +
-      'regenerate it (https://github.com/fregante/chrome-webstore-upload-keys) and update CHROME_REFRESH_TOKEN.');
-  }
-  try {
-    const status = await store.get(token);
-    console.log('Chrome Web Store item status:');
-    console.log(JSON.stringify(status, null, 2));
-  } catch (e) {
-    fail(`Chrome Web Store API rejected the status call (${e.message}). Check CHROME_EXTENSION_ID / CHROME_PUBLISHER_ID ` +
-      'and that the OAuth client\'s Google Cloud project has the Chrome Web Store API enabled.');
+    execFileSync(process.execPath, ['scripts/chrome-store.mjs', 'check'], { stdio: 'inherit' });
+  } catch {
+    process.exit(1);
   }
 }
 
