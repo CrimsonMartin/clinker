@@ -16,6 +16,7 @@ resources:
   - api-deployment.yaml
   - api-service.yaml
   - ingress.yaml
+  - api-networkpolicy.yaml
   # NOTE: secret.example.yaml is intentionally NOT listed; never commit real secrets.
 
 components:
@@ -41,4 +42,4 @@ configMapGenerator:
 images:
   - name: ghcr.io/crimsonmartin/clinker-api
     newName: ghcr.io/crimsonmartin/clinker-api
-    newTag: sha-30cd20c # CI deploys newer images automatically (api-image.yml → deploy job)
+    newTag: sha-f90f05a # CI deploys newer images automatically (api-image.yml → deploy job)

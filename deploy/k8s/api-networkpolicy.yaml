@@ -1,0 +1,38 @@
+# Egress allowlist for the API pod (limits SSRF blast radius): DNS, its Postgres, and HTTPS to
+# the public internet only. Cluster, node, link-local (incl. the Hetzner metadata service) and
+# private ranges are excluded. Ingress is left open (traffic arrives via ingress-nginx on the host network).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: clinker-api-egress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: clinker-api
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres
+      ports:
+        - {protocol: TCP, port: 5432}
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16, 100.64.0.0/10, 127.0.0.0/8, 77.42.17.46/32]
+        - ipBlock:
+            cidr: ::/0
+            except: ["fc00::/7", "fe80::/10", "::1/128", "2a01:4f9:c013:223f::/64"]
+      ports:
+        - {protocol: TCP, port: 443}
