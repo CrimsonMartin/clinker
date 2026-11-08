@@ -168,9 +168,80 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  document.getElementById('signOutEverywhereBtn').addEventListener('click', async () => {
+    const button = document.getElementById('signOutEverywhereBtn');
+    clearAllErrors();
+
+    const confirmed = window.confirm(
+      'Sign out of Citation Linker on every device and browser, including this one?'
+    );
+    if (!confirmed) return;
+
+    button.disabled = true;
+    const result = await authManager.signOutEverywhere();
+    button.disabled = false;
+    if (result.success) {
+      showSuccess('Signed out on all devices.');
+      renderView(null);
+    } else {
+      showError('account-actions', result.error);
+    }
+  });
+
+  document.getElementById('showChangePasswordBtn').addEventListener('click', () => {
+    clearAllErrors();
+    const form = document.getElementById('changePasswordForm');
+    form.classList.toggle('active');
+    if (form.classList.contains('active')) {
+      document.getElementById('change-current-password').focus();
+    }
+  });
+
+  document.getElementById('changePasswordForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const form = document.getElementById('changePasswordForm');
+    const currentPassword = document.getElementById('change-current-password').value;
+    const newPassword = document.getElementById('change-new-password').value;
+    const confirmPassword = document.getElementById('change-confirm-password').value;
+    const submitBtn = document.getElementById('changePasswordBtn');
+
+    clearAllErrors();
+
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      showError('change-new-password', `Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      showError('change-confirm-password', 'Passwords do not match');
+      return;
+    }
+
+    setLoading(submitBtn, true);
+    const result = await authManager.changePassword(currentPassword, newPassword);
+    setLoading(submitBtn, false);
+
+    if (result.success) {
+      form.reset();
+      form.classList.remove('active');
+      showSuccess('Password changed. Other devices have been signed out.');
+    } else {
+      showError('change-current-password', result.error);
+    }
+  });
+
   document.getElementById('deleteAccountBtn').addEventListener('click', async () => {
     const button = document.getElementById('deleteAccountBtn');
+    const passwordInput = document.getElementById('delete-password');
     clearAllErrors();
+
+    const password = passwordInput.value;
+    if (!password) {
+      showError('account', 'Enter your password to delete your account');
+      passwordInput.classList.add('error');
+      passwordInput.focus();
+      return;
+    }
 
     const confirmed = window.confirm(
       'Permanently delete your Citation Linker account and all synced research? This cannot be undone.'
@@ -180,8 +251,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     button.disabled = true;
     button.textContent = 'Deleting...';
 
-    const result = await authManager.deleteAccount();
+    const result = await authManager.deleteAccount(password);
     if (result.success) {
+      passwordInput.value = '';
       showSuccess('Your account has been deleted.');
       renderView(null);
     } else {
@@ -236,6 +308,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         button.textContent = 'Create Account';
       } else if (button.id === 'resetBtn') {
         button.textContent = 'Set New Password';
+      } else if (button.id === 'changePasswordBtn') {
+        button.textContent = 'Update Password';
       }
     }
   }
@@ -263,4 +337,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Already signed in: show account management instead of the sign-in forms
   renderView(authManager.getCurrentUser());
+
+  // Only offer password reset when the server can actually send the email.
+  const serverConfig = await authManager.getServerConfig();
+  document.getElementById('forgotPasswordLinks').hidden = !(serverConfig && serverConfig.passwordReset);
 });

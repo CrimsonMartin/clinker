@@ -261,6 +261,8 @@ class AuthManager {
       invalid_credentials: 'Incorrect email or password',
       invalid_refresh_token: 'Your session has expired. Please sign in again',
       invalid_token: 'This reset code is invalid or has expired',
+      invalid_password: 'Incorrect password',
+      registration_closed: 'New account registration is currently closed',
       rate_limited: 'Too many attempts. Please try again later',
       not_found: 'Not found'
     };
@@ -305,14 +307,20 @@ class AuthManager {
     }
   }
 
-  // Permanently delete the account and all synced data (DELETE /v1/me), then
-  // clear local auth state and user data.
-  async deleteAccount() {
+  // Permanently delete the account and all synced data (DELETE /v1/me, which
+  // requires the current password), then clear local auth state and user data.
+  async deleteAccount(password) {
     if (!this.currentUser) {
       return { success: false, error: 'Not signed in' };
     }
+    if (!password) {
+      return { success: false, error: 'Enter your password to delete your account' };
+    }
     try {
-      const response = await this.authorizedFetch('/v1/me', { method: 'DELETE' });
+      const response = await this.authorizedFetch('/v1/me', {
+        method: 'DELETE',
+        body: JSON.stringify({ password })
+      });
       if (!response.ok) {
         throw await toApiError(response);
       }
@@ -325,6 +333,67 @@ class AuthManager {
     } catch (error) {
       console.error('Delete account error:', error);
       return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  // Change the password (POST /v1/auth/password). The server signs out every
+  // other session and returns a fresh token pair for this one.
+  async changePassword(currentPassword, newPassword) {
+    if (!this.currentUser) {
+      return { success: false, error: 'Not signed in' };
+    }
+    try {
+      const response = await this.authorizedFetch('/v1/auth/password', {
+        method: 'POST',
+        body: JSON.stringify({ currentPassword, newPassword })
+      });
+      if (!response.ok) {
+        throw await toApiError(response);
+      }
+      await this.setSession(await readJson(response), { notify: false });
+      console.log('Password changed');
+      return { success: true };
+    } catch (error) {
+      console.error('Change password error:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  // Sign out of every device (POST /v1/auth/logout-all), then end the local
+  // session like signOut(). If the server call fails nothing is changed locally,
+  // so the user can retry.
+  async signOutEverywhere() {
+    if (!this.currentUser) {
+      return { success: false, error: 'Not signed in' };
+    }
+    try {
+      const response = await this.authorizedFetch('/v1/auth/logout-all', { method: 'POST' });
+      if (!response.ok) {
+        throw await toApiError(response);
+      }
+      this.cancelTokenRefresh();
+      await this.endLocalSession();
+      await this.clearUserData();
+      console.log('Signed out everywhere');
+      return { success: true };
+    } catch (error) {
+      console.error('Sign out everywhere error:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  // Public server capabilities (GET /v1/config), e.g. whether password reset
+  // mail can be sent. Returns null if the server can't be reached.
+  async getServerConfig() {
+    try {
+      const data = await this.apiRequest('GET', '/v1/config');
+      return {
+        passwordReset: !!(data && data.passwordReset),
+        registrationOpen: !!(data && data.registrationOpen)
+      };
+    } catch (error) {
+      console.warn('Could not load server config:', error.message);
+      return null;
     }
   }
 
@@ -454,11 +523,23 @@ class AuthManager {
     }
 
     this.refreshPromise = (async () => {
-      const usedToken = this.refreshToken;
-      if (!usedToken) {
+      // storage.local is the source of truth shared by all extension pages. If another page
+      // already rotated the pair, use that instead of replaying our stale refresh token: the
+      // server treats a late replay of a rotated token as theft and revokes the whole session.
+      const current = await this.getStorageData(AUTH_STORAGE_KEYS);
+      if (!current.isLoggedIn || !current.refreshToken) {
         await this.handleSessionExpired();
         throw new Error('Session expired. Please sign in again');
       }
+      if (current.refreshToken !== this.refreshToken) {
+        this.adoptStoredSession(current);
+        if (this.currentUser && this.currentUser.authToken &&
+            this.tokenExpiry - Date.now() >= TOKEN_REFRESH_MARGIN_MS) {
+          return;
+        }
+      }
+
+      const usedToken = this.refreshToken;
 
       try {
         const data = await this.apiRequest('POST', '/v1/auth/refresh', { refreshToken: usedToken });
@@ -469,10 +550,7 @@ class AuthManager {
           // Another extension page may have rotated the token already; adopt it.
           const stored = await this.getStorageData(AUTH_STORAGE_KEYS);
           if (stored.isLoggedIn && stored.refreshToken && stored.refreshToken !== usedToken) {
-            this.refreshToken = stored.refreshToken;
-            this.tokenExpiry = stored.tokenExpiry ? new Date(stored.tokenExpiry).getTime() : 0;
-            if (this.currentUser) this.currentUser.authToken = stored.authToken;
-            this.scheduleTokenRefresh();
+            this.adoptStoredSession(stored);
             return;
           }
           await this.handleSessionExpired();
@@ -488,6 +566,14 @@ class AuthManager {
     } finally {
       this.refreshPromise = null;
     }
+  }
+
+  // Take over a token pair that another extension page stored.
+  adoptStoredSession(stored) {
+    this.refreshToken = stored.refreshToken;
+    this.tokenExpiry = stored.tokenExpiry ? new Date(stored.tokenExpiry).getTime() : 0;
+    if (this.currentUser) this.currentUser.authToken = stored.authToken || null;
+    this.scheduleTokenRefresh();
   }
 
   // The refresh token was rejected: drop the session (keep local research data).

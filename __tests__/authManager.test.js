@@ -273,6 +273,38 @@ describe('AuthManager', () => {
       expect(authManager.refreshToken).toBe('refresh-other');
     });
 
+    it('uses a pair already rotated by another page instead of replaying a stale refresh token', async () => {
+      authManager.tokenExpiry = 0;
+      Object.assign(storageData, {
+        authToken: 'access-other',
+        refreshToken: 'refresh-other',
+        tokenExpiry: new Date(Date.now() + 15 * 60 * 1000).toISOString()
+      });
+
+      await expect(authManager.ensureValidToken()).resolves.toBe('access-other');
+      expect(global.fetch).not.toHaveBeenCalled();
+      expect(authManager.refreshToken).toBe('refresh-other');
+    });
+
+    it('refreshes with the newer stored refresh token when its access token is also stale', async () => {
+      authManager.tokenExpiry = 0;
+      Object.assign(storageData, { authToken: 'access-other', refreshToken: 'refresh-other', tokenExpiry: new Date(0).toISOString() });
+      global.fetch.mockResolvedValue(jsonResponse(200, authResponse({ accessToken: 'access-3', refreshToken: 'refresh-3' })));
+
+      await expect(authManager.ensureValidToken()).resolves.toBe('access-3');
+      expect(global.fetch).toHaveBeenCalledWith(`${API}/v1/auth/refresh`, expect.objectContaining({
+        body: JSON.stringify({ refreshToken: 'refresh-other' })
+      }));
+    });
+
+    it('does not refresh after another page signed out', async () => {
+      authManager.tokenExpiry = 0;
+      Object.assign(storageData, { isLoggedIn: false, refreshToken: null });
+      await expect(authManager.ensureValidToken()).rejects.toThrow(/Session expired/);
+      expect(global.fetch).not.toHaveBeenCalled();
+      expect(authManager.isLoggedIn()).toBe(false);
+    });
+
     it('keeps the session on network errors during refresh', async () => {
       global.fetch.mockRejectedValue(new TypeError('Failed to fetch'));
       await expect(authManager.ensureValidToken(true)).rejects.toThrow('Failed to fetch');
@@ -393,11 +425,12 @@ describe('AuthManager', () => {
       global.fetch.mockReset();
       global.fetch.mockResolvedValue(jsonResponse(204));
 
-      const result = await authManager.deleteAccount();
+      const result = await authManager.deleteAccount('password123');
 
       expect(result).toEqual({ success: true });
       expect(global.fetch).toHaveBeenCalledWith(`${API}/v1/me`, expect.objectContaining({
         method: 'DELETE',
+        body: JSON.stringify({ password: 'password123' }),
         headers: expect.objectContaining({ Authorization: 'Bearer access-1' })
       }));
       expect(authManager.getCurrentUser()).toBeNull();
@@ -411,10 +444,93 @@ describe('AuthManager', () => {
       global.fetch.mockReset();
       global.fetch.mockResolvedValue(jsonResponse(500, { error: { code: 'internal', message: 'boom' } }));
 
-      const result = await authManager.deleteAccount();
+      const result = await authManager.deleteAccount('password123');
 
       expect(result).toEqual({ success: false, error: 'boom' });
       expect(authManager.isLoggedIn()).toBe(true);
+    });
+
+    it('requires a password and reports a wrong one', async () => {
+      global.fetch.mockResolvedValueOnce(jsonResponse(200, authResponse()));
+      await authManager.signInWithEmail('test@example.com', 'password123');
+      global.fetch.mockReset();
+
+      expect((await authManager.deleteAccount('')).success).toBe(false);
+      expect(global.fetch).not.toHaveBeenCalled();
+
+      global.fetch.mockResolvedValue(jsonResponse(403, { error: { code: 'invalid_password', message: 'x' } }));
+      expect(await authManager.deleteAccount('wrong')).toEqual({ success: false, error: 'Incorrect password' });
+      expect(authManager.isLoggedIn()).toBe(true);
+    });
+  });
+
+  describe('changePassword', () => {
+    beforeEach(async () => {
+      global.fetch.mockResolvedValueOnce(jsonResponse(200, authResponse()));
+      await authManager.signInWithEmail('test@example.com', 'password123');
+      global.fetch.mockReset();
+    });
+
+    it('posts both passwords and stores the fresh token pair', async () => {
+      global.fetch.mockResolvedValue(jsonResponse(200, authResponse({ accessToken: 'access-new', refreshToken: 'refresh-new' })));
+
+      expect(await authManager.changePassword('password123', 'newpassword1')).toEqual({ success: true });
+
+      expect(global.fetch).toHaveBeenCalledWith(`${API}/v1/auth/password`, expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ currentPassword: 'password123', newPassword: 'newpassword1' }),
+        headers: expect.objectContaining({ Authorization: 'Bearer access-1' })
+      }));
+      expect(storageData.refreshToken).toBe('refresh-new');
+      expect(storageData.authToken).toBe('access-new');
+      expect(authManager.isLoggedIn()).toBe(true);
+    });
+
+    it('reports a wrong current password and keeps the session', async () => {
+      global.fetch.mockResolvedValue(jsonResponse(403, { error: { code: 'invalid_password', message: 'x' } }));
+      expect(await authManager.changePassword('nope', 'newpassword1')).toEqual({ success: false, error: 'Incorrect password' });
+      expect(storageData.refreshToken).toBe('refresh-1');
+      expect(authManager.isLoggedIn()).toBe(true);
+    });
+  });
+
+  describe('signOutEverywhere', () => {
+    beforeEach(async () => {
+      global.fetch.mockResolvedValueOnce(jsonResponse(200, authResponse()));
+      await authManager.signInWithEmail('test@example.com', 'password123');
+      global.fetch.mockReset();
+    });
+
+    it('calls logout-all and clears the local session and data', async () => {
+      global.fetch.mockResolvedValue(jsonResponse(204));
+      expect(await authManager.signOutEverywhere()).toEqual({ success: true });
+      expect(global.fetch).toHaveBeenCalledWith(`${API}/v1/auth/logout-all`, expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ Authorization: 'Bearer access-1' })
+      }));
+      expect(authManager.isLoggedIn()).toBe(false);
+      expect(storageData.refreshToken).toBeNull();
+      expect(storageData.tabsData).toBeNull();
+    });
+
+    it('keeps the session when the server call fails', async () => {
+      global.fetch.mockRejectedValue(new TypeError('Failed to fetch'));
+      const result = await authManager.signOutEverywhere();
+      expect(result.success).toBe(false);
+      expect(authManager.isLoggedIn()).toBe(true);
+    });
+  });
+
+  describe('getServerConfig', () => {
+    it('returns the server capabilities', async () => {
+      global.fetch.mockResolvedValue(jsonResponse(200, { passwordReset: false, registrationOpen: true }));
+      expect(await authManager.getServerConfig()).toEqual({ passwordReset: false, registrationOpen: true });
+      expect(global.fetch).toHaveBeenCalledWith(`${API}/v1/config`, expect.objectContaining({ method: 'GET' }));
+    });
+
+    it('returns null when the server is unreachable', async () => {
+      global.fetch.mockRejectedValue(new TypeError('Failed to fetch'));
+      expect(await authManager.getServerConfig()).toBeNull();
     });
   });
 
