@@ -37,7 +37,7 @@ configMapGenerator:
       - LOG_LEVEL=info
       - TRUST_PROXY=true
       - AUTH_RATE_LIMIT_MAX=10
-      - MAX_USERS=5                                 # small private deployment; raise to open it up
+      - MAX_USERS=200                               # cap on sync accounts (0 = unlimited)
       - MAIL_FROM=Citation Linker <no-reply@lanerate.io> # PATCHME (only used when SMTP_URL is set)
 
 images:
