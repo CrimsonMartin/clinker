@@ -1,5 +1,5 @@
-# Egress allowlist for the API pod (limits SSRF blast radius): DNS, its Postgres, and HTTPS to
-# the public internet only. Cluster, node, link-local (incl. the Hetzner metadata service) and
+# Egress allowlist for the API pod (limits SSRF blast radius): DNS, its Postgres, and HTTPS +
+# SMTP submission (587, for password-reset mail) to the public internet only. Cluster, node, link-local (incl. the Hetzner metadata service) and
 # private ranges are excluded. Ingress is left open (traffic arrives via ingress-nginx on the host network).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -36,3 +36,4 @@ spec:
             except: ["fc00::/7", "fe80::/10", "::1/128", "2a01:4f9:c013:223f::/64"]
       ports:
         - {protocol: TCP, port: 443}
+        - {protocol: TCP, port: 587}
