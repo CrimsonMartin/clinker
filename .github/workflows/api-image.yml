@@ -73,3 +73,36 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-api
+      cancel-in-progress: false
+    environment:
+      name: production
+      url: https://clinker.lanerate.io
+    steps:
+      # The key is pinned server-side to a forced command (/usr/local/bin/clinker-deploy) that
+      # only accepts "sha-<hex>", runs `kubectl set image` with a namespace-scoped service
+      # account, waits for the rollout and rolls back if it fails.
+      - name: Deploy sha-${{ github.sha }} to Hetzner k3s
+        env:
+          KEY: ${{ secrets.HETZNER_DEPLOY_KEY }}
+          KNOWN_HOSTS: ${{ secrets.HETZNER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            clinker-deploy@77.42.17.46 "sha-${GITHUB_SHA::7}"
+      - name: Smoke test
+        run: |
+          for i in $(seq 10); do
+            curl -fsS https://clinker.lanerate.io/healthz && exit 0
+            sleep 3
+          done
+          exit 1
