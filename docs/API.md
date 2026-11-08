@@ -49,3 +49,5 @@ Results are cached in memory (LRU, 5000 entries) for 24 h (not-found for 1 h); r
 ## Ops
 GET /healthz → 200 `{ok:true}` (no DB) · GET /readyz → 200 when DB reachable.
 CORS: allow origins `chrome-extension://*`, `moz-extension://*`, plus `CORS_EXTRA_ORIGINS`. Rate-limit auth routes (e.g. 10/min/IP).
+Rate-limit keys: the client IP is taken from `CF-Connecting-IP` only when the connecting peer is a Cloudflare edge
+(published ranges, hard-coded server-side); otherwise the peer address is used. IPv6 clients are grouped per /64.

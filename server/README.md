@@ -20,7 +20,7 @@ access tokens (`jose`), opaque rotating refresh tokens (stored as SHA-256 hashes
 | `PUBLIC_BASE_URL` | no | `https://clinker.lanerate.io` | Used to build the reset link `<base>/reset-password#token=…` |
 | `LOG_LEVEL` | no | `info` | pino level |
 | `TRUST_PROXY` | no | `true` | Trust `X-Forwarded-*` from the ingress. |
-| `AUTH_RATE_LIMIT_MAX` | no | `10` | Requests/minute/IP on each `/v1/auth/*` route. Keyed on `CF-Connecting-IP` when present, else the client IP. |
+| `AUTH_RATE_LIMIT_MAX` | no | `10` | Requests/minute/IP on each `/v1/auth/*` route. Keyed on `CF-Connecting-IP` only when the TCP peer is in Cloudflare's published ranges (hard-coded in `src/clientIp.ts`), else on the peer IP; IPv6 clients are bucketed per /64. |
 | `META_RATE_LIMIT_MAX` | no | `60` | Requests/minute/IP on `GET /v1/meta/doi/*` (DOI metadata lookups; results cached in memory for 24 h). |
 
 The process exits immediately with a clear message if required variables are missing or invalid.

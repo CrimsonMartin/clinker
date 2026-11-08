@@ -13,6 +13,7 @@ import { resetPageRoute } from './routes/resetPage.js';
 import { privacyPageRoute } from './routes/privacyPage.js';
 import { metaRoutes } from './routes/meta.js';
 import type { FetchLike } from './doi.js';
+import { clientIp, rateLimitBucket } from './clientIp.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -90,11 +91,8 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
 
   await app.register(rateLimit, {
     global: false,
-    // Prefer Cloudflare's client IP header when present (we sit behind CF + ingress).
-    keyGenerator: (req) => {
-      const cf = req.headers['cf-connecting-ip'];
-      return (Array.isArray(cf) ? cf[0] : cf) || req.ip;
-    },
+    // CF-Connecting-IP only when the peer is a Cloudflare edge (see clientIp.ts).
+    keyGenerator: (req) => rateLimitBucket(clientIp(req)),
     errorResponseBuilder: (_req, ctx) =>
       new ApiError(429, 'rate_limited', `Too many requests, retry in ${ctx.after}`),
   });
