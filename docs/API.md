@@ -9,7 +9,7 @@ Refresh token: opaque random string (stored hashed server-side), 30 day TTL, rot
 
 | Method | Path | Body | Success |
 |---|---|---|---|
-| POST | /v1/auth/register | `{email, password}` (password >= 8 chars) | 201 `AuthResponse` · 409 `email_taken` |
+| POST | /v1/auth/register | `{email, password}` (password >= 8 chars) | 201 `AuthResponse` · 409 `email_taken` · 403 `registration_closed` (registration disabled or `MAX_USERS` reached) |
 | POST | /v1/auth/login | `{email, password}` | 200 `AuthResponse` · 401 `invalid_credentials` |
 | POST | /v1/auth/refresh | `{refreshToken}` | 200 `AuthResponse` · 401 `invalid_refresh_token` |
 | POST | /v1/auth/logout | `{refreshToken}` | 204 (revokes that refresh token) |
@@ -25,7 +25,7 @@ Refresh token: opaque random string (stored hashed server-side), 30 day TTL, rot
 | Method | Path | Body | Success |
 |---|---|---|---|
 | GET | /v1/sync | — | 200 `SyncDoc` · 404 `not_found` if user never uploaded |
-| PUT | /v1/sync | `{data: object, baseVersion: number \| null}` | 200 `SyncDoc` · 409 `version_conflict` with body `{error, current: SyncDoc}` when baseVersion != stored version (baseVersion null = force overwrite) |
+| PUT | /v1/sync | `{data: object, baseVersion: number \| null}` | 200 `SyncDoc` · 409 `version_conflict` with body `{error, current: SyncDoc}` when baseVersion != stored version (baseVersion null = force overwrite) · 429 `rate_limited` (`SYNC_RATE_LIMIT_MAX`, default 30 PUTs/min per user) |
 
 `SyncDoc = { data: object, version: number, updatedAt: ISO8601 }`
 `data` is opaque to the server (the extension stores `{ tabsData, tabsMetadata, citationTree, ... }`). Max body 5 MB.
@@ -49,6 +49,15 @@ Results are cached in memory (LRU, 5000 entries) for 24 h (not-found for 1 h); r
 `Cache-Control: private, max-age=86400`. Rate limit `META_RATE_LIMIT_MAX` (default 60) requests/min/IP.
 
 `CslItem = { type, title, author?: [{family, given} | {literal}], editor?, issued?: {"date-parts": [[y, m?, d?]]}, "container-title"?, volume?, issue?, page?, DOI, URL, ISBN?, ISSN?, publisher?, "publisher-place"?, abstract?, language?, source }`
+
+## Server config (public)
+| Method | Path | Body | Success |
+|---|---|---|---|
+| GET | /v1/config | — | 200 `{passwordReset: boolean, registrationOpen: boolean}` |
+
+No auth. `passwordReset` is true only when the server can send reset mail (SMTP configured); clients should hide
+"Forgot password?" otherwise. `registrationOpen` is false when `REGISTRATION_ENABLED=false` or the account count has
+reached `MAX_USERS` (0 = unlimited). Rate-limited per IP like the metadata route.
 
 ## Ops
 GET /healthz → 200 `{ok:true}` (no DB) · GET /readyz → 200 when DB reachable.

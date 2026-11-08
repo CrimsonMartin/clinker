@@ -6,7 +6,7 @@ import type { Pool } from './db.js';
 import { ApiError, errorBody, unauthorized } from './errors.js';
 import { noopMailer, type Mailer } from './mailer.js';
 import { AccessTokens } from './tokens.js';
-import { authRoutes } from './routes/auth.js';
+import { authRoutes, registrationOpen } from './routes/auth.js';
 import { meRoutes } from './routes/me.js';
 import { syncRoutes } from './routes/sync.js';
 import { resetPageRoute } from './routes/resetPage.js';
@@ -134,6 +134,16 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
       return reply.status(503).send(errorBody('db_unavailable', 'Database not reachable'));
     }
   });
+
+  // Public server capabilities so clients can hide features this deployment doesn't offer.
+  app.get(
+    '/v1/config',
+    { config: { rateLimit: { max: config.metaRateLimitMax, timeWindow: '1 minute' } } },
+    async () => ({
+      passwordReset: deps.mailer.enabled,
+      registrationOpen: await registrationOpen(pool, config),
+    }),
+  );
 
   await app.register(authRoutes, { prefix: '/v1/auth' });
   await app.register(meRoutes, { prefix: '/v1' });

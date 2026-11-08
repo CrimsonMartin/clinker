@@ -1,12 +1,26 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import argon2 from 'argon2';
-import type { PoolClient } from '../db.js';
+import type { Config } from '../config.js';
+import type { Pool, PoolClient } from '../db.js';
 import { withTransaction } from '../db.js';
 import { ApiError } from '../errors.js';
 import { hashToken, randomToken } from '../tokens.js';
 
 // OWASP-recommended argon2id parameters; modest memory so small pods can handle bursts.
 const ARGON2_OPTS = { type: argon2.argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 } as const;
+
+// Arbitrary advisory-lock key for the MAX_USERS check.
+const REGISTRATION_LOCK_KEY = 727_465_002;
+
+const registrationClosed = () => new ApiError(403, 'registration_closed', 'New account registration is closed');
+
+/** Whether POST /register would currently accept a new account. */
+export async function registrationOpen(pool: Pool, config: Config): Promise<boolean> {
+  if (!config.registrationEnabled) return false;
+  if (config.maxUsers === 0) return true;
+  const { rows } = await pool.query<{ n: number }>('SELECT count(*)::int AS n FROM users');
+  return rows[0]!.n < config.maxUsers;
+}
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -74,10 +88,17 @@ export async function authRoutes(app: FastifyInstance) {
     '/register',
     { schema: emailPasswordSchema, config: { rateLimit } },
     async (req, reply) => {
+      if (!config.registrationEnabled) throw registrationClosed();
       const email = normaliseEmail(req.body.email);
       const passwordHash = await argon2.hash(req.body.password, ARGON2_OPTS);
       try {
         const res = await withTransaction(pool, async (c) => {
+          if (config.maxUsers > 0) {
+            // Serialise registrations so concurrent sign-ups can't overshoot the cap.
+            await c.query('SELECT pg_advisory_xact_lock($1)', [REGISTRATION_LOCK_KEY]);
+            const { rows } = await c.query<{ n: number }>('SELECT count(*)::int AS n FROM users');
+            if (rows[0]!.n >= config.maxUsers) throw registrationClosed();
+          }
           const { rows } = await c.query<UserRow>(
             `INSERT INTO users (email, password_hash) VALUES ($1, $2)
              RETURNING id, email, created_at`,

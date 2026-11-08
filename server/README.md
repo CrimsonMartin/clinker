@@ -22,6 +22,9 @@ access tokens (`jose`), opaque rotating refresh tokens (stored as SHA-256 hashes
 | `TRUST_PROXY` | no | `true` | Trust `X-Forwarded-*` from the ingress. |
 | `AUTH_RATE_LIMIT_MAX` | no | `10` | Requests/minute/IP on each `/v1/auth/*` route. Keyed on `CF-Connecting-IP` only when the TCP peer is in Cloudflare's published ranges (hard-coded in `src/clientIp.ts`), else on the peer IP; IPv6 clients are bucketed per /64. |
 | `META_RATE_LIMIT_MAX` | no | `60` | Requests/minute/IP on `GET /v1/meta/doi/*` (DOI metadata lookups; results cached in memory for 24 h). |
+| `SYNC_RATE_LIMIT_MAX` | no | `30` | `PUT /v1/sync` requests/minute **per user** (keyed on the authenticated user id). |
+| `MAX_USERS` | no | `0` | Maximum number of accounts; `0` = unlimited. Once reached, `POST /v1/auth/register` returns 403 `registration_closed`. |
+| `REGISTRATION_ENABLED` | no | `true` | `false` closes registration (403 `registration_closed`). Existing accounts keep working. |
 
 The process exits immediately with a clear message if required variables are missing or invalid.
 
