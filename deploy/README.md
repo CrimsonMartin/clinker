@@ -142,3 +142,18 @@ kubectl -n clinker exec postgres-0 -- pg_dump -U clinker -Fc clinker > clinker-$
 - The namespace enforces Pod Security `restricted`; both workloads comply.
 - The NetworkPolicy only allows the API pods to reach Postgres (enforced by k3s' built-in
   network policy controller).
+
+## Automatic deploys from CI
+
+Every push to `main` that touches `server/` runs `.github/workflows/api-image.yml`:
+test → build and push `ghcr.io/crimsonmartin/clinker-api:sha-<short sha>` → deploy → smoke test.
+
+The deploy job SSHes to the node as `clinker-deploy` with the `HETZNER_DEPLOY_KEY` secret
+(host key pinned by `HETZNER_KNOWN_HOSTS`). On the server that key is limited to
+`restrict,command="/usr/local/bin/clinker-deploy"` in `~clinker-deploy/.ssh/authorized_keys`.
+The script only accepts `sha-<hex>`, runs `kubectl set image` with the `ci-deployer`
+service account (a Role in `clinker` that can only patch `deployment/clinker-api` and read
+replicasets and pods), waits for the rollout, and runs `kubectl rollout undo` if it fails.
+
+Only the image tag is deployed automatically. Changes to the manifests in `deploy/k8s` still
+need `kubectl apply -k deploy/k8s` run by hand.

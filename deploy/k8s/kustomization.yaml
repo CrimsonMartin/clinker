@@ -41,4 +41,4 @@ configMapGenerator:
 images:
   - name: ghcr.io/crimsonmartin/clinker-api
     newName: ghcr.io/crimsonmartin/clinker-api
-    newTag: sha-046a3ec-dev3 # bump on each deploy (CI pushes sha-<commit>)
+    newTag: sha-30cd20c # CI deploys newer images automatically (api-image.yml → deploy job)
