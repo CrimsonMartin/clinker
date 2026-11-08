@@ -60,7 +60,16 @@ if (cmd === 'check') {
     await new Promise((r) => setTimeout(r, 5000));
     item = await call(`${API}/${id}?projection=DRAFT`, {}, at);
   }
-  if (item.uploadState !== 'SUCCESS') fail(`Upload failed: ${JSON.stringify(item.itemError || item)}`);
+  if (item.uploadState !== 'SUCCESS') {
+    // A version still in review (or approved but not yet live) blocks new uploads. That's
+    // expected with publish-on-every-merge: skip this one; the next merge after review lands.
+    if ((item.itemError || []).some((e) => e.error_code === 'ITEM_NOT_UPDATABLE')) {
+      console.log('::warning::Chrome Web Store is still reviewing the previous version, so this ' +
+        'version was not uploaded. The next push to main after the review finishes will publish.');
+      process.exit(0);
+    }
+    fail(`Upload failed: ${JSON.stringify(item.itemError || item)}`);
+  }
   console.log(`Uploaded version ${item.crxVersion}.`);
   const pub = await call(`${API}/${id}/publish`, { method: 'POST', headers: { 'Content-Length': '0' } }, at);
   console.log(`Publish status: ${(pub.status || []).join(', ')} ${(pub.statusDetail || []).join(' ')}`);
