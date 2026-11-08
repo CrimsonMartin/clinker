@@ -35,8 +35,13 @@ The process exits immediately with a clear message if required variables are mis
   once). Startup retries the DB for ~60 s before giving up.
 - **Emails** are trimmed and lower-cased; uniqueness is on the lower-cased value.
 - **Refresh tokens** are single use: `/v1/auth/refresh` revokes the presented token and issues
-  a new one. A concurrent second refresh with the same token gets 401, so the client should
-  serialise refreshes. A password reset revokes all of the user's refresh tokens.
+  a new one in the same *family*. A concurrent second refresh with the same token gets 401, so
+  the client should serialise refreshes. Replaying a rotated-away token more than 10 s after its
+  rotation is treated as theft and revokes the whole family (plus the user's access tokens).
+- **Access tokens** are checked against `users.tokens_valid_after` (one PK lookup per request).
+  Password change (`POST /v1/auth/password`), password reset and `POST /v1/auth/logout-all`
+  bump it and revoke all refresh tokens, so every existing session ends immediately.
+- **Account deletion** (`DELETE /v1/me`) requires `{password}`.
 - **Sync PUT** (`baseVersion`):
   - `null`: force write (create or overwrite), version becomes `old + 1` (or 1).
   - `0`: create-only; 409 if a document already exists.
@@ -51,9 +56,11 @@ The process exits immediately with a clear message if required variables are mis
   token from the URL fragment and calls `/v1/auth/password-reset/confirm`. Tokens expire after
   1 hour and are single use.
 - Error envelope everywhere: `{ "error": { "code", "message" } }`. Extra codes beyond the
-  contract: `invalid_request` (400 validation), `unauthorized` (401 missing/bad access token),
+  contract: `invalid_request` (400 validation), `unauthorized` (401 missing/bad/revoked access token),
   `rate_limited` (429), `payload_too_large` (413), `not_found` (404), `internal_error` (500).
-- Expired / revoked tokens are purged hourly.
+- Expired tokens are purged hourly. Revoked refresh tokens are kept until their original expiry so
+  that reuse can still be detected.
+- Every response sets `X-Content-Type-Options: nosniff`.
 
 ## Local development
 

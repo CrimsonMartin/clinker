@@ -4,8 +4,14 @@ Base URL is configured at build time via `API_BASE_URL` (default `https://clinke
 All bodies are JSON. All errors: `{ "error": { "code": "<string>", "message": "<string>" } }`.
 
 ## Auth
-Access token: JWT (HS256), 15 min TTL, sent as `Authorization: Bearer <accessToken>`.
-Refresh token: opaque random string (stored hashed server-side), 30 day TTL, rotated on every refresh.
+Access token: JWT (HS256), 15 min TTL, sent as `Authorization: Bearer <accessToken>`. `iat` has millisecond
+precision. Every authenticated request checks that the user still exists and that the token was issued after the
+user's last password change / reset / logout-all (`users.tokens_valid_after`); otherwise 401 `unauthorized`.
+Refresh token: opaque random string (stored hashed server-side), 30 day TTL, rotated on every refresh. Tokens minted by
+rotation share a *family* with the token they replaced. Presenting an already-rotated token again within 10 s of its
+rotation (e.g. two extension pages refreshing at once) just gets 401 `invalid_refresh_token`; presenting it later is
+treated as theft: the whole family is revoked and the user's outstanding access tokens are invalidated (other
+families, i.e. other logins, keep their refresh tokens), and the response is the same 401.
 
 | Method | Path | Body | Success |
 |---|---|---|---|
@@ -13,13 +19,22 @@ Refresh token: opaque random string (stored hashed server-side), 30 day TTL, rot
 | POST | /v1/auth/login | `{email, password}` | 200 `AuthResponse` · 401 `invalid_credentials` |
 | POST | /v1/auth/refresh | `{refreshToken}` | 200 `AuthResponse` · 401 `invalid_refresh_token` |
 | POST | /v1/auth/logout | `{refreshToken}` | 204 (revokes that refresh token) |
+| POST | /v1/auth/password | `{currentPassword, newPassword}` (auth; newPassword >= 8 chars) | 200 `AuthResponse` (fresh pair for the caller) · 403 `invalid_password`. Revokes all refresh tokens and access tokens of the user and any outstanding reset links. Rate-limited like login. |
+| POST | /v1/auth/logout-all | — (auth) | 204. Revokes all of the user's refresh tokens and access tokens ("sign out everywhere"), including the caller's. |
 | POST | /v1/auth/password-reset/request | `{email}` | 202 always (sends mail if SMTP configured; no-op otherwise) |
-| POST | /v1/auth/password-reset/confirm | `{token, password}` | 204 · 400 `invalid_token` |
+| POST | /v1/auth/password-reset/confirm | `{token, password}` | 204 · 400 `invalid_token` (also signs out every session) |
 | GET | /v1/me | — | 200 `{user: User}` |
-| DELETE | /v1/me | — | 204 (deletes user + data; store policy requirement) |
+| DELETE | /v1/me | `{password}` | 204 (deletes user + data; store policy requirement) · 400 `invalid_request` if missing · 403 `invalid_password`. Rate-limited like login. |
 
 `AuthResponse = { user: User, accessToken: string, accessTokenExpiresAt: ISO8601, refreshToken: string }`
 `User = { id: string(uuid), email: string, createdAt: ISO8601 }`
+
+Wrong current passwords on authenticated routes are 403 `invalid_password` (not 401) so clients don't mistake them for
+an expired access token. Every response carries `X-Content-Type-Options: nosniff`.
+
+Accepted risk: `POST /v1/auth/register` answers 409 `email_taken` for an existing address, which lets a caller test
+whether an email has an account (rate-limited per IP). This is kept deliberately until email verification exists;
+the login and password-reset endpoints do not reveal account existence.
 
 ## Sync (one JSON document per user — replaces Firestore `users/{uid}`)
 | Method | Path | Body | Success |

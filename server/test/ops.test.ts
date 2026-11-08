@@ -30,6 +30,7 @@ describe('ops endpoints', () => {
     expect(await migrate(ctx.pool)).toEqual([]);
     const { rows } = await ctx.pool.query('SELECT version FROM schema_migrations');
     expect(rows.map((r) => r.version)).toContain('001_init.sql');
+    expect(rows.map((r) => r.version)).toContain('002_session_security.sql');
   });
 
   it('serves the password reset page', async () => {
