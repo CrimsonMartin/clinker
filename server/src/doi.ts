@@ -3,6 +3,8 @@
 
 export const DOI_RE = /^10\.\d{4,9}\/\S+$/;
 export const MAX_DOI_LENGTH = 256;
+// Query/fragment delimiters, backslash, whitespace and C0/C1 control characters.
+const UNSAFE_DOI_CHARS = /[?#\\\s\u0000-\u001f\u007f-\u009f]/;
 
 /** Normalize user input ("doi:10.1/x", "https://doi.org/10.1/x", " 10.1/X ") to a bare DOI, or null. */
 export function normalizeDoi(input: string): string | null {
@@ -17,7 +19,15 @@ export function normalizeDoi(input: string): string | null {
     .replace(/^doi:\s*/i, '')
     .trim();
   if (!s || s.length > MAX_DOI_LENGTH || !DOI_RE.test(s)) return null;
+  // The DOI ends up in an upstream URL path: refuse anything that could change which resource
+  // (or host) we hit: dot segments, query/fragment, backslashes, whitespace, control chars.
+  if (UNSAFE_DOI_CHARS.test(s) || s.split('/').some((seg) => seg === '.' || seg === '..')) return null;
   return s;
+}
+
+/** `https://doi.org/<doi>` with every path segment percent-encoded. */
+export function doiOrgUrl(doi: string): string {
+  return `https://doi.org/${doi.split('/').map(encodeURIComponent).join('/')}`;
 }
 
 export type CslName = { family?: string; given?: string; literal?: string; suffix?: string };
@@ -211,16 +221,86 @@ export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
 
 const USER_AGENT = 'Clinker/1.0 (+https://clinker.lanerate.io; mailto:support@lanerate.io)';
 
-async function fetchJson(fetchFn: FetchLike, url: string, accept: string, timeoutMs: number): Promise<unknown | null> {
-  const res = await fetchFn(url, {
-    headers: { Accept: accept, 'User-Agent': USER_AGENT },
-    redirect: 'follow',
-    signal: AbortSignal.timeout(timeoutMs),
-  });
-  if (res.status === 404 || res.status === 410) return null;
-  if (!res.ok) throw new DoiUpstreamError(`${url} responded ${res.status}`);
-  const text = await res.text();
-  if (text.length > 2_000_000) throw new DoiUpstreamError('Upstream response too large');
+export const MAX_UPSTREAM_BYTES = 2_000_000;
+const MAX_REDIRECTS = 3;
+
+/**
+ * Hosts doi.org content negotiation redirects to (Crossref, DataCite/Crosscite, mEDRA, JaLC),
+ * plus the registries we call directly. Redirects anywhere else are refused.
+ */
+export const UPSTREAM_HOSTS = new Set([
+  'doi.org',
+  'dx.doi.org',
+  'api.crossref.org',
+  'data.crossref.org',
+  'api.datacite.org',
+  'data.datacite.org',
+  'data.crosscite.org',
+  'data.medra.org',
+  'japanlinkcenter.org',
+]);
+
+function isAllowedUpstream(url: URL): boolean {
+  return url.protocol === 'https:' && !url.username && !url.password && !url.port && UPSTREAM_HOSTS.has(url.hostname);
+}
+
+/** Read a response body, aborting as soon as it exceeds `limit` bytes. */
+export async function readCapped(res: Response, limit = MAX_UPSTREAM_BYTES): Promise<string> {
+  const declared = Number(res.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > limit) {
+    await res.body?.cancel().catch(() => {});
+    throw new DoiUpstreamError('Upstream response too large');
+  }
+  if (!res.body) return '';
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > limit) {
+      await reader.cancel().catch(() => {});
+      throw new DoiUpstreamError('Upstream response too large');
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks, total).toString('utf8');
+}
+
+async function fetchJson(fetchFn: FetchLike, startUrl: string, accept: string, timeoutMs: number): Promise<unknown | null> {
+  const signal = AbortSignal.timeout(timeoutMs);
+  let url = startUrl;
+  let res: Response;
+  for (let hops = 0; ; hops++) {
+    res = await fetchFn(url, {
+      headers: { Accept: accept, 'User-Agent': USER_AGENT },
+      redirect: 'manual',
+      signal,
+    });
+    if (res.status < 300 || res.status >= 400 || res.status === 304) break;
+    await res.body?.cancel().catch(() => {});
+    const location = res.headers.get('location');
+    if (!location) throw new DoiUpstreamError(`${url} responded ${res.status} without Location`);
+    if (hops >= MAX_REDIRECTS) throw new DoiUpstreamError(`${startUrl}: too many redirects`);
+    let next: URL;
+    try {
+      next = new URL(location, url);
+    } catch {
+      throw new DoiUpstreamError(`${url} redirected to an invalid URL`);
+    }
+    if (!isAllowedUpstream(next)) throw new DoiUpstreamError(`${url} redirected to disallowed host ${next.host}`);
+    url = next.href;
+  }
+  if (res.status === 404 || res.status === 410) {
+    await res.body?.cancel().catch(() => {});
+    return null;
+  }
+  if (!res.ok) {
+    await res.body?.cancel().catch(() => {});
+    throw new DoiUpstreamError(`${url} responded ${res.status}`);
+  }
+  const text = await readCapped(res);
   try {
     return JSON.parse(text);
   } catch {
@@ -234,7 +314,7 @@ export async function resolveDoi(doi: string, fetchFn: FetchLike = fetch, timeou
   let lastError: unknown = null;
 
   try {
-    const csl = await fetchJson(fetchFn, `https://doi.org/${encodeURI(doi)}`, 'application/vnd.citationstyles.csl+json', timeoutMs);
+    const csl = await fetchJson(fetchFn, doiOrgUrl(doi), 'application/vnd.citationstyles.csl+json', timeoutMs);
     if (csl === null) notFound++;
     else {
       const item = normalizeCsl(csl, doi);

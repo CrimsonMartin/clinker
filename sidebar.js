@@ -146,12 +146,13 @@ function createTreeNodeElement(node, isCurrent) {
   metaElement.appendChild(timeElement);
   element.appendChild(metaElement);
   
-  // Add images if they exist
-  if (node.images && node.images.length > 0) {
+  // Add images if they exist (inline data: images only - never fetch remote URLs)
+  const localImages = (node.images || []).filter(src => typeof src === 'string' && /^data:image\//i.test(src));
+  if (localImages.length > 0) {
     const imagesContainer = document.createElement('div');
     imagesContainer.className = 'tree-node-images';
     
-    node.images.forEach((imageData, index) => {
+    localImages.forEach((imageData, index) => {
       const imgElement = document.createElement('img');
       imgElement.src = imageData;
       imgElement.className = 'tree-node-image-thumbnail';

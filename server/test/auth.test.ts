@@ -201,7 +201,12 @@ describe('/v1/me', () => {
     await post('/v1/auth/password-reset/request', { email: u.email });
     await ctx.mailer.next();
 
-    const del = await ctx.app.inject({ method: 'DELETE', url: '/v1/me', headers: bearer(u.accessToken) });
+    const del = await ctx.app.inject({
+      method: 'DELETE',
+      url: '/v1/me',
+      headers: bearer(u.accessToken),
+      payload: { password: u.password },
+    });
     expect(del.statusCode).toBe(204);
 
     for (const table of ['users', 'refresh_tokens', 'password_reset_tokens', 'sync_docs']) {
@@ -220,14 +225,24 @@ describe('/v1/me', () => {
     expect((await post('/v1/auth/login', { email: u.email, password: u.password })).statusCode).toBe(401);
   });
 
-  it('DELETE tolerates Content-Type: application/json with an empty body', async () => {
+  it('DELETE requires the current password', async () => {
     const u = await register(ctx.app);
-    const del = await ctx.app.inject({
-      method: 'DELETE',
-      url: '/v1/me',
-      headers: { ...bearer(u.accessToken), 'content-type': 'application/json' },
-    });
-    expect(del.statusCode).toBe(204);
+    const del = (payload?: object, extraHeaders: Record<string, string> = {}) =>
+      ctx.app.inject({ method: 'DELETE', url: '/v1/me', headers: { ...bearer(u.accessToken), ...extraHeaders }, payload });
+
+    // Empty JSON body (tolerated by the parser) and a missing password are 400s.
+    const empty = await del(undefined, { 'content-type': 'application/json' });
+    expect(empty.statusCode).toBe(400);
+    expect(empty.json().error.code).toBe('invalid_request');
+    expect((await del({})).statusCode).toBe(400);
+
+    const wrong = await del({ password: 'not the password' });
+    expect(wrong.statusCode).toBe(403);
+    expect(wrong.json().error.code).toBe('invalid_password');
+    const { rows } = await ctx.pool.query('SELECT count(*)::int AS n FROM users');
+    expect(rows[0].n).toBe(1);
+
+    expect((await del({ password: u.password })).statusCode).toBe(204);
   });
 });
 

@@ -146,6 +146,16 @@ describe('TreeNode', () => {
       expect((imageElements[0] as HTMLImageElement).draggable).toBe(false);
     });
 
+    it('does not render remote image URLs stored by older versions', () => {
+      const { element } = render(makeNode({ images: ['https://tracker.example.net/a.png', 'data:image/png;base64,ok'] }));
+      const imageElements = element.querySelectorAll('.tree-node-image-thumbnail');
+      expect(imageElements).toHaveLength(1);
+      expect((imageElements[0] as HTMLImageElement).src).toBe('data:image/png;base64,ok');
+
+      const { element: onlyRemote } = render(makeNode({ images: ['http://example.com/x.png'] }));
+      expect(onlyRemote.querySelector('.tree-node-images')).toBeNull();
+    });
+
     it('should create meta element with URL and timestamp', () => {
       mockFormatters.formatTimestamp.mockReturnValue('Jan 1, 12:00 PM');
       const { element } = render(makeNode({ url: 'https://example.com/path' }));

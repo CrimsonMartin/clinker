@@ -30,6 +30,7 @@ describe('ops endpoints', () => {
     expect(await migrate(ctx.pool)).toEqual([]);
     const { rows } = await ctx.pool.query('SELECT version FROM schema_migrations');
     expect(rows.map((r) => r.version)).toContain('001_init.sql');
+    expect(rows.map((r) => r.version)).toContain('002_session_security.sql');
   });
 
   it('serves the password reset page', async () => {
@@ -81,5 +82,6 @@ describe('privacy policy page', () => {
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toContain('text/html');
     expect(res.body).toContain('Citation Linker Privacy Policy');
+    expect(res.body).toContain('their web addresses are not stored');
   });
 });

@@ -21,8 +21,10 @@ export class AccessTokens {
   }
 
   async sign(userId: string): Promise<{ token: string; expiresAt: Date }> {
-    const now = Math.floor(Date.now() / 1000);
-    const exp = now + this.ttlSec;
+    // iat keeps millisecond precision (RFC 7519 NumericDate may be fractional) so revocation via
+    // users.tokens_valid_after can't be dodged by a token minted in the same second.
+    const now = Date.now() / 1000;
+    const exp = Math.floor(now) + this.ttlSec;
     const token = await new SignJWT({})
       .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
       .setSubject(userId)
@@ -34,15 +36,16 @@ export class AccessTokens {
     return { token, expiresAt: new Date(exp * 1000) };
   }
 
-  /** Returns the user id, or null if the token is invalid/expired. */
-  async verify(token: string): Promise<string | null> {
+  /** Returns the subject (user id) and issued-at (unix seconds), or null if invalid/expired. */
+  async verify(token: string): Promise<{ userId: string; iat: number } | null> {
     try {
       const { payload } = await jwtVerify(token, this.key, {
         algorithms: ['HS256'],
         issuer: JWT_ISSUER,
         audience: JWT_AUDIENCE,
       });
-      return typeof payload.sub === 'string' ? payload.sub : null;
+      if (typeof payload.sub !== 'string' || typeof payload.iat !== 'number') return null;
+      return { userId: payload.sub, iat: payload.iat };
     } catch {
       return null;
     }

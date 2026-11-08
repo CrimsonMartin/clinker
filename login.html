@@ -292,6 +292,21 @@
       background: #fef2f2;
     }
 
+    .account-form {
+      display: none;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    .account-form.active {
+      display: block;
+    }
+
+    .danger-zone .form-group {
+      margin-bottom: 8px;
+    }
+
     .danger-button:disabled {
       color: #94a3b8;
       border-color: #e2e8f0;
@@ -313,8 +328,36 @@
       <div class="account-email">Signed in as <strong id="accountEmail"></strong></div>
       <button type="button" class="submit-button" id="backToSidebarBtn">Back to Citation Linker</button>
       <button type="button" class="secondary-button" id="accountSignOutBtn">Sign Out</button>
+      <button type="button" class="secondary-button" id="signOutEverywhereBtn" title="Sign out on every device and browser, including this one">Sign Out Everywhere</button>
+      <button type="button" class="secondary-button" id="showChangePasswordBtn">Change Password</button>
+      <div class="error-message" id="account-actions-error"></div>
+
+      <!-- Change password (signs out every other session) -->
+      <form class="account-form" id="changePasswordForm">
+        <div class="form-group">
+          <label class="form-label" for="change-current-password">Current password</label>
+          <input type="password" id="change-current-password" class="form-input" placeholder="**********" autocomplete="current-password" required>
+          <div class="error-message" id="change-current-password-error"></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="change-new-password">New password</label>
+          <input type="password" id="change-new-password" class="form-input" placeholder="**********" autocomplete="new-password" required>
+          <div class="error-message" id="change-new-password-error"></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="change-confirm-password">Confirm new password</label>
+          <input type="password" id="change-confirm-password" class="form-input" placeholder="**********" autocomplete="new-password" required>
+          <div class="error-message" id="change-confirm-password-error"></div>
+        </div>
+        <button type="submit" class="submit-button" id="changePasswordBtn">Update Password</button>
+      </form>
+
       <div class="danger-zone">
         <p>Deleting your account permanently removes it and all research synced to the server. Data on this device is cleared as well.</p>
+        <div class="form-group">
+          <label class="form-label" for="delete-password">Password</label>
+          <input type="password" id="delete-password" class="form-input" placeholder="Enter your password to confirm" autocomplete="current-password">
+        </div>
         <button type="button" class="danger-button" id="deleteAccountBtn">Delete Account</button>
         <div class="error-message" id="account-error"></div>
       </div>
@@ -339,7 +382,8 @@
         <div class="error-message" id="signin-password-error"></div>
       </div>
       
-      <div class="forgot-password">
+      <!-- Hidden unless the server can send reset mail (GET /v1/config) -->
+      <div class="forgot-password" id="forgotPasswordLinks" hidden>
         <button type="button" class="forgot-password-link" id="forgotPasswordBtn">Forgot password?</button>
         <button type="button" class="forgot-password-link" id="haveResetCodeBtn">Have a reset code?</button>
       </div>

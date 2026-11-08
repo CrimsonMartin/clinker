@@ -39,7 +39,8 @@ what data it handles and where that data goes.</p>
 
 <h2>Data stored in your browser</h2>
 <p>When you save a highlight, the extension stores locally: the selected text, the page URL and title,
-the time it was saved, images contained in the selection, any notes you add, how you organized the items
+the time it was saved, copies of images contained in the selection (images the page doesn't allow the extension
+to copy are skipped; their web addresses are not stored), any notes you add, how you organized the items
 (trees and tabs), and citation details read from the page (such as title, authors, publication date,
 journal and DOI). This data never leaves your browser unless you sign in.</p>
 
@@ -73,13 +74,14 @@ Finland), reached through Cloudflare. Connections are encrypted with TLS.</p>
 <ul>
   <li>Synced data is kept while your account exists.</li>
   <li><strong>Delete account</strong> (in the extension's account page) permanently deletes your account,
-      sessions and all synced data from our database immediately.</li>
-  <li>Signing out removes your research data from that browser's local storage.</li>
+      sessions and all synced data from our database immediately (you confirm with your password).</li>
+  <li>Signing out removes your research data from that browser's local storage. "Sign out everywhere"
+      (in the account page) also ends every other session of your account.</li>
   <li>Uninstalling the extension removes its local data from your browser.</li>
 </ul>
 
 <h2>Email</h2>
-<p>We only email you to send a password reset you requested.</p>
+<p>We only email you to send a password reset you requested (where the server is set up to send email).</p>
 
 <h2>Children</h2>
 <p>The extension is not directed at children under 13, and we do not knowingly collect their data.</p>

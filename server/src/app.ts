@@ -6,13 +6,14 @@ import type { Pool } from './db.js';
 import { ApiError, errorBody, unauthorized } from './errors.js';
 import { noopMailer, type Mailer } from './mailer.js';
 import { AccessTokens } from './tokens.js';
-import { authRoutes } from './routes/auth.js';
+import { authRoutes, registrationOpen } from './routes/auth.js';
 import { meRoutes } from './routes/me.js';
 import { syncRoutes } from './routes/sync.js';
 import { resetPageRoute } from './routes/resetPage.js';
 import { privacyPageRoute } from './routes/privacyPage.js';
 import { metaRoutes } from './routes/meta.js';
 import type { FetchLike } from './doi.js';
+import { clientIp, rateLimitBucket } from './clientIp.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -70,6 +71,12 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   app.decorate('deps', deps);
   app.decorateRequest('userId', '');
 
+  // Every response (incl. errors and 404s): never let a browser sniff a JSON body into HTML.
+  app.addHook('onSend', async (_req, reply, payload) => {
+    reply.header('x-content-type-options', 'nosniff');
+    return payload;
+  });
+
   // Accept an empty body with Content-Type: application/json (common with fetch() wrappers).
   const defaultJson = app.getDefaultJsonParser('error', 'error');
   app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
@@ -90,11 +97,8 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
 
   await app.register(rateLimit, {
     global: false,
-    // Prefer Cloudflare's client IP header when present (we sit behind CF + ingress).
-    keyGenerator: (req) => {
-      const cf = req.headers['cf-connecting-ip'];
-      return (Array.isArray(cf) ? cf[0] : cf) || req.ip;
-    },
+    // CF-Connecting-IP only when the peer is a Cloudflare edge (see clientIp.ts).
+    keyGenerator: (req) => rateLimitBucket(clientIp(req)),
     errorResponseBuilder: (_req, ctx) =>
       new ApiError(429, 'rate_limited', `Too many requests, retry in ${ctx.after}`),
   });
@@ -103,9 +107,17 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
     const header = req.headers.authorization;
     const match = header && /^Bearer\s+(\S+)$/i.exec(header);
     if (!match) throw unauthorized();
-    const userId = await deps.accessTokens.verify(match[1]!);
-    if (!userId) throw unauthorized('Invalid or expired access token');
-    req.userId = userId;
+    const claims = await deps.accessTokens.verify(match[1]!);
+    if (!claims) throw unauthorized('Invalid or expired access token');
+    // One PK lookup: the user must still exist, and the token must not predate the last
+    // password change / "sign out everywhere".
+    const { rows } = await pool.query<{ current: boolean }>(
+      'SELECT tokens_valid_after <= to_timestamp($2) AS current FROM users WHERE id = $1',
+      [claims.userId, claims.iat],
+    );
+    if (!rows[0]) throw unauthorized('User no longer exists');
+    if (!rows[0].current) throw unauthorized('Access token has been revoked');
+    req.userId = claims.userId;
   });
 
   app.setErrorHandler((err: FastifyError | ApiError, req, reply) => {
@@ -137,6 +149,16 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
     }
   });
 
+  // Public server capabilities so clients can hide features this deployment doesn't offer.
+  app.get(
+    '/v1/config',
+    { config: { rateLimit: { max: config.metaRateLimitMax, timeWindow: '1 minute' } } },
+    async () => ({
+      passwordReset: deps.mailer.enabled,
+      registrationOpen: await registrationOpen(pool, config),
+    }),
+  );
+
   await app.register(authRoutes, { prefix: '/v1/auth' });
   await app.register(meRoutes, { prefix: '/v1' });
   await app.register(syncRoutes, { prefix: '/v1' });
@@ -147,12 +169,11 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   return app;
 }
 
-/** Delete expired / long-revoked tokens. Safe to run from multiple replicas. */
+/**
+ * Delete expired tokens. Safe to run from multiple replicas. Revoked refresh tokens are kept
+ * until they would have expired so that replaying one is still detected as reuse.
+ */
 export async function purgeExpiredTokens(pool: Pool): Promise<void> {
-  await pool.query(
-    `DELETE FROM refresh_tokens
-      WHERE expires_at < now() - interval '1 day'
-         OR revoked_at < now() - interval '1 day'`,
-  );
+  await pool.query(`DELETE FROM refresh_tokens WHERE expires_at < now() - interval '1 day'`);
   await pool.query(`DELETE FROM password_reset_tokens WHERE expires_at < now() - interval '1 day'`);
 }

@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ApiError, unauthorized } from '../errors.js';
 
 interface SyncRow {
@@ -12,7 +12,7 @@ const toDoc = (r: SyncRow) => ({ data: r.data, version: r.version, updatedAt: r.
 export const SYNC_BODY_LIMIT = 5 * 1024 * 1024;
 
 export async function syncRoutes(app: FastifyInstance) {
-  const { pool } = app.deps;
+  const { pool, config } = app.deps;
   app.addHook('preHandler', app.requireAuth);
 
   app.get('/sync', async (req) => {
@@ -28,6 +28,15 @@ export async function syncRoutes(app: FastifyInstance) {
     '/sync',
     {
       bodyLimit: SYNC_BODY_LIMIT,
+      config: {
+        // Per user, not per IP: runs as a preHandler, after requireAuth has set req.userId.
+        rateLimit: {
+          max: config.syncRateLimitMax,
+          timeWindow: '1 minute',
+          hook: 'preHandler',
+          keyGenerator: (req: FastifyRequest) => `user:${req.userId}`,
+        },
+      },
       schema: {
         body: {
           type: 'object',
