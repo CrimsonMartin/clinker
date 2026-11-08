@@ -38,7 +38,7 @@ configMapGenerator:
       - TRUST_PROXY=true
       - AUTH_RATE_LIMIT_MAX=10
       - MAX_USERS=200                               # cap on sync accounts (0 = unlimited)
-      - MAIL_FROM=Citation Linker <no-reply@lanerate.io> # PATCHME (only used when SMTP_URL is set)
+      - MAIL_FROM=Citation Linker <no-reply@lanerate.io> # used when SMTP_URL (clinker-secrets) is set
 
 images:
   - name: ghcr.io/crimsonmartin/clinker-api
