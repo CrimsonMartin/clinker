@@ -76,8 +76,9 @@ class TreeNode {
     this.row.title = this.node.text;
 
     this.row.appendChild(this.createContentElement());
-    if (this.node.images && this.node.images.length > 0) {
-      this.row.appendChild(this.createImagesContainer());
+    const images = this.localImages();
+    if (images.length > 0) {
+      this.row.appendChild(this.createImagesContainer(images));
     }
     this.row.appendChild(this.createMetaElement());
     this.element.appendChild(this.row);
@@ -95,12 +96,20 @@ class TreeNode {
     return contentElement;
   }
 
+  // Only inline data: images are rendered. Older versions could store remote image URLs, which
+  // would make the sidebar request them from third-party servers.
+  private localImages(): string[] {
+    return (this.node.images || []).filter(
+      (src) => typeof src === 'string' && /^data:image\//i.test(src)
+    );
+  }
+
   // Create images container
-  private createImagesContainer(): HTMLElement {
+  private createImagesContainer(images: string[]): HTMLElement {
     const imagesContainer = document.createElement('div');
     imagesContainer.className = 'tree-node-images';
 
-    this.node.images!.forEach((imageData, index) => {
+    images.forEach((imageData, index) => {
       const imgElement = document.createElement('img');
       imgElement.src = imageData;
       imgElement.className = 'tree-node-image-thumbnail';

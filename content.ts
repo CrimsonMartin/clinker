@@ -36,15 +36,101 @@ const browserAPI = (() => {
   }
 })();
 
-let saveButton: HTMLButtonElement | null = null;
+// The "Save to Clinker" button is rendered inside a closed shadow root attached to a host
+// element we own, so page scripts and stylesheets can't reach into it, restyle it, or click it
+// programmatically (clicks must also be isTrusted, i.e. come from the user).
+let saveButtonHost: HTMLElement | null = null;
+
+const SAVE_BUTTON_CSS = `
+  button {
+    all: initial;
+    display: block;
+    background-color: #6366f1;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: normal;
+    cursor: pointer;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    transition: all 0.2s ease-in-out;
+  }
+  button:hover {
+    background-color: #4f46e5;
+    transform: translateY(-1px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  }
+`;
+
+// Inline !important declarations on the host win over any page stylesheet rule.
+function setHostStyle(prop: string, value: string): void {
+  saveButtonHost?.style.setProperty(prop, value, 'important');
+}
+
+function hideSaveButton(): void {
+  setHostStyle('display', 'none');
+}
+
+function createSaveButton(onClick: (event: MouseEvent) => void): void {
+  // A plain <div>: a custom element name could be claimed by the page via customElements.define.
+  const host = document.createElement('div');
+  saveButtonHost = host;
+  for (const [prop, value] of [
+    ['all', 'initial'],
+    ['position', 'absolute'],
+    ['z-index', '2147483647'],
+    ['display', 'none'],
+  ]) {
+    setHostStyle(prop, value);
+  }
+  const shadow = host.attachShadow({ mode: 'closed' });
+  const style = document.createElement('style');
+  style.textContent = SAVE_BUTTON_CSS;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = 'Save to Clinker';
+  // Keep the page's text selection when the button is pressed.
+  button.addEventListener('mousedown', (event) => event.preventDefault());
+  button.addEventListener('click', (event) => {
+    // Ignore synthetic clicks (element.click(), dispatchEvent) - only the user can save.
+    if (!event.isTrusted) return;
+    onClick(event);
+  });
+  shadow.append(style, button);
+  document.body.appendChild(host);
+}
+
+/** Convert a selected <img> to a data: URL. Returns null if it can't be read (e.g. cross-origin). */
+function imageToDataUrl(img: HTMLImageElement): string | null {
+  try {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const width = img.naturalWidth || img.width;
+    const height = img.naturalHeight || img.height;
+    if (!ctx || !width || !height) return null;
+    canvas.width = width;
+    canvas.height = height;
+    ctx.drawImage(img, 0, 0);
+    const dataURL = canvas.toDataURL('image/png');
+    return dataURL.startsWith('data:image/') ? dataURL : null;
+  } catch (error) {
+    // Tainted canvas (cross-origin image). Deliberately do NOT fall back to img.src: storing the
+    // remote URL would make the sidebar (and every synced device) fetch it from a third party.
+    console.warn('Could not capture image, skipping it:', error);
+    return null;
+  }
+}
 
 // Listen for storage changes to react to extension toggle
 browserAPI.storage.onChanged.addListener((changes: any, namespace: any) => {
   if (namespace === 'local' && changes.extensionActive) {
     const isActive = changes.extensionActive.newValue;
-    if (!isActive && saveButton) {
+    if (!isActive && saveButtonHost) {
       // Extension was turned off, hide save button if visible
-      saveButton.style.display = 'none';
+      hideSaveButton();
     }
     console.log('Extension state changed:', isActive ? 'ON' : 'OFF');
   }
@@ -100,44 +186,13 @@ document.addEventListener('mouseup', async (event) => {
     const result = await browserAPI.storage.local.get({ extensionActive: true });
     if (!result.extensionActive) {
       // Extension is inactive, don't show save button
-      if (saveButton) {
-        saveButton.style.display = 'none';
+      if (saveButtonHost) {
+        hideSaveButton();
       }
       return;
     }
-    if (!saveButton) {
-      saveButton = document.createElement('button');
-      saveButton.innerHTML = 'Save to Clinker';
-      saveButton.style.position = 'absolute';
-      saveButton.style.zIndex = '1000';
-      saveButton.style.backgroundColor = '#6366f1';
-      saveButton.style.color = '#ffffff';
-      saveButton.style.border = 'none';
-      saveButton.style.borderRadius = '8px';
-      saveButton.style.padding = '8px 16px';
-      saveButton.style.fontSize = '14px';
-      saveButton.style.fontWeight = '500';
-      saveButton.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      saveButton.style.cursor = 'pointer';
-      saveButton.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
-      saveButton.style.transition = 'all 0.2s ease-in-out';
-      
-      // Add hover effects
-      saveButton.addEventListener('mouseenter', () => {
-        saveButton!.style.backgroundColor = '#4f46e5';
-        saveButton!.style.transform = 'translateY(-1px)';
-        saveButton!.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)';
-      });
-      
-      saveButton.addEventListener('mouseleave', () => {
-        saveButton!.style.backgroundColor = '#6366f1';
-        saveButton!.style.transform = 'translateY(0)';
-        saveButton!.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
-      });
-      
-      document.body.appendChild(saveButton);
-
-      saveButton.addEventListener('click', async () => {
+    if (!saveButtonHost) {
+      createSaveButton(async () => {
         // Play click sound
         if ((window as any).playClickSound) {
           (window as any).playClickSound();
@@ -166,23 +221,10 @@ document.addEventListener('mouseup', async (event) => {
               const imgElements = containerElement.querySelectorAll('img');
               imgElements.forEach(img => {
                 if (range.intersectsNode(img)) {
-                  try {
-                    // Create a canvas to convert image to base64
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    if (ctx) {
-                      canvas.width = img.naturalWidth || img.width;
-                      canvas.height = img.naturalHeight || img.height;
-                      ctx.drawImage(img, 0, 0);
-                      const dataURL = canvas.toDataURL('image/png');
-                      images.push(dataURL);
-                    }
-                  } catch (error) {
-                    console.warn('Could not capture image:', error);
-                    // Fallback to image src if canvas fails (e.g., CORS issues)
-                    if (img.src) {
-                      images.push(img.src);
-                    }
+                  // Only self-contained data: URLs are stored; unreadable images are dropped.
+                  const dataURL = imageToDataUrl(img);
+                  if (dataURL) {
+                    images.push(dataURL);
                   }
                 }
               });
@@ -315,9 +357,7 @@ document.addEventListener('mouseup', async (event) => {
             console.log('Sync trigger error:', error);
           }
           
-          if (saveButton) {
-            saveButton.style.display = 'none';
-          }
+          hideSaveButton();
         }
       });
     }
@@ -331,12 +371,12 @@ document.addEventListener('mouseup', async (event) => {
     // Position the button underneath the selection
     const belowY = rect.bottom + 5; // 5px gap below the selection
     
-    saveButton.style.left = `${centerX + window.scrollX}px`;
-    saveButton.style.top = `${belowY + window.scrollY}px`;
-    saveButton.style.display = 'block';
+    setHostStyle('left', `${centerX + window.scrollX}px`);
+    setHostStyle('top', `${belowY + window.scrollY}px`);
+    setHostStyle('display', 'block');
   } else {
-    if (saveButton) {
-      saveButton.style.display = 'none';
+    if (saveButtonHost) {
+      hideSaveButton();
     }
   }
 });
