@@ -149,7 +149,8 @@ Every push to `main` that touches `server/` runs `.github/workflows/api-image.ym
 test → build and push `ghcr.io/crimsonmartin/clinker-api:sha-<short sha>` → deploy → smoke test.
 
 The deploy job SSHes to the node as `clinker-deploy` with the `HETZNER_DEPLOY_KEY` secret
-(host key pinned by `HETZNER_KNOWN_HOSTS`). On the server that key is limited to
+(host key pinned by `HETZNER_KNOWN_HOSTS`). Both live in the GitHub `production` environment,
+which only the `main` branch can use, and only `main` builds `sha-*` images. On the server that key is limited to
 `restrict,command="/usr/local/bin/clinker-deploy"` in `~clinker-deploy/.ssh/authorized_keys`.
 The script only accepts `sha-<hex>`, runs `kubectl set image` with the `ci-deployer`
 service account (a Role in `clinker` that can only patch `deployment/clinker-api` and read
@@ -157,3 +158,14 @@ replicasets and pods), waits for the rollout, and runs `kubectl rollout undo` if
 
 Only the image tag is deployed automatically. Changes to the manifests in `deploy/k8s` still
 need `kubectl apply -k deploy/k8s` run by hand.
+
+## Network hardening
+
+- `ingress.yaml` allows only Cloudflare's IP ranges (`whitelist-source-range`), so the origin
+  can't be hit directly to bypass Cloudflare or the app's rate limits. If Cloudflare publishes
+  new ranges (https://www.cloudflare.com/ips/), update the list there and in `server/src`.
+- `api-networkpolicy.yaml` limits the API pod's outbound traffic to DNS, its Postgres and
+  HTTPS to public addresses (no cluster, node, private or metadata-service addresses).
+
+Apply manifest changes with `kubectl apply -k deploy/k8s` (keep `newTag` at the running image,
+or the apply rolls the API back).

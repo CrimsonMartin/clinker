@@ -26,8 +26,9 @@ The extension syncs with a self-hosted API (contract: `docs/API.md`, code: `serv
 
 ### Chrome Web Store Secrets
 
-1. Go to your GitHub repository → Settings → Secrets and variables → Actions
-2. Add the following secrets:
+1. Go to your GitHub repository → Settings → Environments → `stores` (restricted to the `main` branch)
+2. Add the following as **environment secrets** (not repository secrets, so other branches can't read them):
+   `gh secret set NAME --env stores -R CrimsonMartin/clinker`
 
 | Secret Name | Description | How to get |
 |-------------|-------------|------------|
