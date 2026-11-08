@@ -7,7 +7,7 @@ name: Extension
 # (e.g. 2.0.37), so every publish has a unique, increasing version without bump commits.
 # To start a new minor/major line, change manifest.json's version (e.g. to 2.1.0).
 #
-# Secrets: CHROME_EXTENSION_ID, CHROME_PUBLISHER_ID, CHROME_CLIENT_ID,
+# Secrets: CHROME_EXTENSION_ID, CHROME_CLIENT_ID,
 #          CHROME_CLIENT_SECRET, CHROME_REFRESH_TOKEN, FIREFOX_API_KEY, FIREFOX_API_SECRET
 # Variables (optional): API_BASE_URL, DONATION_URL
 
@@ -126,8 +126,7 @@ jobs:
       - run: node scripts/store-check.mjs ${{ matrix.store }}
         env:
           CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
-          CHROME_PUBLISHER_ID: ${{ secrets.CHROME_PUBLISHER_ID }}
-          CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+              CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
           CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
           CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
           FIREFOX_API_KEY: ${{ secrets.FIREFOX_API_KEY }}
@@ -144,7 +143,6 @@ jobs:
       cancel-in-progress: false
     env:
       CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
-      CHROME_PUBLISHER_ID: ${{ secrets.CHROME_PUBLISHER_ID }}
       CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
       CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
       CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
@@ -161,13 +159,7 @@ jobs:
         with:
           name: chrome-${{ needs.build.outputs.version }}
       - name: Upload and publish ${{ needs.build.outputs.version }} to Chrome Web Store
-        env:
-          EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
-          PUBLISHER_ID: ${{ secrets.CHROME_PUBLISHER_ID }}
-          CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
-          CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
-          REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
-        run: npx chrome-webstore-upload --source citation-linker-chrome.zip
+        run: node scripts/chrome-store.mjs publish citation-linker-chrome.zip
 
   publish-firefox:
     needs: build
