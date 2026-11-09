@@ -53,6 +53,14 @@ const at = await token();
 if (cmd === 'check') {
   const item = await call(`${API}/${id}?projection=DRAFT`, {}, at);
   console.log(`Chrome Web Store OK — item found, current version ${item.crxVersion}, upload state ${item.uploadState}.`);
+  // Read-only view of what the public sees: the published item and the public listing page.
+  const pubRes = await fetch(`${API}/${id}?projection=PUBLISHED`, { headers: { Authorization: `Bearer ${at}`, 'x-goog-api-version': '2' } });
+  const pubItem = await pubRes.json().catch(() => ({}));
+  console.log(pubRes.ok && pubItem.crxVersion
+    ? `Chrome published version: ${pubItem.crxVersion}`
+    : `Chrome published version: none yet (${pubRes.status} ${pubItem.error?.message || ''})`.trim());
+  const page = await fetch(`https://chromewebstore.google.com/detail/${id}`, { redirect: 'follow' });
+  console.log(`Chrome public listing page: HTTP ${page.status}${page.ok ? ' (live)' : ' (not public yet)'}`);
 } else if (cmd === 'publish') {
   if (!file) fail('usage: chrome-store.mjs publish <file.zip>');
   let item = await call(`${UPLOAD}/${id}?uploadType=media`, { method: 'PUT', body: fs.readFileSync(file) }, at);

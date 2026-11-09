@@ -26,9 +26,9 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: "Publish to which stores"
+        description: "Publish to which stores (status = read-only review/listing check)"
         type: choice
-        options: [both, chrome, firefox, none]
+        options: [both, chrome, firefox, none, status]
         default: both
 
 permissions:
@@ -180,3 +180,32 @@ jobs:
           --upload-source-code artifact/source-code.zip
           --amo-metadata store/amo-metadata.json
           --approval-timeout 0
+
+  # Read-only: reports review/listing state in both stores. Publishes nothing.
+  store-status:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish == 'status'
+    runs-on: ubuntu-latest
+    environment: stores
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          sparse-checkout: |
+            scripts
+            manifest.json
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Chrome Web Store status
+        env:
+          CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+        run: node scripts/chrome-store.mjs check
+      - name: Firefox Add-ons status
+        if: always()
+        env:
+          FIREFOX_API_KEY: ${{ secrets.FIREFOX_API_KEY }}
+          FIREFOX_API_SECRET: ${{ secrets.FIREFOX_API_SECRET }}
+        run: node scripts/store-check.mjs firefox
