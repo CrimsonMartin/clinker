@@ -55,6 +55,13 @@ async function checkFirefox() {
   if (!res.ok) fail(`AMO API error ${res.status}: ${JSON.stringify(body)}`);
   console.log(`AMO add-on ${id}: slug=${body.slug} status=${body.status} ` +
     `current listed version=${body.current_version?.version ?? 'none'} disabled_by_user=${body.is_disabled}`);
+  const vres = await fetch(`https://addons.mozilla.org/api/v5/addons/addon/${encodeURIComponent(id)}/versions/?filter=all_with_unlisted&page_size=3`, {
+    headers: { Authorization: `JWT ${amoJwt(process.env.FIREFOX_API_KEY, process.env.FIREFOX_API_SECRET)}` },
+  });
+  const vbody = await vres.json().catch(() => ({}));
+  for (const v of vbody.results || []) {
+    console.log(`AMO version ${v.version}: channel=${v.channel} file status=${v.file?.status ?? '?'}`);
+  }
 }
 
 if (target === 'chrome') await checkChrome();
